@@ -1,0 +1,35 @@
+// electron-builder config for FrameUI's unsigned V1 proof-of-concept
+// builds (spec §29-30). Signing credentials are intentionally NOT
+// required to produce these — `sign: null`/`identity: null` below is the
+// documented, deliberate choice for this build, not an oversight. When
+// FrameUI moves toward public distribution, replace the mac `sign` block
+// with a Developer ID Application certificate + notarization credentials,
+// and add a Windows code-signing method — the architecture doesn't need
+// to change, only these credentials.
+{
+  appId: 'com.frameui.app',
+  productName: 'FrameUI',
+  directories: {
+    output: 'release',
+    buildResources: 'build',
+  },
+  files: [
+    'dist/**/*',
+    'dist-electron/**/*',
+    'package.json',
+  ],
+  mac: {
+    target: [{ target: 'dmg', arch: ['arm64', 'x64'] }],
+    category: 'public.app-category.developer-tools',
+    sign: false,
+    hardenedRuntime: false,
+  },
+  win: {
+    target: [{ target: 'nsis', arch: ['x64'] }],
+    sign: null,
+  },
+  nsis: {
+    oneClick: false,
+    allowToChangeInstallationDirectory: true,
+  },
+}

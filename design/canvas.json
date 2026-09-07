@@ -1,0 +1,12 @@
+{
+  "artboards": [
+    { "file": "OpenProject.dc.html", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "1. Open Project" },
+    { "file": "ProjectSummary.dc.html", "x": 1520, "y": 0, "w": 1440, "h": 900, "title": "2. Project Summary" },
+    { "file": "FlowWorkspace.dc.html", "x": 3040, "y": 0, "w": 1440, "h": 900, "title": "3. Flow Workspace" },
+    { "file": "Main.dc.html", "x": 4560, "y": 0, "w": 1440, "h": 900, "title": "4. Screen Designer" },
+    { "file": "ResponsiveCheck.dc.html", "x": 0, "y": 1020, "w": 1440, "h": 900, "title": "5. Responsive Check" },
+    { "file": "PreviewMode.dc.html", "x": 1520, "y": 1020, "w": 1440, "h": 900, "title": "6. Preview Mode" },
+    { "file": "ExportPanel.dc.html", "x": 3040, "y": 1020, "w": 1440, "h": 900, "title": "7. Export & Figma Handoff" }
+  ],
+  "launch": { "view": "focused", "file": "Main.dc.html" }
+}

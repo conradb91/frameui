@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Inter',system-ui,-apple-system,sans-serif; background:#050506; color:rgba(255,255,255,0.92); -webkit-font-smoothing:antialiased; }
+  .mono { font-family:'JetBrains Mono',ui-monospace,monospace; }
+</style>
+</helmet>
+<div style="width:1440px;height:900px;background:#050506;position:relative;overflow:hidden;">
+
+  <div style="position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,0.028) 1px, transparent 1px);background-size:26px 26px;"></div>
+  <div style="position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:1000px;height:500px;background:radial-gradient(ellipse, rgba(124,106,242,0.14), transparent 70%);"></div>
+
+  <!-- Top minimal chrome -->
+  <div style="position:absolute;top:20px;left:24px;display:flex;align-items:center;gap:8px;background:rgba(20,20,23,0.8);border:1px solid rgba(255,255,255,0.09);border-radius:999px;padding:7px 14px;backdrop-filter:blur(6px);">
+    <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M2 10C2 10 5 4.5 10 4.5C15 4.5 18 10 18 10C18 10 15 15.5 10 15.5C5 15.5 2 10 2 10Z" stroke="#8F80FF" stroke-width="1.5"/><circle cx="10" cy="10" r="2.4" stroke="#8F80FF" stroke-width="1.5"/></svg>
+    <span style="font-size:12px;font-weight:600;color:#C9BFFF;">Preview Mode</span>
+    <span class="mono" style="font-size:10.5px;color:rgba(255,255,255,0.32);border-left:1px solid rgba(255,255,255,0.1);padding-left:8px;margin-left:2px;">Desktop · 1024px</span>
+  </div>
+
+  <div style="position:absolute;top:20px;right:24px;display:flex;align-items:center;gap:6px;background:rgba(20,20,23,0.8);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:7px 14px;backdrop-filter:blur(6px);color:rgba(255,255,255,0.75);font-size:12px;font-weight:600;cursor:pointer;">
+    Exit Preview
+    <span class="mono" style="font-size:10px;color:rgba(255,255,255,0.35);border:1px solid rgba(255,255,255,0.14);border-radius:4px;padding:1px 5px;margin-left:3px;">Esc</span>
+  </div>
+
+  <!-- Rendered screen, clean -->
+  <div style="position:absolute;top:88px;left:50%;transform:translateX(-50%);width:1040px;height:730px;background:#0B1220;border-radius:14px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;box-shadow:0 40px 90px -20px rgba(0,0,0,0.75);">
+
+    <div style="height:56px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;padding:0 28px;">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <div style="width:22px;height:22px;border-radius:6px;background:#7C6AF2;"></div>
+        <span style="font-size:14px;font-weight:700;color:#fff;">Acme</span>
+      </div>
+      <div style="font-size:12.5px;color:rgba(255,255,255,0.4);">Already have an account? <span style="color:#A79BFF;font-weight:500;">Log in</span></div>
+    </div>
+
+    <div style="position:absolute;top:150px;left:50%;transform:translateX(-50%);width:420px;background:#111928;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:36px;">
+      <div style="font-size:22px;font-weight:700;color:#fff;margin-bottom:6px;">Create your account</div>
+      <div style="font-size:13.5px;color:rgba(255,255,255,0.45);margin-bottom:24px;">Start building in minutes. No credit card required.</div>
+
+      <div style="display:flex;gap:10px;margin-bottom:20px;">
+        <div style="flex:1;height:40px;border-radius:9px;border:1px solid rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);">Google</div>
+        <div style="flex:1;height:40px;border-radius:9px;border:1px solid rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);">GitHub</div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+        <div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>
+        <span style="font-size:11px;color:rgba(255,255,255,0.3);">or</span>
+        <div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>
+      </div>
+
+      <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:7px;">Email</div>
+      <div style="height:40px;border-radius:9px;border:1px solid rgba(255,255,255,0.14);margin-bottom:16px;display:flex;align-items:center;padding:0 13px;font-size:13.5px;color:rgba(255,255,255,0.3);">you@company.com</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:7px;">Password</div>
+      <div style="height:40px;border-radius:9px;border:1px solid rgba(255,255,255,0.14);margin-bottom:24px;display:flex;align-items:center;padding:0 13px;font-size:13.5px;color:rgba(255,255,255,0.3);">••••••••••</div>
+
+      <div style="height:44px;border-radius:10px;background:linear-gradient(180deg,#8676F4,#7461EE);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff;box-shadow:0 10px 24px -8px rgba(124,106,242,0.55);">Create Account</div>
+    </div>
+  </div>
+
+  <!-- Floating flow navigation -->
+  <div style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;background:rgba(20,20,23,0.85);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:9px 12px 9px 9px;backdrop-filter:blur(8px);box-shadow:0 16px 40px -12px rgba(0,0,0,0.6);">
+    <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:rgba(255,255,255,0.6);padding:7px 12px;border-radius:999px;">
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M12.5 5L7.5 10L12.5 15" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> Back
+    </div>
+
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);"></span>
+      <span style="width:16px;height:6px;border-radius:3px;background:#8F80FF;"></span>
+      <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);"></span>
+      <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);"></span>
+      <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);"></span>
+      <span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);"></span>
+    </div>
+
+    <div style="font-size:12px;color:rgba(255,255,255,0.4);white-space:nowrap;">Sign Up <span class="mono" style="color:rgba(255,255,255,0.3);">2/6</span></div>
+
+    <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#fff;background:linear-gradient(180deg,#8676F4,#7461EE);padding:7px 14px;border-radius:999px;white-space:nowrap;">
+      Continue: Verify Email <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M7.5 5L12.5 10L7.5 15" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

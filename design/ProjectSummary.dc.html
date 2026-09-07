@@ -1,0 +1,206 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Inter',system-ui,-apple-system,sans-serif; background:#0A0A0C; color:rgba(255,255,255,0.92); -webkit-font-smoothing:antialiased; }
+  .mono { font-family:'JetBrains Mono',ui-monospace,monospace; }
+  a { color:#8F80FF; text-decoration:none; }
+  ::-webkit-scrollbar { width:9px; height:9px; }
+  ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:8px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  .btn { display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:8px; font-size:13px; font-weight:600; border:1px solid rgba(255,255,255,0.1); background:#17171B; color:rgba(255,255,255,0.85); cursor:pointer; }
+  .btn-primary { background:linear-gradient(180deg,#8676F4,#7461EE); border-color:#8676F4; color:#fff; box-shadow:0 0 0 1px rgba(124,106,242,0.5), 0 8px 20px -6px rgba(124,106,242,0.55); }
+  .stat { background:#111114; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; }
+  .row:hover { background:rgba(255,255,255,0.03); }
+</style>
+</helmet>
+<div style="width:1440px;height:900px;background:#0A0A0C;position:relative;overflow:hidden;display:flex;flex-direction:column;">
+
+  <!-- Top bar -->
+  <div style="height:52px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid rgba(255,255,255,0.07);background:#0C0C0E;">
+    <div style="display:flex;align-items:center;gap:9px;">
+      <div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(155deg,#9385FF,#6C58E8);display:flex;align-items:center;justify-content:center;">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M4 4H16V8.5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 4V16" stroke="white" stroke-width="1.8" stroke-linecap="round"/><path d="M4 10.5H11" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </div>
+      <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.5);">Frameflow</span>
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="none" style="margin:0 2px;"><path d="M7.5 5L12.5 10L7.5 15" stroke="rgba(255,255,255,0.25)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="mono" style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.92);">acme-web</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <span style="font-size:12.5px;color:rgba(255,255,255,0.45);cursor:pointer;">Change Project</span>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <div style="padding:34px 56px 22px 56px;flex:0 0 auto;display:flex;align-items:flex-end;justify-content:space-between;">
+    <div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);color:#34D399;">
+          <span style="width:6px;height:6px;border-radius:50%;background:#34D399;"></span> Supported
+        </span>
+        <span style="font-size:12px;color:rgba(255,255,255,0.36);">Scanned 1,842 files in 6.2s</span>
+      </div>
+      <h1 style="font-size:26px;font-weight:700;margin:0;letter-spacing:-0.4px;">Acme Dashboard is ready to design</h1>
+      <p style="font-size:13.5px;color:rgba(255,255,255,0.45);margin:8px 0 0 0;max-width:560px;">Confirm Frameflow understood the repo below, then start a flow using these real components and styles.</p>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn"><svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M4 4H16V16H4V4Z" stroke="currentColor" stroke-width="1.5"/><path d="M4 8H16" stroke="currentColor" stroke-width="1.5"/></svg>Inspect Files</button>
+      <button class="btn btn-primary" style="padding:11px 18px;">
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M10 4V16M4 10H16" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Create Flow
+      </button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div style="flex:1;padding:0 56px 40px 56px;display:flex;gap:24px;overflow:hidden;">
+
+    <!-- Left column -->
+    <div style="width:660px;flex:0 0 auto;display:flex;flex-direction:column;gap:14px;overflow-y:auto;padding-bottom:8px;">
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+        <div class="stat">
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:8px;">Framework</div>
+          <div style="font-size:15px;font-weight:600;">React + TypeScript</div>
+        </div>
+        <div class="stat">
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:8px;">Bundler</div>
+          <div style="font-size:15px;font-weight:600;">Vite 5</div>
+        </div>
+        <div class="stat">
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:8px;">CSS System</div>
+          <div style="font-size:15px;font-weight:600;">Tailwind CSS</div>
+        </div>
+        <div class="stat">
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:8px;">Pages Found</div>
+          <div style="font-size:15px;font-weight:600;">34 pages</div>
+        </div>
+        <div class="stat">
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:8px;">Components</div>
+          <div style="font-size:15px;font-weight:600;">128 components</div>
+        </div>
+        <div class="stat">
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:8px;">Route Style</div>
+          <div style="font-size:15px;font-weight:600;">App Router</div>
+        </div>
+      </div>
+
+      <div class="stat">
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:12px;">Main Colours</div>
+        <div style="display:flex;gap:10px;">
+          <div style="flex:1;"><div style="height:40px;border-radius:8px;background:#7C6AF2;border:1px solid rgba(255,255,255,0.1);"></div><div class="mono" style="font-size:10.5px;color:rgba(255,255,255,0.4);margin-top:6px;">#7C6AF2</div></div>
+          <div style="flex:1;"><div style="height:40px;border-radius:8px;background:#0B1220;border:1px solid rgba(255,255,255,0.1);"></div><div class="mono" style="font-size:10.5px;color:rgba(255,255,255,0.4);margin-top:6px;">#0B1220</div></div>
+          <div style="flex:1;"><div style="height:40px;border-radius:8px;background:#34D399;border:1px solid rgba(255,255,255,0.1);"></div><div class="mono" style="font-size:10.5px;color:rgba(255,255,255,0.4);margin-top:6px;">#34D399</div></div>
+          <div style="flex:1;"><div style="height:40px;border-radius:8px;background:#F5B84B;border:1px solid rgba(255,255,255,0.1);"></div><div class="mono" style="font-size:10.5px;color:rgba(255,255,255,0.4);margin-top:6px;">#F5B84B</div></div>
+          <div style="flex:1;"><div style="height:40px;border-radius:8px;background:#F16565;border:1px solid rgba(255,255,255,0.1);"></div><div class="mono" style="font-size:10.5px;color:rgba(255,255,255,0.4);margin-top:6px;">#F16565</div></div>
+          <div style="flex:1;"><div style="height:40px;border-radius:8px;background:#F5F5F7;border:1px solid rgba(255,255,255,0.1);"></div><div class="mono" style="font-size:10.5px;color:rgba(255,255,255,0.4);margin-top:6px;">#F5F5F7</div></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;">
+        <div class="stat" style="flex:1;">
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:10px;">Radius Scale</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span class="mono" style="font-size:11.5px;padding:5px 10px;border-radius:6px;background:#17171B;border:1px solid rgba(255,255,255,0.09);">4px</span>
+            <span class="mono" style="font-size:11.5px;padding:5px 10px;border-radius:9px;background:#17171B;border:1px solid rgba(255,255,255,0.09);">8px</span>
+            <span class="mono" style="font-size:11.5px;padding:5px 10px;border-radius:12px;background:#17171B;border:1px solid rgba(255,255,255,0.09);">12px</span>
+            <span class="mono" style="font-size:11.5px;padding:5px 10px;border-radius:999px;background:#17171B;border:1px solid rgba(255,255,255,0.09);">full</span>
+          </div>
+        </div>
+        <div class="stat" style="flex:1;">
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:10px;">Breakpoints</div>
+          <div class="mono" style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.9;">sm 640 · md 768<br/>lg 1024 · xl 1280</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right column: pages + components lists -->
+    <div style="flex:1;display:flex;flex-direction:column;gap:14px;min-width:0;">
+
+      <div class="stat" style="flex:1;display:flex;flex-direction:column;min-height:0;padding:0;overflow:hidden;">
+        <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:12.5px;font-weight:600;">Detected Pages</span>
+          <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.35);">34</span>
+        </div>
+        <div style="overflow-y:auto;flex:1;">
+          <div class="row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 3H12L15 6V17H5V3Z" stroke="rgba(255,255,255,0.4)" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            <span style="font-size:13px;flex:1;">Dashboard Home</span>
+            <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.32);">/dashboard</span>
+          </div>
+          <div class="row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 3H12L15 6V17H5V3Z" stroke="rgba(255,255,255,0.4)" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            <span style="font-size:13px;flex:1;">Sign In</span>
+            <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.32);">/login</span>
+          </div>
+          <div class="row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 3H12L15 6V17H5V3Z" stroke="rgba(255,255,255,0.4)" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            <span style="font-size:13px;flex:1;">Create Account</span>
+            <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.32);">/signup</span>
+          </div>
+          <div class="row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 3H12L15 6V17H5V3Z" stroke="rgba(255,255,255,0.4)" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            <span style="font-size:13px;flex:1;">Billing &amp; Plans</span>
+            <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.32);">/settings/billing</span>
+          </div>
+          <div class="row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 3H12L15 6V17H5V3Z" stroke="rgba(255,255,255,0.4)" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            <span style="font-size:13px;flex:1;">Team Members</span>
+            <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.32);">/settings/team</span>
+          </div>
+          <div class="row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 3H12L15 6V17H5V3Z" stroke="rgba(255,255,255,0.4)" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            <span style="font-size:13px;flex:1;">Onboarding Welcome</span>
+            <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.32);">/onboarding</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat" style="flex:1;display:flex;flex-direction:column;min-height:0;padding:0;overflow:hidden;">
+        <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:12.5px;font-weight:600;">Detected Components</span>
+          <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.35);">128</span>
+        </div>
+        <div style="overflow-y:auto;flex:1;">
+          <div class="row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <div style="width:8px;height:8px;border-radius:2px;background:#7C6AF2;"></div>
+            <span style="font-size:13px;flex:1;">Button</span>
+            <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.32);">142 uses</span>
+          </div>
+          <div class="row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <div style="width:8px;height:8px;border-radius:2px;background:#7C6AF2;"></div>
+            <span style="font-size:13px;flex:1;">Card</span>
+            <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.32);">96 uses</span>
+          </div>
+          <div class="row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <div style="width:8px;height:8px;border-radius:2px;background:#7C6AF2;"></div>
+            <span style="font-size:13px;flex:1;">TextInput</span>
+            <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.32);">61 uses</span>
+          </div>
+          <div class="row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;">
+            <div style="width:8px;height:8px;border-radius:2px;background:#7C6AF2;"></div>
+            <span style="font-size:13px;flex:1;">DataTable</span>
+            <span class="mono" style="font-size:11px;color:rgba(255,255,255,0.32);">18 uses</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script data-dc-script>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>
