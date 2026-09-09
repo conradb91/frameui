@@ -25,6 +25,7 @@ import type {
 import type { Viewport } from './types/model/projectModel'
 import type { DesignTreeRecord } from './types/designTreeRecord'
 import type { SharePackageBundle } from './types/sharePackage'
+import type { DesignSystemWorkspaceData, FindingDecision, PreviewCacheEntry, RuntimeComponentRelationship, UserComponentFixture } from './types/designSystem'
 
 /**
  * The complete shape of the narrow, typed bridge the preload script exposes
@@ -169,6 +170,13 @@ export interface FrameUiApi {
     restoreVersion(projectId: string, featureId: string, versionId: string, createdBy: string): Promise<Version>
     duplicateVersion(projectId: string, featureId: string, versionId: string, createdBy: string): Promise<Version>
     compareVersions(projectId: string, featureId: string, leftVersionId: string | null, rightVersionId: string | null): Promise<VersionDifference[]>
+    getDesignSystemData(projectId: string): Promise<DesignSystemWorkspaceData>
+    saveComponentFixture(projectId: string, fixture: UserComponentFixture): Promise<UserComponentFixture>
+    deleteComponentFixture(projectId: string, fixtureId: string): Promise<{ ok: true }>
+    savePreviewCache(projectId: string, entry: PreviewCacheEntry): Promise<PreviewCacheEntry>
+    saveRuntimeRelationships(projectId: string, componentId: string, relationships: RuntimeComponentRelationship[]): Promise<RuntimeComponentRelationship[]>
+    saveFindingDecision(projectId: string, decision: FindingDecision): Promise<FindingDecision>
+    setObservationApproved(projectId: string, observationId: string, approved: boolean): Promise<DesignSystemWorkspaceData>
   }
   project: {
     /** Shows the native folder picker. `relinkId` re-points an existing

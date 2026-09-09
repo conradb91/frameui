@@ -14,7 +14,7 @@ afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursiv
 const setup = () => { const root = fs.mkdtempSync(path.join(os.tmpdir(), 'frameui-work-package-')); roots.push(root); return root }
 const projectId = '9cb7d60d-2a14-47a6-9c59-773e480a32b4'
 const featureId = 'ddcc3bb2-36ab-4a46-ae9d-ec351ab925e7'
-function seedFeature(root: string) { const now = new Date().toISOString(); writeJsonFileAtomic(getFeaturesFile(root, projectId), [{ id: featureId, projectId, name: 'Feature', description: '', status: 'designing', owner: null, reviewers: [], dueDate: null, externalTicketRef: null, pageIds: [], referenceOnlyPageIds: [], newPageIds: [], createdAt: now, updatedAt: now }]) }
+function seedFeature(root: string) { const now = new Date().toISOString(); writeJsonFileAtomic(getFeaturesFile(root, projectId), [{ id: featureId, projectId, name: 'Feature', description: '', status: 'designing', owner: null, reviewers: [], dueDate: null, externalTicketRef: null, pageIds: [], referenceOnlyPageIds: [], newPageIds: [], componentIds: [], createdAt: now, updatedAt: now }]) }
 
 function operation(value: string): DesignOperation {
   return { id: 'operation-stable', revisionId: crypto.randomUUID(), featureId, ownerId: 'state.default', pageRef: { kind: 'existing', pageId: 'page.dashboard' }, designStateId: 'state.default', alternativeId: null, type: 'change-content', targetNodeId: 'title', key: 'title:content', summary: 'Change title text', property: 'content', breakpoint: null, baseValue: 'A', proposedValue: value, node: null, parentId: null, index: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
@@ -55,5 +55,12 @@ describe('Feature work-package persistence', () => {
       featureStore.setFeatureStatus(root, projectId, feature.id, status)
       assert.equal(featureStore.getFeature(root, projectId, feature.id)?.status, status)
     }
+  })
+
+  test('persists a Design System component on the existing Feature model', () => {
+    const root = setup()
+    const feature = featureStore.createFeature(root, projectId, 'Component feature', '')
+    featureStore.saveFeature(root, { ...feature, componentIds: ['component.primary-button'] })
+    assert.deepEqual(featureStore.getFeature(root, projectId, feature.id)?.componentIds, ['component.primary-button'])
   })
 })

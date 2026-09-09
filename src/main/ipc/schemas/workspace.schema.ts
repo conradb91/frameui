@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { designNodeSchema } from './designNode.schema'
+import { capturedElementSchema } from './capture.schema'
 
 // projectId/flowId/screenId are always crypto.randomUUID() values
 // server-side, but they arrive back from the (untrusted) renderer on every
@@ -111,6 +112,7 @@ export const saveFeatureInputSchema = z.object({
   pageIds: z.array(stableIdSchema).max(500),
   referenceOnlyPageIds: z.array(stableIdSchema).max(500),
   newPageIds: z.array(stableIdSchema).max(500),
+  componentIds: z.array(stableIdSchema).max(2000).optional().default([]),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -435,3 +437,16 @@ export const createVersionInputSchema = z.object({ projectId: idSchema, featureI
 export const renameVersionInputSchema = z.object({ projectId: idSchema, featureId: idSchema, versionId: stableIdSchema, name: z.string().min(1).max(120) })
 export const restoreVersionInputSchema = z.object({ projectId: idSchema, featureId: idSchema, versionId: stableIdSchema, createdBy: z.string().max(200) })
 export const compareVersionsInputSchema = z.object({ projectId: idSchema, featureId: idSchema, leftVersionId: stableIdSchema.nullable(), rightVersionId: stableIdSchema.nullable() })
+
+const userFixtureSchema = z.object({ id: looseIdSchema, projectId: idSchema, componentId: stableIdSchema, name: z.string().min(1).max(120), origin: z.enum(['detected', 'captured', 'user-defined']), props: z.record(z.string().max(100), z.string().max(1000)).refine((value) => Object.keys(value).length <= 100), updatedAt: z.string() })
+const sourceReferenceSchema = z.object({ filePath: z.string().min(1).max(2000), line: z.number().int().min(1).optional(), route: z.string().max(2000).optional() })
+const pageStructureSchema: z.ZodType<unknown> = z.lazy(() => z.object({ tagName: z.string().min(1).max(200), isKnownComponent: z.boolean(), sourceFilePath: z.string().max(2000).optional(), sourceLine: z.number().int().min(1).optional(), attributes: z.record(z.string().max(100), z.string().max(2000)).refine((value) => Object.keys(value).length <= 50).optional(), children: z.array(pageStructureSchema).max(500), textPreview: z.string().max(200).optional() }))
+const runtimeRelationshipSchema = z.object({ id: looseIdSchema, componentId: stableIdSchema, captureId: idSchema, pageId: stableIdSchema.nullable(), routePatternId: stableIdSchema.nullable(), viewport: z.object({ width: z.number().min(0).max(20000), height: z.number().min(0).max(20000) }), stateLabel: z.string().max(200), elementPath: z.array(z.number().int().min(0).max(1000)).max(30), sourceReference: sourceReferenceSchema, visualSignature: z.string().max(100) })
+const previewCacheSchema = z.object({ componentId: stableIdSchema, fixtureId: looseIdSchema.nullable(), approach: z.enum(['source', 'context', 'runtime', 'unavailable']), dependencyFingerprint: z.string().max(2000), structure: z.array(pageStructureSchema).max(500).nullable(), runtimeElement: capturedElementSchema.nullable(), runtimeCaptureId: idSchema.nullable(), failureReason: z.string().max(2000).nullable(), updatedAt: z.string() })
+const findingDecisionSchema = z.object({ findingId: looseIdSchema, evidenceSignature: z.string().max(200), status: z.enum(['intentional', 'dismissed']), note: z.string().max(2000), updatedAt: z.string() })
+export const saveComponentFixtureInputSchema = z.object({ projectId: idSchema, fixture: userFixtureSchema })
+export const deleteComponentFixtureInputSchema = z.object({ projectId: idSchema, fixtureId: looseIdSchema })
+export const savePreviewCacheInputSchema = z.object({ projectId: idSchema, entry: previewCacheSchema })
+export const saveRuntimeRelationshipsInputSchema = z.object({ projectId: idSchema, componentId: stableIdSchema, relationships: z.array(runtimeRelationshipSchema).max(500) })
+export const saveFindingDecisionInputSchema = z.object({ projectId: idSchema, decision: findingDecisionSchema })
+export const setObservationApprovedInputSchema = z.object({ projectId: idSchema, observationId: looseIdSchema, approved: z.boolean() })

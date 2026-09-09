@@ -25,6 +25,8 @@ export interface CapturedElement {
    * raw accessibility-relevant attributes, not a computed accessible
    * name/role (spec §3 "ARIA information"). Omitted when none are present. */
   aria?: Record<string, string>
+  /** Safe framework/devtool hint when the application exposes one. */
+  componentHint?: string
   children: CapturedElement[]
 }
 

@@ -8,6 +8,7 @@ import type { SourceReference } from '@shared/types/model/sourceReference'
 import type { Area, Component, Diagnostic, Interaction, Page, ProjectModel, RoutePattern, Token, TokenCategory } from '@shared/types/model/projectModel'
 import { extractPageStructureFromSource } from '@core/adapters/markup/extractPageStructure'
 import { IdRegistry } from './id'
+import { analyseDesignSystem } from '@core/design-system/analyseDesignSystem'
 
 const MAX_ANALYSED_PAGES = 500
 
@@ -181,6 +182,7 @@ export function buildProjectModel(
   detectedPages: DetectedPage[],
   detectedComponents: DetectedComponent[],
   styleTokens: StyleTokens,
+  framework = 'unknown',
 ): ProjectModel {
   const registry = new IdRegistry()
   const knownNames = new Set(detectedComponents.map((component) => component.name))
@@ -285,6 +287,7 @@ export function buildProjectModel(
 
   const tokens = styleTokensToModel(styleTokens, registry)
   const tokenSource = styleTokens.source
+  const designSystem = analyseDesignSystem(rootPath, pages, components, tokens, framework)
   const layouts = components.filter((component) => /(?:^|\/)(?:layouts?|shells?)(?:\/|$)/i.test(component.source.filePath)).length
   return {
     version: 1,
@@ -300,6 +303,7 @@ export function buildProjectModel(
     assets: [],
     interactions,
     diagnostics,
+    designSystem,
     statistics: {
       pages: pages.length,
       components: components.length,

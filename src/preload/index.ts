@@ -84,6 +84,13 @@ const api: FrameUiApi = {
     restoreVersion: (projectId, featureId, versionId, createdBy) => ipcRenderer.invoke('workspace:restoreVersion', { projectId, featureId, versionId, createdBy }),
     duplicateVersion: (projectId, featureId, versionId, createdBy) => ipcRenderer.invoke('workspace:duplicateVersion', { projectId, featureId, versionId, createdBy }),
     compareVersions: (projectId, featureId, leftVersionId, rightVersionId) => ipcRenderer.invoke('workspace:compareVersions', { projectId, featureId, leftVersionId, rightVersionId }),
+    getDesignSystemData: (projectId) => ipcRenderer.invoke('workspace:getDesignSystemData', projectId),
+    saveComponentFixture: (projectId, fixture) => ipcRenderer.invoke('workspace:saveComponentFixture', { projectId, fixture }),
+    deleteComponentFixture: (projectId, fixtureId) => ipcRenderer.invoke('workspace:deleteComponentFixture', { projectId, fixtureId }),
+    savePreviewCache: (projectId, entry) => ipcRenderer.invoke('workspace:savePreviewCache', { projectId, entry }),
+    saveRuntimeRelationships: (projectId, componentId, relationships) => ipcRenderer.invoke('workspace:saveRuntimeRelationships', { projectId, componentId, relationships }),
+    saveFindingDecision: (projectId, decision) => ipcRenderer.invoke('workspace:saveFindingDecision', { projectId, decision }),
+    setObservationApproved: (projectId, observationId, approved) => ipcRenderer.invoke('workspace:setObservationApproved', { projectId, observationId, approved }),
   },
   project: {
     openDialog: (relinkId) => ipcRenderer.invoke('project:openDialog', relinkId),

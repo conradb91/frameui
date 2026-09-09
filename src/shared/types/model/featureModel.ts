@@ -46,6 +46,9 @@ export interface Feature {
    * (spec Phase 16) — ids into the separate `FeaturePage` store, kept out
    * of `pageIds` since those are real `ProjectModel.Page` ids. */
   newPageIds: string[]
+  /** Source ProjectModel components explicitly associated from Design
+   * System. This is a reference list, never a copied component model. */
+  componentIds: string[]
   createdAt: string
   updatedAt: string
 }
@@ -349,7 +352,7 @@ export interface Version {
 }
 
 export interface FeatureVersionManifest {
-  feature: Pick<Feature, 'name' | 'description' | 'status' | 'owner' | 'reviewers' | 'dueDate' | 'externalTicketRef' | 'pageIds' | 'referenceOnlyPageIds' | 'newPageIds'>
+  feature: Pick<Feature, 'name' | 'description' | 'status' | 'owner' | 'reviewers' | 'dueDate' | 'externalTicketRef' | 'pageIds' | 'referenceOnlyPageIds' | 'newPageIds' | 'componentIds'>
   designStates: DesignState[]
   alternatives: Alternative[]
   conceptComponents: ConceptComponent[]

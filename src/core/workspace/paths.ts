@@ -126,6 +126,12 @@ export function getFeatureWorkPackagesFile(userDataPath: string, projectId: stri
   return path.join(dir, `${projectId}.json`)
 }
 
+export function getDesignSystemWorkspaceFile(userDataPath: string, projectId: string): string {
+  const dir = path.join(getWorkspaceRoot(userDataPath), 'design-system')
+  fs.mkdirSync(dir, { recursive: true })
+  return path.join(dir, `${projectId}.json`)
+}
+
 /** One directory per share preview for its packaged, review-safe bundle
  * (HTML/JSON/assets) — binary/large content doesn't belong embedded in
  * getSharePreviewsFile's JSON array. */

@@ -35,6 +35,7 @@ export const CAPTURE_SCRIPT = `
   ]
 
   function textPreviewOf(el) {
+    if (el.matches && el.matches('input,textarea,select,[contenteditable="true"]')) return undefined
     var text = ''
     for (var i = 0; i < el.childNodes.length; i++) {
       var node = el.childNodes[i]
@@ -42,6 +43,7 @@ export const CAPTURE_SCRIPT = `
     }
     text = text.replace(/\\s+/g, ' ').trim()
     if (!text) return undefined
+    if (/(?:bearer\\s+[a-z0-9._-]+|api[_-]?key|password|secret|card\\s*number|\\b\\d{13,19}\\b)/i.test(text)) return '[redacted]'
     return text.length > MAX_TEXT_PREVIEW ? text.slice(0, MAX_TEXT_PREVIEW) + '…' : text
   }
 
@@ -63,11 +65,11 @@ export const CAPTURE_SCRIPT = `
     var attrs = el.attributes
     for (var i = 0; i < attrs.length; i++) {
       var attr = attrs[i]
-      if (attr.name.indexOf('aria-') === 0) aria[attr.name] = attr.value
+      if (attr.name.indexOf('aria-') === 0 && !/(?:value|token|secret)/i.test(attr.name)) aria[attr.name] = /(?:bearer\\s+|api[_-]?key|password|secret|card\\s*number|\\b\\d{13,19}\\b)/i.test(attr.value) ? '[redacted]' : attr.value
     }
     if (el.tagName === 'IMG') {
       var alt = el.getAttribute('alt')
-      if (alt !== null) aria.alt = alt
+      if (alt !== null) aria.alt = /(?:bearer\\s+|api[_-]?key|password|secret|card\\s*number|\\b\\d{13,19}\\b)/i.test(alt) ? '[redacted]' : alt
     }
     return Object.keys(aria).length > 0 ? aria : undefined
   }
@@ -87,7 +89,6 @@ export const CAPTURE_SCRIPT = `
       var classes = typeof el.className === 'string' && el.className ? el.className : undefined
       return {
         tag: el.tagName.toLowerCase(),
-        id: el.id || undefined,
         classes: classes,
         textPreview: children.length === 0 ? textPreviewOf(el) : undefined,
         rect: {
@@ -98,6 +99,7 @@ export const CAPTURE_SCRIPT = `
         },
         styles: stylesOf(computed),
         aria: ariaOf(el),
+        componentHint: el.getAttribute('data-component') || el.getAttribute('data-frameui-component') || undefined,
         children: children,
       }
     } catch (err) {

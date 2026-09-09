@@ -22,6 +22,7 @@ function readAll(userDataPath: string, projectId: string): Feature[] {
     pageIds: feature.pageIds ?? [],
     referenceOnlyPageIds: feature.referenceOnlyPageIds ?? [],
     newPageIds: feature.newPageIds ?? [],
+    componentIds: feature.componentIds ?? [],
   }))
 }
 
@@ -52,6 +53,7 @@ export function createFeature(userDataPath: string, projectId: string, name: str
     pageIds: [],
     referenceOnlyPageIds: [],
     newPageIds: [],
+    componentIds: [],
     createdAt: now,
     updatedAt: now,
   }

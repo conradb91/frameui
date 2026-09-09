@@ -39,6 +39,7 @@ export const capturedElementSchema: z.ZodType<unknown> = z.lazy(() =>
     rect: rectSchema,
     styles: stylesSchema,
     aria: ariaSchema.optional(),
+    componentHint: z.string().max(200).optional(),
     children: z.array(capturedElementSchema).max(1000),
   }),
 )

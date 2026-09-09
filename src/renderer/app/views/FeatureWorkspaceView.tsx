@@ -646,11 +646,11 @@ export function FeatureWorkspaceView() {
               <div className="mb-4 flex items-baseline justify-between">
                 <h2 className="text-[15px] font-semibold text-text">Project Component Library</h2>
                 <span className="font-mono text-[10px] text-text-3">
-                  {featureComponentList(projectModel, designPages).length} used by this feature's pages · {projectModel?.components.length ?? 0} total
+                  {featureComponentList(projectModel, designPages, feature.componentIds).length} linked to this feature · {projectModel?.components.length ?? 0} total
                 </span>
               </div>
               <ComponentLibraryPanel
-                components={projectModel?.components ?? []}
+                components={featureComponentsFirst(projectModel, feature.componentIds)}
                 pages={projectModel?.pages ?? []}
                 activeProjectId={activeProject.id}
                 onInsert={handleInsertComponent}
@@ -745,10 +745,17 @@ function FeatureMetadataEditor({ feature, onSave }: { feature: Feature; onSave: 
   return <div className="space-y-3"><div className="text-[10px] font-semibold uppercase tracking-wide text-text-3">Feature handoff</div><label className="block text-[10px] text-text-3">Owner<input value={owner} onChange={(e) => setOwner(e.target.value)} onBlur={() => void commit()} className={inputClass}/></label><label className="block text-[10px] text-text-3">Reviewers<input value={reviewers} onChange={(e) => setReviewers(e.target.value)} onBlur={() => void commit()} placeholder="Comma separated" className={inputClass}/></label><label className="block text-[10px] text-text-3">Due date<input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} onBlur={() => void commit()} className={inputClass}/></label><label className="block text-[10px] text-text-3">External ticket<input value={ticket} onChange={(e) => setTicket(e.target.value)} onBlur={() => void commit()} placeholder="e.g. APP-142" className={inputClass}/></label><div className="border-t border-border pt-2 text-[9.5px] text-text-3">Created {new Date(feature.createdAt).toLocaleDateString()}<br/>Updated {new Date(feature.updatedAt).toLocaleString()}</div></div>
 }
 
-function featureComponentList(projectModel: ProjectModel | null, pages: Page[]): Component[] {
+function featureComponentList(projectModel: ProjectModel | null, pages: Page[], explicitlyAdded: string[] = []): Component[] {
   if (!projectModel) return []
   const names = new Set(pages.flatMap((p) => p.componentNames))
-  return projectModel.components.filter((c) => names.has(c.name))
+  const ids = new Set(explicitlyAdded)
+  return projectModel.components.filter((c) => names.has(c.name) || ids.has(c.id))
+}
+
+function featureComponentsFirst(projectModel: ProjectModel | null, explicitlyAdded: string[]): Component[] {
+  if (!projectModel) return []
+  const ids = new Set(explicitlyAdded)
+  return [...projectModel.components].sort((left, right) => Number(ids.has(right.id)) - Number(ids.has(left.id)))
 }
 
 function PageRow({ page, selected, onClick, reference }: { page: Page; selected: boolean; onClick: () => void; reference?: boolean }) {

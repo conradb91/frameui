@@ -106,7 +106,7 @@ function buildManifest(userDataPath: string, projectId: string, featureId: strin
   if (!feature) throw new Error(`Feature ${featureId} not found`)
   const designStates = designStateStore.listDesignStatesForFeature(userDataPath, projectId, featureId)
   return {
-    feature: { name: feature.name, description: feature.description, status: feature.status, owner: feature.owner, reviewers: feature.reviewers, dueDate: feature.dueDate, externalTicketRef: feature.externalTicketRef, pageIds: feature.pageIds, referenceOnlyPageIds: feature.referenceOnlyPageIds, newPageIds: feature.newPageIds },
+    feature: { name: feature.name, description: feature.description, status: feature.status, owner: feature.owner, reviewers: feature.reviewers, dueDate: feature.dueDate, externalTicketRef: feature.externalTicketRef, pageIds: feature.pageIds, referenceOnlyPageIds: feature.referenceOnlyPageIds, newPageIds: feature.newPageIds, componentIds: feature.componentIds },
     designStates,
     alternatives: designStates.flatMap((state) => alternativeStore.listAlternativesForState(userDataPath, projectId, state.id)),
     conceptComponents: conceptComponentStore.listConceptComponents(userDataPath, projectId, featureId),

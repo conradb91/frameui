@@ -1,5 +1,6 @@
 import type { SourceReference } from './sourceReference'
 import type { PageStructureItem } from '../pageStructure'
+import type { DesignSystemModel } from '../designSystem'
 
 /**
  * The auto-derived, read-only "Project Model" (Design Model spec §0,
@@ -141,6 +142,9 @@ export interface ProjectModel {
   assets: Asset[]
   interactions: Interaction[]
   diagnostics: Diagnostic[]
+  /** Phase 30-33 source-derived product UI intelligence. Optional keeps
+   * persisted/pre-upgrade indexes readable until their next reindex. */
+  designSystem?: DesignSystemModel
   statistics: {
     pages: number
     components: number

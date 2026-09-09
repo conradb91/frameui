@@ -19,6 +19,8 @@ import * as sharePreviewStore from '@core/workspace/models/sharePreviewStore'
 import * as featureWorkPackageStore from '@core/workspace/models/featureWorkPackageStore'
 import { buildSharePackage, readSharePackage, type SharePackageBundle } from '@core/design-model/sharePackage'
 import { applyDesignOperations } from '@core/design-model/operations'
+import * as designSystemStore from '@core/workspace/models/designSystemStore'
+import type { FindingDecision, PreviewCacheEntry, RuntimeComponentRelationship, UserComponentFixture } from '@shared/types/designSystem'
 import {
   projectIdSchema,
   createFlowInputSchema,
@@ -75,6 +77,12 @@ import {
   renameVersionInputSchema,
   restoreVersionInputSchema,
   compareVersionsInputSchema,
+  saveComponentFixtureInputSchema,
+  deleteComponentFixtureInputSchema,
+  savePreviewCacheInputSchema,
+  saveRuntimeRelationshipsInputSchema,
+  saveFindingDecisionInputSchema,
+  setObservationApprovedInputSchema,
 } from '../schemas/workspace.schema'
 
 const { app, ipcMain } = electron
@@ -414,4 +422,11 @@ export function registerWorkspaceHandlers(): void {
     const { projectId, featureId, leftVersionId, rightVersionId } = compareVersionsInputSchema.parse(raw)
     return featureWorkPackageStore.compareVersions(app.getPath('userData'), projectId, featureId, leftVersionId, rightVersionId)
   })
+  ipcMain.handle('workspace:getDesignSystemData', (_event, rawProjectId) => designSystemStore.getData(app.getPath('userData'), projectIdSchema.parse(rawProjectId)))
+  ipcMain.handle('workspace:saveComponentFixture', (_event, raw): UserComponentFixture => { const { projectId, fixture } = saveComponentFixtureInputSchema.parse(raw); return designSystemStore.saveFixture(app.getPath('userData'), projectId, fixture as UserComponentFixture) })
+  ipcMain.handle('workspace:deleteComponentFixture', (_event, raw): { ok: true } => { const { projectId, fixtureId } = deleteComponentFixtureInputSchema.parse(raw); designSystemStore.deleteFixture(app.getPath('userData'), projectId, fixtureId); return { ok: true } })
+  ipcMain.handle('workspace:savePreviewCache', (_event, raw): PreviewCacheEntry => { const { projectId, entry } = savePreviewCacheInputSchema.parse(raw); return designSystemStore.savePreviewCache(app.getPath('userData'), projectId, entry as PreviewCacheEntry) })
+  ipcMain.handle('workspace:saveRuntimeRelationships', (_event, raw): RuntimeComponentRelationship[] => { const { projectId, componentId, relationships } = saveRuntimeRelationshipsInputSchema.parse(raw); return designSystemStore.saveRuntimeRelationships(app.getPath('userData'), projectId, componentId, relationships as RuntimeComponentRelationship[]) })
+  ipcMain.handle('workspace:saveFindingDecision', (_event, raw): FindingDecision => { const { projectId, decision } = saveFindingDecisionInputSchema.parse(raw); return designSystemStore.saveFindingDecision(app.getPath('userData'), projectId, decision as FindingDecision) })
+  ipcMain.handle('workspace:setObservationApproved', (_event, raw) => { const { projectId, observationId, approved } = setObservationApprovedInputSchema.parse(raw); return designSystemStore.setObservationApproved(app.getPath('userData'), projectId, observationId, approved) })
 }

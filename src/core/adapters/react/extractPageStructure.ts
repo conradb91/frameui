@@ -92,7 +92,7 @@ function textPreviewOf(node: Node): string | undefined {
  * project's own indexer found) or `locked` (anything else — native DOM tags
  * included) placeholder, in its real position in the tree, never executed.
  */
-export function extractPageStructure(content: string, ext: string, knownComponentNames: Set<string>): PageStructureItem[] {
+export function extractPageStructure(content: string, ext: string, knownComponentNames: Set<string>, includeRoot = false): PageStructureItem[] {
   const project = new Project({ useInMemoryFileSystem: false, skipFileDependencyResolution: true })
   const sourceFile = project.createSourceFile(`page-scan${ext}`, content, { overwrite: true, scriptKind: scriptKindFor(ext) })
 
@@ -137,6 +137,10 @@ export function extractPageStructure(content: string, ext: string, knownComponen
   }
 
   const items: PageStructureItem[] = []
+  if (includeRoot) {
+    const item = buildItem(root, 0)
+    return item ? [item] : []
+  }
   for (const child of directJsxChildren(root)) {
     const item = buildItem(child, 1)
     if (item) items.push(item)

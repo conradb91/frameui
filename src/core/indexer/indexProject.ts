@@ -51,7 +51,7 @@ export function indexProject(projectId: string, rootPath: string, onProgress?: (
 
   const styleTokens = resolveStyleTokens(rootPath, pkg)
   onProgress?.('tokens')
-  const projectModel = buildProjectModel(projectId, rootPath, pages, components, styleTokens)
+  const projectModel = buildProjectModel(projectId, rootPath, pages, components, styleTokens, match.phpFramework ?? match.framework)
   onProgress?.('model')
 
   const supportLevel =

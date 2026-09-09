@@ -15,9 +15,10 @@ export function extractPageStructureFromSource(
   content: string,
   filePath: string,
   knownComponentNames: Set<string>,
+  includeRoot = false,
 ): PageStructureItem[] {
   const ext = path.extname(filePath).toLowerCase()
-  if (JSX_EXTENSIONS.has(ext)) return extractJsxStructure(content, ext, knownComponentNames)
+  if (JSX_EXTENSIONS.has(ext)) return extractJsxStructure(content, ext, knownComponentNames, includeRoot)
   if (PUG_EXTENSIONS.has(ext)) return extractPugStructure(content, knownComponentNames)
   if (VUE_EXTENSIONS.has(ext)) return extractVueStructure(content, filePath, knownComponentNames)
   if (SVELTE_EXTENSIONS.has(ext)) return extractSvelteStructure(content, filePath, knownComponentNames)
