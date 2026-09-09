@@ -3,9 +3,20 @@ import type { RecentProject } from '@shared/types/project'
 import type { Flow, FlowSummary } from '@shared/types/flow'
 import type { ScreenDraft } from '@shared/types/screenDraft'
 import type { DesignNode } from '@shared/types/designNode'
+import type { ConceptComponent, Feature, FeaturePage, DesignState, Alternative, Journey, SharePreview } from '@shared/types/model/featureModel'
 import { listRecentProjects } from '@core/workspace/models/recentProjectsStore'
 import * as flowStore from '@core/workspace/models/flowStore'
 import * as screenDraftStore from '@core/workspace/models/screenDraftStore'
+import * as featureStore from '@core/workspace/models/featureStore'
+import * as conceptComponentStore from '@core/workspace/models/conceptComponentStore'
+import * as featurePageStore from '@core/workspace/models/featurePageStore'
+import * as designStateStore from '@core/workspace/models/designStateStore'
+import * as designTreeStore from '@core/workspace/models/designTreeStore'
+import type { DesignTreeRecord } from '@core/workspace/models/designTreeStore'
+import * as alternativeStore from '@core/workspace/models/alternativeStore'
+import * as journeyStore from '@core/workspace/models/journeyStore'
+import * as sharePreviewStore from '@core/workspace/models/sharePreviewStore'
+import { buildSharePackage, readSharePackage, type SharePackageBundle } from '@core/design-model/sharePackage'
 import {
   projectIdSchema,
   createFlowInputSchema,
@@ -14,6 +25,44 @@ import {
   deleteFlowInputSchema,
   getScreenDraftInputSchema,
   saveScreenDraftInputSchema,
+  createFeatureInputSchema,
+  getFeatureInputSchema,
+  saveFeatureInputSchema,
+  deleteFeatureInputSchema,
+  listConceptComponentsInputSchema,
+  saveConceptComponentInputSchema,
+  deleteConceptComponentInputSchema,
+  listFeaturePagesInputSchema,
+  getFeaturePageInputSchema,
+  createFeaturePageInputSchema,
+  saveFeaturePageInputSchema,
+  deleteFeaturePageInputSchema,
+  listDesignStatesForPageInputSchema,
+  getDesignStateInputSchema,
+  createDesignStateInputSchema,
+  duplicateDesignStateInputSchema,
+  saveDesignStateInputSchema,
+  reorderDesignStatesInputSchema,
+  deleteDesignStateInputSchema,
+  getDesignTreeInputSchema,
+  saveDesignTreeInputSchema,
+  listAlternativesForStateInputSchema,
+  createAlternativeInputSchema,
+  saveAlternativeInputSchema,
+  setAlternativeFlagInputSchema,
+  deleteAlternativeInputSchema,
+  listJourneysInputSchema,
+  getJourneyInputSchema,
+  createJourneyInputSchema,
+  saveJourneyInputSchema,
+  deleteJourneyInputSchema,
+  listSharePreviewsInputSchema,
+  getSharePreviewInputSchema,
+  createSharePreviewInputSchema,
+  saveSharePreviewInputSchema,
+  deleteSharePreviewInputSchema,
+  packageSharePreviewInputSchema,
+  readSharePackageInputSchema,
 } from '../schemas/workspace.schema'
 
 const { app, ipcMain } = electron
@@ -29,8 +78,8 @@ export function registerWorkspaceHandlers(): void {
   })
 
   ipcMain.handle('workspace:createFlow', (_event, raw): Flow => {
-    const { projectId, name, description } = createFlowInputSchema.parse(raw)
-    return flowStore.createFlow(app.getPath('userData'), projectId, name, description)
+    const { projectId, name, description, featureId } = createFlowInputSchema.parse(raw)
+    return flowStore.createFlow(app.getPath('userData'), projectId, name, description, featureId)
   })
 
   ipcMain.handle('workspace:getFlow', (_event, raw): Flow | null => {
@@ -57,5 +106,233 @@ export function registerWorkspaceHandlers(): void {
   ipcMain.handle('workspace:saveScreenDraft', (_event, raw): ScreenDraft => {
     const draft = saveScreenDraftInputSchema.parse(raw) as { id: string; projectId: string; flowId: string; tree: DesignNode; updatedAt: string }
     return screenDraftStore.saveScreenDraft(app.getPath('userData'), draft)
+  })
+
+  ipcMain.handle('workspace:listFeatures', (_event, rawProjectId): Feature[] => {
+    const projectId = projectIdSchema.parse(rawProjectId)
+    return featureStore.listFeatures(app.getPath('userData'), projectId)
+  })
+
+  ipcMain.handle('workspace:getFeature', (_event, raw): Feature | null => {
+    const { projectId, featureId } = getFeatureInputSchema.parse(raw)
+    return featureStore.getFeature(app.getPath('userData'), projectId, featureId)
+  })
+
+  ipcMain.handle('workspace:createFeature', (_event, raw): Feature => {
+    const { projectId, name, description } = createFeatureInputSchema.parse(raw)
+    return featureStore.createFeature(app.getPath('userData'), projectId, name, description)
+  })
+
+  ipcMain.handle('workspace:saveFeature', (_event, raw): Feature => {
+    const feature = saveFeatureInputSchema.parse(raw)
+    return featureStore.saveFeature(app.getPath('userData'), feature)
+  })
+
+  ipcMain.handle('workspace:deleteFeature', (_event, raw): { ok: true } => {
+    const { projectId, featureId } = deleteFeatureInputSchema.parse(raw)
+    featureStore.deleteFeature(app.getPath('userData'), projectId, featureId)
+    return { ok: true }
+  })
+
+  ipcMain.handle('workspace:listConceptComponents', (_event, raw): ConceptComponent[] => {
+    const { projectId, featureId } = listConceptComponentsInputSchema.parse(raw)
+    return conceptComponentStore.listConceptComponents(app.getPath('userData'), projectId, featureId)
+  })
+
+  ipcMain.handle('workspace:saveConceptComponent', (_event, raw): ConceptComponent => {
+    const { projectId, component } = saveConceptComponentInputSchema.parse(raw)
+    return conceptComponentStore.saveConceptComponent(app.getPath('userData'), projectId, component)
+  })
+
+  ipcMain.handle('workspace:deleteConceptComponent', (_event, raw): { ok: true } => {
+    const { projectId, componentId } = deleteConceptComponentInputSchema.parse(raw)
+    conceptComponentStore.deleteConceptComponent(app.getPath('userData'), projectId, componentId)
+    return { ok: true }
+  })
+
+  // -------------------------------------------------------------------
+  // Phase 16 — Feature Pages
+  // -------------------------------------------------------------------
+
+  ipcMain.handle('workspace:listFeaturePages', (_event, raw): FeaturePage[] => {
+    const { projectId, featureId } = listFeaturePagesInputSchema.parse(raw)
+    return featurePageStore.listFeaturePages(app.getPath('userData'), projectId, featureId)
+  })
+
+  ipcMain.handle('workspace:getFeaturePage', (_event, raw): FeaturePage | null => {
+    const { projectId, pageId } = getFeaturePageInputSchema.parse(raw)
+    return featurePageStore.getFeaturePage(app.getPath('userData'), projectId, pageId)
+  })
+
+  ipcMain.handle('workspace:createFeaturePage', (_event, raw): FeaturePage => {
+    const { projectId, ...input } = createFeaturePageInputSchema.parse(raw)
+    return featurePageStore.createFeaturePage(app.getPath('userData'), projectId, input)
+  })
+
+  ipcMain.handle('workspace:saveFeaturePage', (_event, raw): FeaturePage => {
+    const { projectId, page } = saveFeaturePageInputSchema.parse(raw)
+    return featurePageStore.saveFeaturePage(app.getPath('userData'), projectId, page)
+  })
+
+  ipcMain.handle('workspace:deleteFeaturePage', (_event, raw): { ok: true } => {
+    const { projectId, pageId } = deleteFeaturePageInputSchema.parse(raw)
+    featurePageStore.deleteFeaturePage(app.getPath('userData'), projectId, pageId)
+    return { ok: true }
+  })
+
+  // -------------------------------------------------------------------
+  // Phase 17 — Design States (+ generic design tree store)
+  // -------------------------------------------------------------------
+
+  ipcMain.handle('workspace:listDesignStatesForPage', (_event, raw): DesignState[] => {
+    const { projectId, pageRef } = listDesignStatesForPageInputSchema.parse(raw)
+    return designStateStore.listDesignStatesForPage(app.getPath('userData'), projectId, pageRef)
+  })
+
+  ipcMain.handle('workspace:getDesignState', (_event, raw): DesignState | null => {
+    const { projectId, stateId } = getDesignStateInputSchema.parse(raw)
+    return designStateStore.getDesignState(app.getPath('userData'), projectId, stateId)
+  })
+
+  ipcMain.handle('workspace:createDesignState', (_event, raw): DesignState => {
+    const { projectId, ...input } = createDesignStateInputSchema.parse(raw)
+    return designStateStore.createDesignState(app.getPath('userData'), projectId, input)
+  })
+
+  ipcMain.handle('workspace:duplicateDesignState', (_event, raw): DesignState => {
+    const { projectId, sourceStateId, newName, newOrigin } = duplicateDesignStateInputSchema.parse(raw)
+    return designStateStore.duplicateDesignState(app.getPath('userData'), projectId, sourceStateId, newName, newOrigin)
+  })
+
+  ipcMain.handle('workspace:saveDesignState', (_event, raw): DesignState => {
+    const { projectId, state } = saveDesignStateInputSchema.parse(raw)
+    return designStateStore.saveDesignState(app.getPath('userData'), projectId, state)
+  })
+
+  ipcMain.handle('workspace:reorderDesignStates', (_event, raw): { ok: true } => {
+    const { projectId, orderedIds } = reorderDesignStatesInputSchema.parse(raw)
+    designStateStore.reorderDesignStates(app.getPath('userData'), projectId, orderedIds)
+    return { ok: true }
+  })
+
+  ipcMain.handle('workspace:deleteDesignState', (_event, raw): { ok: true } => {
+    const { projectId, stateId } = deleteDesignStateInputSchema.parse(raw)
+    designStateStore.deleteDesignState(app.getPath('userData'), projectId, stateId)
+    return { ok: true }
+  })
+
+  ipcMain.handle('workspace:getDesignTree', (_event, raw): DesignTreeRecord | null => {
+    const { projectId, ownerId } = getDesignTreeInputSchema.parse(raw)
+    return designTreeStore.getDesignTree(app.getPath('userData'), projectId, ownerId)
+  })
+
+  ipcMain.handle('workspace:saveDesignTree', (_event, raw): DesignTreeRecord => {
+    const record = saveDesignTreeInputSchema.parse(raw) as DesignTreeRecord
+    return designTreeStore.saveDesignTree(app.getPath('userData'), record)
+  })
+
+  // -------------------------------------------------------------------
+  // Phase 19 — Alternatives
+  // -------------------------------------------------------------------
+
+  ipcMain.handle('workspace:listAlternativesForState', (_event, raw): Alternative[] => {
+    const { projectId, designStateId } = listAlternativesForStateInputSchema.parse(raw)
+    return alternativeStore.listAlternativesForState(app.getPath('userData'), projectId, designStateId)
+  })
+
+  ipcMain.handle('workspace:createAlternative', (_event, raw): Alternative => {
+    const { projectId, ...input } = createAlternativeInputSchema.parse(raw)
+    return alternativeStore.createAlternative(app.getPath('userData'), projectId, input)
+  })
+
+  ipcMain.handle('workspace:saveAlternative', (_event, raw): Alternative => {
+    const { projectId, alternative } = saveAlternativeInputSchema.parse(raw)
+    return alternativeStore.saveAlternative(app.getPath('userData'), projectId, alternative)
+  })
+
+  ipcMain.handle('workspace:setAlternativePreferred', (_event, raw): Alternative => {
+    const { projectId, alternativeId } = setAlternativeFlagInputSchema.parse(raw)
+    return alternativeStore.setPreferred(app.getPath('userData'), projectId, alternativeId)
+  })
+
+  ipcMain.handle('workspace:setAlternativeApproved', (_event, raw): Alternative => {
+    const { projectId, alternativeId } = setAlternativeFlagInputSchema.parse(raw)
+    return alternativeStore.setApproved(app.getPath('userData'), projectId, alternativeId)
+  })
+
+  ipcMain.handle('workspace:deleteAlternative', (_event, raw): { ok: true } => {
+    const { projectId, alternativeId } = deleteAlternativeInputSchema.parse(raw)
+    alternativeStore.deleteAlternative(app.getPath('userData'), projectId, alternativeId)
+    return { ok: true }
+  })
+
+  // -------------------------------------------------------------------
+  // Phase 21-23 — Journeys
+  // -------------------------------------------------------------------
+
+  ipcMain.handle('workspace:listJourneys', (_event, raw): Journey[] => {
+    const { projectId, featureId } = listJourneysInputSchema.parse(raw)
+    return journeyStore.listJourneys(app.getPath('userData'), projectId, featureId)
+  })
+
+  ipcMain.handle('workspace:getJourney', (_event, raw): Journey | null => {
+    const { projectId, journeyId } = getJourneyInputSchema.parse(raw)
+    return journeyStore.getJourney(app.getPath('userData'), projectId, journeyId)
+  })
+
+  ipcMain.handle('workspace:createJourney', (_event, raw): Journey => {
+    const { projectId, featureId, name, description } = createJourneyInputSchema.parse(raw)
+    return journeyStore.createJourney(app.getPath('userData'), projectId, featureId, name, description)
+  })
+
+  ipcMain.handle('workspace:saveJourney', (_event, raw): Journey => {
+    const { projectId, journey } = saveJourneyInputSchema.parse(raw)
+    return journeyStore.saveJourney(app.getPath('userData'), projectId, journey)
+  })
+
+  ipcMain.handle('workspace:deleteJourney', (_event, raw): { ok: true } => {
+    const { projectId, journeyId } = deleteJourneyInputSchema.parse(raw)
+    journeyStore.deleteJourney(app.getPath('userData'), projectId, journeyId)
+    return { ok: true }
+  })
+
+  // -------------------------------------------------------------------
+  // Phase 25 — Share Previews
+  // -------------------------------------------------------------------
+
+  ipcMain.handle('workspace:listSharePreviews', (_event, raw): SharePreview[] => {
+    const { projectId, featureId } = listSharePreviewsInputSchema.parse(raw)
+    return sharePreviewStore.listSharePreviews(app.getPath('userData'), projectId, featureId)
+  })
+
+  ipcMain.handle('workspace:getSharePreview', (_event, raw): SharePreview | null => {
+    const { projectId, sharePreviewId } = getSharePreviewInputSchema.parse(raw)
+    return sharePreviewStore.getSharePreview(app.getPath('userData'), projectId, sharePreviewId)
+  })
+
+  ipcMain.handle('workspace:createSharePreview', (_event, raw): SharePreview => {
+    const { projectId, ...input } = createSharePreviewInputSchema.parse(raw)
+    return sharePreviewStore.createSharePreview(app.getPath('userData'), projectId, input)
+  })
+
+  ipcMain.handle('workspace:saveSharePreview', (_event, raw): SharePreview => {
+    const { projectId, sharePreview } = saveSharePreviewInputSchema.parse(raw)
+    return sharePreviewStore.saveSharePreview(app.getPath('userData'), projectId, sharePreview)
+  })
+
+  ipcMain.handle('workspace:deleteSharePreview', (_event, raw): { ok: true } => {
+    const { projectId, sharePreviewId } = deleteSharePreviewInputSchema.parse(raw)
+    sharePreviewStore.deleteSharePreview(app.getPath('userData'), projectId, sharePreviewId)
+    return { ok: true }
+  })
+
+  ipcMain.handle('workspace:packageSharePreview', async (_event, raw): Promise<SharePreview> => {
+    const { projectId, sharePreviewId } = packageSharePreviewInputSchema.parse(raw)
+    return buildSharePackage(app.getPath('userData'), projectId, sharePreviewId)
+  })
+
+  ipcMain.handle('workspace:readSharePackage', (_event, raw): SharePackageBundle | null => {
+    const { projectId, sharePreviewId } = readSharePackageInputSchema.parse(raw)
+    return readSharePackage(app.getPath('userData'), projectId, sharePreviewId)
   })
 }

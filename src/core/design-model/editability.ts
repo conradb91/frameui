@@ -5,6 +5,7 @@ export type NodeOrigin =
   | 'project-component-full' // a detected component we understood completely
   | 'project-component-partial' // outer shape known, internals opaque
   | 'unresolvable' // couldn't be safely mapped at all
+  | 'concept-component' // designer-invented, no source yet — fully ours to edit
 
 /**
  * The single place editability is decided — gates what the Inspector,
@@ -18,6 +19,7 @@ export function classifyEditability(origin: NodeOrigin): Editability {
   switch (origin) {
     case 'primitive':
     case 'project-component-full':
+    case 'concept-component':
       return 'editable'
     case 'project-component-partial':
       return 'limited'

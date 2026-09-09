@@ -9,7 +9,7 @@ interface FlowState {
   saveTimer: ReturnType<typeof setTimeout> | null
 
   loadSummaries: (projectId: string) => Promise<void>
-  createFlow: (projectId: string, name: string) => Promise<Flow>
+  createFlow: (projectId: string, name: string, featureId?: string | null) => Promise<Flow>
   openFlow: (projectId: string, flowId: string) => Promise<void>
   closeFlow: () => void
 
@@ -35,9 +35,9 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     set({ summaries, loadingSummaries: false })
   },
 
-  createFlow: async (projectId, name) => {
-    const flow = await window.frameui.workspace.createFlow(projectId, name)
-    set((s) => ({ summaries: [{ id: flow.id, projectId, name: flow.name, screenCount: 0, updatedAt: flow.updatedAt }, ...s.summaries] }))
+  createFlow: async (projectId, name, featureId = null) => {
+    const flow = await window.frameui.workspace.createFlow(projectId, name, undefined, featureId)
+    set((s) => ({ summaries: [{ id: flow.id, projectId, featureId: flow.featureId, name: flow.name, screenCount: 0, updatedAt: flow.updatedAt }, ...s.summaries] }))
     return flow
   },
 

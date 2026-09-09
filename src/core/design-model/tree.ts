@@ -68,3 +68,11 @@ export function updateNode<T extends DesignNode>(root: DesignNode, id: string, u
     if (node) updater(node as T)
   })
 }
+
+/** Deep-clones a subtree with a fresh id at every level — the one place
+ * Duplicate (Phase 11) and Paste build the `newNode` that `DuplicateNode`/
+ * `InsertComponent` then insert, so both features share one definition of
+ * "what counts as a safe copy" instead of two slightly different reimplementations. */
+export function cloneNodeWithFreshIds<T extends DesignNode>(node: T): T {
+  return { ...node, id: crypto.randomUUID(), children: node.children.map((child) => cloneNodeWithFreshIds(child)) }
+}

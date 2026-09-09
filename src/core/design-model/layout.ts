@@ -25,6 +25,8 @@ const CONTAINER_PADDING = 16
 const CONTAINER_GAP = 12
 const IMAGE_HEIGHT = 128
 const DIVIDER_HEIGHT = 1
+const GRID_ROW_HEIGHT = 96
+const CONCEPT_HEIGHT = 64
 
 let measureCtx: OffscreenCanvasRenderingContext2D | null = null
 function measureTextWidth(text: string, font: string): number {
@@ -129,5 +131,40 @@ export function resolveLayout(node: DesignNode, breakpoint: Breakpoint, containe
 
     case 'placeholder':
       return { node, x, y, width: containerWidth, height: PLACEHOLDER_HEIGHT, children: [] }
+
+    case 'grid': {
+      // Schematic-rendering scope decision, same as the rest of this file:
+      // an even column split rather than full CSS Grid track-sizing math.
+      const visibleChildren = node.children.filter((c) => isVisible(c, breakpoint))
+      const columnWidth = (containerWidth - node.columnGap * (node.columns - 1)) / node.columns
+      const children: ResolvedBox[] = []
+      let row = 0
+      let col = 0
+      for (const child of visibleChildren) {
+        const placement = child.gridPlacement
+        const columnStart = placement?.columnStart ? placement.columnStart - 1 : col
+        const columnSpan = Math.min(placement?.columnSpan ?? 1, node.columns)
+        const childX = x + columnStart * (columnWidth + node.columnGap)
+        const childY = y + row * (GRID_ROW_HEIGHT + node.rowGap)
+        const childWidth = columnWidth * columnSpan + node.columnGap * (columnSpan - 1)
+        const box = resolveLayout(child, breakpoint, childWidth, childX, childY)
+        box.height = GRID_ROW_HEIGHT
+        children.push(box)
+        col = columnStart + columnSpan
+        if (col >= node.columns) {
+          col = 0
+          row += 1
+        } else if (!placement) {
+          // Only auto-advance the flow cursor for unplaced children —
+          // explicitly-placed children don't perturb siblings' auto-flow.
+        }
+      }
+      if (visibleChildren.length > 0 && col > 0) row += 1
+      const height = Math.max(GRID_ROW_HEIGHT, row * (GRID_ROW_HEIGHT + node.rowGap) - node.rowGap)
+      return { node, x, y, width: containerWidth, height, children }
+    }
+
+    case 'concept':
+      return { node, x, y, width: containerWidth, height: CONCEPT_HEIGHT, children: [] }
   }
 }

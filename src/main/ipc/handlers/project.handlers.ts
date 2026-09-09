@@ -6,10 +6,12 @@ import type { ProjectIndex } from '@shared/types/projectIndex'
 import type { PageStructureItem } from '@shared/types/pageStructure'
 import { recordProjectOpened } from '@core/workspace/models/recentProjectsStore'
 import { indexProject } from '@core/indexer/indexProject'
-import { extractPageStructure } from '@core/adapters/react/extractPageStructure'
+import { extractPageStructureFromSource } from '@core/adapters/markup/extractPageStructure'
+import { attachComponentPaths, componentKey } from '@core/design-model/buildProjectModel'
 import { PathScope, PathScopeError } from '../../security/pathScope'
 import { activateProject, closeActiveProject, getActiveProject, getCachedIndex, setCachedIndex } from '../../state/activeProject'
 import { openDialogInputSchema, openPathInputSchema, getPageStructureInputSchema } from '../schemas/project.schema'
+import { broadcast } from '../rendererEvents'
 
 const { app, ipcMain, dialog, BrowserWindow } = electron
 
@@ -51,7 +53,7 @@ export function registerProjectHandlers(): void {
     if (!active) return null
     let index = getCachedIndex()
     if (!index) {
-      index = indexProject(active.projectId, active.rootPath)
+      index = indexProject(active.projectId, active.rootPath, (step) => broadcast('project:onIndexProgress', { step }))
       setCachedIndex(index)
     }
     return index
@@ -60,7 +62,7 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:reindex', (): ProjectIndex | null => {
     const active = getActiveProject()
     if (!active) return null
-    const index = indexProject(active.projectId, active.rootPath)
+    const index = indexProject(active.projectId, active.rootPath, (step) => broadcast('project:onIndexProgress', { step }))
     setCachedIndex(index)
     return index
   })
@@ -87,9 +89,13 @@ export function registerProjectHandlers(): void {
 
     const index = getCachedIndex() ?? indexProject(active.projectId, active.rootPath)
     if (!getCachedIndex()) setCachedIndex(index)
-    const knownComponentNames = new Set(index.components.map((c) => c.name))
+    const components = index.projectModel.components
+    const knownComponentNames = new Set(components.map((c) => c.name))
+    const componentPathsByName = new Map(components.map((component) => [componentKey(component.name), component.source.filePath]))
 
     const content = fs.readFileSync(absolutePath, 'utf-8')
-    return extractPageStructure(content, path.extname(absolutePath), knownComponentNames)
+    const items = extractPageStructureFromSource(content, absolutePath, knownComponentNames)
+    attachComponentPaths(items, componentPathsByName)
+    return items
   })
 }

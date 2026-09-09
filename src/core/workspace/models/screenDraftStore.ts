@@ -19,3 +19,8 @@ export function saveScreenDraft(userDataPath: string, draft: ScreenDraft): Scree
   writeJsonFileAtomic(getScreenDraftsFile(userDataPath, draft.projectId), drafts)
   return saved
 }
+
+export function deleteScreenDraft(userDataPath: string, projectId: string, screenId: string): void {
+  const drafts = readAll(userDataPath, projectId).filter((d) => d.id !== screenId)
+  writeJsonFileAtomic(getScreenDraftsFile(userDataPath, projectId), drafts)
+}

@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { DesignNode } from '@shared/types/designNode'
 import { useDesignStore } from '../../state/designStore'
 import { findParent } from '@core/design-model/tree'
+import { ProvenanceBadge } from './ProvenanceBadge'
 
 const KIND_LABEL: Record<DesignNode['kind'], string> = {
   stack: 'Stack',
@@ -14,11 +16,24 @@ const KIND_LABEL: Record<DesignNode['kind'], string> = {
   divider: 'Divider',
   image: 'Image',
   placeholder: 'Detected',
+  grid: 'Grid',
+  concept: 'Concept',
 }
 
 export function LayersPanel({ tree }: { tree: DesignNode }) {
   const dispatch = useDesignStore((s) => s.dispatch)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  // LAY-05: collapse state lives here (not per-node in the design tree) since
+  // it's a pure UI affordance, not something that should persist to the draft
+  // or affect preview/export.
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
+  const toggleCollapsed = (id: string) =>
+    setCollapsedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -37,32 +52,60 @@ export function LayersPanel({ tree }: { tree: DesignNode }) {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <LayerGroup nodes={[tree]} depth={0} isRoot />
+      <LayerGroup nodes={[tree]} depth={0} isRoot collapsedIds={collapsedIds} toggleCollapsed={toggleCollapsed} />
     </DndContext>
   )
 }
 
-function LayerGroup({ nodes, depth, isRoot }: { nodes: DesignNode[]; depth: number; isRoot?: boolean }) {
+function LayerGroup({
+  nodes,
+  depth,
+  isRoot,
+  collapsedIds,
+  toggleCollapsed,
+}: {
+  nodes: DesignNode[]
+  depth: number
+  isRoot?: boolean
+  collapsedIds: Set<string>
+  toggleCollapsed: (id: string) => void
+}) {
   return (
     <SortableContext items={nodes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
       <div className="flex flex-col">
         {nodes.map((node) => (
-          <LayerRow key={node.id} node={node} depth={depth} isRoot={isRoot} />
+          <LayerRow key={node.id} node={node} depth={depth} isRoot={isRoot} collapsedIds={collapsedIds} toggleCollapsed={toggleCollapsed} />
         ))}
       </div>
     </SortableContext>
   )
 }
 
-function LayerRow({ node, depth, isRoot }: { node: DesignNode; depth: number; isRoot?: boolean }) {
-  const selectedId = useDesignStore((s) => s.selectedId)
+function LayerRow({
+  node,
+  depth,
+  isRoot,
+  collapsedIds,
+  toggleCollapsed,
+}: {
+  node: DesignNode
+  depth: number
+  isRoot?: boolean
+  collapsedIds: Set<string>
+  toggleCollapsed: (id: string) => void
+}) {
+  const selectedIds = useDesignStore((s) => s.selectedIds)
   const select = useDesignStore((s) => s.select)
   const dispatch = useDesignStore((s) => s.dispatch)
+  const copy = useDesignStore((s) => s.copy)
+  const duplicateSelected = useDesignStore((s) => s.duplicateSelected)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: node.id, disabled: isRoot })
 
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
-  const isSelected = selectedId === node.id
+  const isSelected = selectedIds.includes(node.id)
   const label = describeLabel(node)
+  const hasChildren = node.children.length > 0
+  const isCollapsed = collapsedIds.has(node.id)
 
   return (
     <div>
@@ -70,14 +113,59 @@ function LayerRow({ node, depth, isRoot }: { node: DesignNode; depth: number; is
         ref={setNodeRef}
         {...(isRoot ? {} : attributes)}
         {...(isRoot ? {} : listeners)}
-        onClick={() => select(node.id)}
+        onClick={(e) => {
+          const additive = e.shiftKey || e.metaKey || e.ctrlKey
+          select(node.id, additive ? { additive: true } : undefined)
+        }}
         className={`flex items-center gap-1.5 rounded-md px-1.5 py-1.5 text-[12px] ${
           isSelected ? 'bg-accent/15 text-white' : 'text-text-2 hover:bg-white/5'
         } ${node.hidden ? 'opacity-40' : ''}`}
         style={{ ...style, paddingLeft: 6 + depth * 14 }}
       >
-        <span className="w-3 shrink-0 font-mono text-[9px] text-text-3">{KIND_LABEL[node.kind][0]}</span>
+        {hasChildren ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleCollapsed(node.id)
+            }}
+            className="w-3 shrink-0 text-[9px] text-text-3 hover:text-text"
+            title={isCollapsed ? 'Expand' : 'Collapse'}
+          >
+            {isCollapsed ? '▸' : '▾'}
+          </button>
+        ) : (
+          <span className="w-3 shrink-0 font-mono text-[9px] text-text-3">{KIND_LABEL[node.kind][0]}</span>
+        )}
         <span className="flex-1 truncate">{label}</span>
+        {!isRoot && <ProvenanceBadge provenance={node.provenance} />}
+        {!isRoot && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                copy(node.id)
+              }}
+              className="rounded px-1 text-[10px] text-text-3 hover:text-text"
+              title="Copy"
+            >
+              {'\u{1F4CB}'}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (!isSelected) select(node.id)
+                duplicateSelected()
+              }}
+              className="rounded px-1 text-[10px] text-text-3 hover:text-text"
+              title="Duplicate"
+            >
+              {'\u{29C9}'}
+            </button>
+          </>
+        )}
         <button
           type="button"
           onClick={(e) => {
@@ -101,7 +189,9 @@ function LayerRow({ node, depth, isRoot }: { node: DesignNode; depth: number; is
           {node.locked ? '\u{1F512}' : '\u{1F513}'}
         </button>
       </div>
-      {node.children.length > 0 && <LayerGroup nodes={node.children} depth={depth + 1} />}
+      {hasChildren && !isCollapsed && (
+        <LayerGroup nodes={node.children} depth={depth + 1} collapsedIds={collapsedIds} toggleCollapsed={toggleCollapsed} />
+      )}
     </div>
   )
 }

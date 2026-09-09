@@ -18,15 +18,22 @@ export function listFlows(userDataPath: string, projectId: string): FlowSummary[
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 }
 
+/** Full `Flow` objects (not summaries) for every flow in a project — used
+ * by featureStore's cascade delete, which needs each flow's node list. */
+export function listFlowsFull(userDataPath: string, projectId: string): Flow[] {
+  return readAll(userDataPath, projectId)
+}
+
 export function getFlow(userDataPath: string, projectId: string, flowId: string): Flow | null {
   return readAll(userDataPath, projectId).find((f) => f.id === flowId) ?? null
 }
 
-export function createFlow(userDataPath: string, projectId: string, name: string, description: string): Flow {
+export function createFlow(userDataPath: string, projectId: string, name: string, description: string, featureId: string | null = null): Flow {
   const now = new Date().toISOString()
   const flow: Flow = {
     id: crypto.randomUUID(),
     projectId,
+    featureId,
     name,
     description,
     nodes: [],

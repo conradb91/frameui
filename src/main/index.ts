@@ -6,6 +6,7 @@ import { createMainWindow } from './windows/createMainWindow'
 import { registerIpc } from './ipc/registerIpc'
 import { setMainWindowRef } from './ipc/rendererEvents'
 import { fixPath } from './security/fixPath'
+import { installCaptureWebviewGuard } from './security/captureWebviewGuard'
 
 const { app } = electron
 
@@ -29,6 +30,7 @@ if (!gotSingleInstanceLock) {
     registerIpc()
     mainWindow = createMainWindow()
     setMainWindowRef(mainWindow)
+    installCaptureWebviewGuard(mainWindow)
   })
 
   app.on('window-all-closed', () => {
@@ -41,6 +43,7 @@ if (!gotSingleInstanceLock) {
     if (electron.BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createMainWindow()
       setMainWindowRef(mainWindow)
+      installCaptureWebviewGuard(mainWindow)
     }
   })
 }

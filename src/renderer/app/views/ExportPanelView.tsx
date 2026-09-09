@@ -7,9 +7,14 @@ import { serializeFlowToSvg } from '@core/export/flowSvgSerializer'
 import { svgToPngBase64 } from '../../lib/svgToPngBase64'
 import { buildReviewPdfHtml } from '../../lib/buildReviewPdfHtml'
 import { createDefaultTree } from '@core/design-model/defaultTree'
-import type { DesignNode } from '@shared/types/designNode'
+import type { DesignNode, Breakpoint } from '@shared/types/designNode'
 
-const EXPORT_FRAME_WIDTH = 900 // Desktop only in this build — see plan's scope note
+// Matches ScreenDesignerView's breakpoint widths — a project's actual
+// detected breakpoints (RSP-02) aren't wired into export sizing yet; see
+// the punch list. This at least makes EXP-04's device picker real instead
+// of desktop-only.
+const BREAKPOINT_WIDTH: Record<Breakpoint, number> = { desktop: 900, tablet: 768, mobile: 375 }
+const BREAKPOINT_LABEL: Record<Breakpoint, string> = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' }
 
 export function ExportPanelView() {
   const activeFlow = useFlowStore((s) => s.activeFlow)
@@ -18,8 +23,10 @@ export function ExportPanelView() {
 
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [primaryId, setPrimaryId] = useState<string | null>(null)
+  const [device, setDevice] = useState<Breakpoint>('desktop')
   const [busy, setBusy] = useState<string | null>(null)
   const [lastResult, setLastResult] = useState<string | null>(null)
+  const [pdfFailed, setPdfFailed] = useState(false)
 
   useEffect(() => {
     if (!activeFlow) return
@@ -48,7 +55,7 @@ export function ExportPanelView() {
     setBusy('copy')
     try {
       const tree = await loadTree(primaryId)
-      const { svg } = serializeScreenToSvg(tree, 'desktop', EXPORT_FRAME_WIDTH)
+      const { svg } = serializeScreenToSvg(tree, device, BREAKPOINT_WIDTH[device])
       try {
         await navigator.clipboard.writeText(svg)
         setLastResult('Copied SVG to clipboard.')
@@ -68,7 +75,7 @@ export function ExportPanelView() {
     try {
       const node = activeFlow!.nodes.find((n) => n.id === primaryId)!
       const tree = await loadTree(primaryId)
-      const { svg } = serializeScreenToSvg(tree, 'desktop', EXPORT_FRAME_WIDTH)
+      const { svg } = serializeScreenToSvg(tree, device, BREAKPOINT_WIDTH[device])
       const result = await window.frameui.export.saveSvg(svg, `${node.name}.svg`)
       setLastResult(result.ok ? `Saved ${result.filePath}` : 'Download cancelled.')
     } finally {
@@ -82,10 +89,32 @@ export function ExportPanelView() {
     try {
       const node = activeFlow!.nodes.find((n) => n.id === primaryId)!
       const tree = await loadTree(primaryId)
-      const { svg, width, height } = serializeScreenToSvg(tree, 'desktop', EXPORT_FRAME_WIDTH)
+      const { svg, width, height } = serializeScreenToSvg(tree, device, BREAKPOINT_WIDTH[device])
       const base64 = await svgToPngBase64(svg, width, height)
       const result = await window.frameui.export.savePng(base64, `${node.name}.png`)
       setLastResult(result.ok ? `Saved ${result.filePath}` : 'Download cancelled.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** spec §31: "PDF unavailable -> offer PNG fallback." Downloads the flow
+   * overview plus every checked screen as PNGs — same content the PDF
+   * would have contained, just as separate raster files. */
+  async function handlePdfFallbackPngs() {
+    setBusy('pdf-fallback')
+    try {
+      const { svg: flowSvg, width: flowWidth, height: flowHeight } = serializeFlowToSvg(activeFlow!)
+      const flowBase64 = await svgToPngBase64(flowSvg, flowWidth, flowHeight)
+      await window.frameui.export.savePng(flowBase64, `${activeFlow!.name} — Flow.png`)
+      const checkedNodes = activeFlow!.nodes.filter((n) => checked.has(n.id))
+      for (const n of checkedNodes) {
+        const tree = await loadTree(n.id)
+        const { svg, width, height } = serializeScreenToSvg(tree, device, BREAKPOINT_WIDTH[device])
+        const base64 = await svgToPngBase64(svg, width, height)
+        await window.frameui.export.savePng(base64, `${n.name}.png`)
+      }
+      setLastResult(`Saved ${checkedNodes.length + 1} PNG files.`)
     } finally {
       setBusy(null)
     }
@@ -105,19 +134,27 @@ export function ExportPanelView() {
 
   async function handleReviewPdf() {
     setBusy('pdf')
+    setPdfFailed(false)
     try {
       const checkedNodes = activeFlow!.nodes.filter((n) => checked.has(n.id))
       const screens = await Promise.all(
         checkedNodes.map(async (n) => {
           const tree = await loadTree(n.id)
-          const { svg } = serializeScreenToSvg(tree, 'desktop', EXPORT_FRAME_WIDTH)
+          const { svg } = serializeScreenToSvg(tree, device, BREAKPOINT_WIDTH[device])
           return { name: n.name, svg }
         }),
       )
       const { svg: flowSvg } = serializeFlowToSvg(activeFlow!)
       const html = buildReviewPdfHtml(activeFlow!.name, flowSvg, screens)
       const result = await window.frameui.export.generateReviewPdf(html, `${activeFlow!.name} — Review.pdf`)
-      setLastResult(result.ok ? `Saved ${result.filePath}` : result.error ? `Failed: ${result.error}` : 'Generation cancelled.')
+      if (result.ok) {
+        setLastResult(`Saved ${result.filePath}`)
+      } else if (result.error) {
+        setLastResult(`Failed: ${result.error}`)
+        setPdfFailed(true)
+      } else {
+        setLastResult('Generation cancelled.')
+      }
     } finally {
       setBusy(null)
     }
@@ -149,6 +186,23 @@ export function ExportPanelView() {
           </div>
           <div className="border-t border-border px-4 py-2.5 text-[11px] text-text-3">
             Click a screen to make it "Active" for Copy/SVG/PNG. Checked screens go into the Review PDF.
+          </div>
+          <div className="border-t border-border p-3">
+            <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Device (EXP-04)</div>
+            <div className="flex gap-1.5">
+              {(Object.keys(BREAKPOINT_LABEL) as Breakpoint[]).map((bp) => (
+                <button
+                  key={bp}
+                  type="button"
+                  onClick={() => setDevice(bp)}
+                  className={`flex-1 rounded-md border px-2 py-1.5 text-[11.5px] font-semibold ${
+                    device === bp ? 'border-accent-2 bg-accent/15 text-accent-2' : 'border-border bg-panel-2 text-text-2'
+                  }`}
+                >
+                  {BREAKPOINT_LABEL[bp]}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -194,6 +248,20 @@ export function ExportPanelView() {
             busy={busy === 'flow'}
             disabled={false}
           />
+
+          {pdfFailed && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-warning/30 bg-warning/[0.06] p-3.5">
+              <div className="text-[12px] text-warning">PDF generation isn't available right now.</div>
+              <button
+                type="button"
+                onClick={() => void handlePdfFallbackPngs()}
+                disabled={busy === 'pdf-fallback'}
+                className="shrink-0 rounded-lg border border-warning/40 bg-warning/10 px-3 py-1.5 text-[12px] font-semibold text-warning disabled:opacity-50"
+              >
+                {busy === 'pdf-fallback' ? 'Working…' : 'Download PNGs instead'}
+              </button>
+            </div>
+          )}
 
           {lastResult && <div className="mt-2 text-[12px] text-text-2">{lastResult}</div>}
         </div>

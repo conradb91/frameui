@@ -1,0 +1,5 @@
+import { GitCompareArrows } from 'lucide-react'
+
+export function ChangesSection() {
+  return <div className="flex min-h-0 flex-1"><aside className="w-[240px] shrink-0 border-r border-border bg-bg-raised"><div className="border-b border-border px-3 py-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-text-3">Changes</div><div className="px-3 py-4 text-[10.5px] text-text-3">0 staged visual changes</div></aside><main className="flex flex-1 items-center justify-center"><div className="max-w-sm text-center"><GitCompareArrows size={22} className="mx-auto mb-3 text-text-3" /><div className="text-[12.5px] font-semibold text-text">Your project source is unchanged</div><div className="mt-1 text-[10.5px] leading-relaxed text-text-3">Visual edits will be staged here for review before FrameUI applies or exports them.</div></div></main><aside className="w-[280px] shrink-0 border-l border-border bg-bg-raised p-3 text-[10.5px] text-text-3">Select a staged change to inspect its source diff.</aside></div>
+}

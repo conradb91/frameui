@@ -74,6 +74,7 @@ function FlowWorkspaceCanvas() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [addMenuOpen, setAddMenuOpen] = useState<false | 'root' | 'pages'>(false)
+  const [referenceOnlyNotice, setReferenceOnlyNotice] = useState(false)
 
   useEffect(() => {
     if (!activeIndex) void fetchIndex()
@@ -82,6 +83,10 @@ function FlowWorkspaceCanvas() {
   useEffect(() => {
     setRfNodes(toRfNodes(activeFlow?.nodes ?? []))
     setRfEdges(toRfEdges(activeFlow?.edges ?? []))
+    // Only resync from the store when the active flow itself changes — the
+    // effect intentionally ignores nodes/edges so local drag/edit state
+    // isn't clobbered on every store write from onNodesChange/onEdgesChange.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFlow?.id])
 
   const onNodesChange: OnNodesChange<ScreenFlowNode> = useCallback(
@@ -158,10 +163,11 @@ function FlowWorkspaceCanvas() {
     setEdgesInStore(fromRfEdges(next))
   }
 
-  function duplicateSelectedNode() {
-    if (!selectedNode) return
+  async function duplicateSelectedNode() {
+    if (!selectedNode || !activeProject || !activeFlow) return
+    const newId = crypto.randomUUID()
     const newNode: ScreenFlowNode = {
-      id: crypto.randomUUID(),
+      id: newId,
       type: 'screenNode',
       position: { x: selectedNode.position.x + 40, y: selectedNode.position.y + 40 },
       data: { ...selectedNode.data, name: `${selectedNode.data.name} Copy` },
@@ -169,11 +175,25 @@ function FlowWorkspaceCanvas() {
     const next = [...rfNodes, newNode]
     setRfNodes(next)
     setNodesInStore(fromRfNodes(next))
+
+    // FLW-06: "Duplicate creates a separate design draft" — copy the
+    // source screen's actual saved draft under the new node's id, not just
+    // the flow-node metadata, so the duplicate isn't silently reset to blank.
+    const sourceDraft = await window.frameui.workspace.getScreenDraft(activeProject.id, selectedNode.id)
+    if (sourceDraft) {
+      await window.frameui.workspace.saveScreenDraft({
+        id: newId,
+        projectId: activeProject.id,
+        flowId: activeFlow.id,
+        tree: sourceDraft.tree,
+        updatedAt: new Date().toISOString(),
+      })
+    }
   }
 
   function handleBack() {
     closeFlow()
-    setView('project-summary')
+    setView('workspace')
   }
 
   async function handlePreview() {
@@ -186,6 +206,14 @@ function FlowWorkspaceCanvas() {
     if (!activeProject || !activeFlow) return
     const node = rfNodes.find((n) => n.id === nodeId)
     if (!node) return
+    // A Feature can add a page as "Reference Only" — visible in its Journey
+    // for context but never given an editable design draft (spec Phase 8/9).
+    // Surface why the double-click did nothing rather than silently no-op.
+    if (node.data.source.referenceOnly) {
+      setReferenceOnlyNotice(true)
+      window.setTimeout(() => setReferenceOnlyNotice(false), 2400)
+      return
+    }
     await loadScreen(activeProject.id, activeFlow.id, nodeId, node.data.source)
     setView('screen-designer')
   }
@@ -258,18 +286,18 @@ function FlowWorkspaceCanvas() {
             <div className="absolute right-0 top-11 z-20 w-72 rounded-xl border border-border bg-panel p-1.5 shadow-xl">
               <div className="px-2 py-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Detected Pages</div>
               <div className="max-h-64 overflow-y-auto">
-                {!activeIndex || activeIndex.pages.length === 0 ? (
+                {!activeIndex || activeIndex.projectModel.pages.length === 0 ? (
                   <div className="px-2.5 py-3 text-[12px] text-text-3">No pages detected in this project.</div>
                 ) : (
-                  activeIndex.pages.map((p) => (
+                  activeIndex.projectModel.pages.map((p) => (
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => handleAddScreen({ type: 'existing-page', pageFilePath: p.filePath }, p.name)}
+                      onClick={() => handleAddScreen({ type: 'existing-page', pageFilePath: p.source.filePath }, p.name)}
                       className="flex w-full flex-col rounded-lg px-2.5 py-2 text-left hover:bg-white/5"
                     >
                       <span className="text-[12.5px] font-medium text-text">{p.name}</span>
-                      <span className="font-mono text-[10.5px] text-text-3">{p.filePath}</span>
+                      <span className="font-mono text-[10.5px] text-text-3">{p.source.filePath}</span>
                     </button>
                   ))
                 )}
@@ -282,6 +310,11 @@ function FlowWorkspaceCanvas() {
 
       {/* Canvas */}
       <div className="relative flex-1">
+        {referenceOnlyNotice && (
+          <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-lg border border-border bg-panel px-3 py-1.5 text-[11.5px] text-text-2 shadow-lg">
+            Reference-only screens can’t be opened in the designer.
+          </div>
+        )}
         <ReactFlow
           nodes={rfNodes}
           edges={rfEdges}
@@ -293,6 +326,18 @@ function FlowWorkspaceCanvas() {
           onSelectionChange={({ nodes, edges }) => {
             setSelectedNodeId(nodes[0]?.id ?? null)
             setSelectedEdgeId(edges[0]?.id ?? null)
+          }}
+          onBeforeDelete={({ nodes, edges }) => {
+            // FLW-06: "Delete warns if connectors will also be removed."
+            // `edges` here already includes edges implicitly removed because
+            // one of their endpoints is a deleted node.
+            if (nodes.length === 0 || edges.length === 0) return Promise.resolve(true)
+            const connectorWord = edges.length === 1 ? 'connection' : 'connections'
+            return Promise.resolve(
+              window.confirm(
+                `Deleting ${nodes.length === 1 ? 'this screen' : `these ${nodes.length} screens`} will also remove ${edges.length} ${connectorWord}. Continue?`,
+              ),
+            )
           }}
           deleteKeyCode={['Backspace', 'Delete']}
           colorMode="dark"

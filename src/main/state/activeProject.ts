@@ -1,4 +1,4 @@
-import type { ProjectIndex, FileChangeNotice } from '@shared/types/projectIndex'
+import type { ProjectIndex, FileChangeNotice, DevCommand } from '@shared/types/projectIndex'
 import { ProjectWatcher } from '../watcher/projectWatcher'
 import { broadcast } from '../ipc/rendererEvents'
 
@@ -7,6 +7,10 @@ interface ActiveProject {
   rootPath: string
   watcher: ProjectWatcher
   cachedIndex: ProjectIndex | null
+  /** PRJ-03: "The user can change it." Survives reindex (unlike
+   * cachedIndex) since it's an explicit user choice, not detected state;
+   * cleared only when the project itself changes. */
+  devCommandOverride: DevCommand | null
 }
 
 let active: ActiveProject | null = null
@@ -17,6 +21,15 @@ export function getActiveProject(): { projectId: string; rootPath: string } | nu
 
 export function getCachedIndex(): ProjectIndex | null {
   return active?.cachedIndex ?? null
+}
+
+/** The detected command, unless the user has explicitly overridden it. */
+export function getDevCommand(): DevCommand | null {
+  return active?.devCommandOverride ?? active?.cachedIndex?.devCommand ?? null
+}
+
+export function setDevCommandOverride(command: DevCommand): void {
+  if (active) active.devCommandOverride = command
 }
 
 export function setCachedIndex(index: ProjectIndex): void {
@@ -40,6 +53,6 @@ export function activateProject(projectId: string, rootPath: string): void {
     const notice: FileChangeNotice = { projectId: active.projectId, changedPaths }
     broadcast('project:onFileChanged', notice)
   })
-  active = { projectId, rootPath, watcher, cachedIndex: null }
+  active = { projectId, rootPath, watcher, cachedIndex: null, devCommandOverride: null }
   watcher.start()
 }

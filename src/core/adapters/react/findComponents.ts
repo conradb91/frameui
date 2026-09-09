@@ -65,7 +65,15 @@ export function findComponents(
   candidateFiles: string[],
   excludeAbsolutePaths: Set<string>,
 ): DetectedComponent[] {
-  const project = new Project({ useInMemoryFileSystem: false, skipFileDependencyResolution: true })
+  // allowJs is required here: getExportedDeclarations() is backed by the
+  // TypeScript checker, and without it the checker silently excludes
+  // .js/.jsx files from module/export resolution — every plain-JavaScript
+  // React project (spec §6.1 Primary tier) would report zero components.
+  const project = new Project({
+    useInMemoryFileSystem: false,
+    skipFileDependencyResolution: true,
+    compilerOptions: { allowJs: true },
+  })
   const components: DetectedComponent[] = []
 
   let parsed = 0

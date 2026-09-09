@@ -47,7 +47,12 @@ export default defineConfig({
               fileName: (format) => (format === 'cjs' ? 'index.cjs' : 'index.mjs'),
             },
             rollupOptions: {
-              external: ['electron', 'chokidar', 'ts-morph'],
+              // Source parsers are Node-side dependencies and must remain
+              // external. In particular, bundling @vue/compiler-sfc pulls
+              // its optional consolidate adapters into the entry chunk,
+              // turning packages such as `velocityjs` into eager startup
+              // requirements and preventing Electron from opening at all.
+              external: ['electron', 'chokidar', 'ts-morph', 'php-parser', 'svelte/compiler', '@vue/compiler-sfc', '@vue/compiler-core'],
             },
           },
           resolve: {
@@ -84,5 +89,15 @@ export default defineConfig({
   build: {
     outDir: path.join(root, 'dist'),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('@xyflow')) return 'flow-canvas'
+          if (id.includes('lucide-react')) return 'icons'
+          if (id.includes('react-dom') || id.includes('/react/')) return 'react-vendor'
+          return undefined
+        },
+      },
+    },
   },
 })

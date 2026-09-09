@@ -11,3 +11,8 @@ export interface PreviewStatusUpdate {
 export interface PreviewUrlDetected {
   url: string
 }
+
+export interface PreviewStatusSnapshot {
+  status: 'idle' | 'running' | 'stopped' | 'error'
+  url: string | null
+}

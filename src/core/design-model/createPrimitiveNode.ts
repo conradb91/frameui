@@ -7,21 +7,24 @@ import type { DesignNode, PrimitiveKind } from '@shared/types/designNode'
 export function createPrimitiveNode(kind: PrimitiveKind): DesignNode {
   const id = crypto.randomUUID()
   const editability = 'editable' as const
+  const provenance = 'new' as const
 
   switch (kind) {
     case 'stack':
-      return { kind, id, editability, children: [], direction: 'column', gap: 12, align: 'stretch' }
+      return { kind, id, editability, provenance, children: [], direction: 'column', gap: 12, align: 'stretch' }
     case 'text':
-      return { kind, id, editability, children: [], content: 'Text' }
+      return { kind, id, editability, provenance, children: [], content: 'Text' }
     case 'heading':
-      return { kind, id, editability, children: [], content: 'Heading' }
+      return { kind, id, editability, provenance, children: [], content: 'Heading' }
     case 'button':
-      return { kind, id, editability, children: [], label: 'Button', variant: 'primary' }
+      return { kind, id, editability, provenance, children: [], label: 'Button', variant: 'primary' }
     case 'container':
-      return { kind, id, editability, children: [] }
+      return { kind, id, editability, provenance, children: [] }
     case 'divider':
-      return { kind, id, editability, children: [] }
+      return { kind, id, editability, provenance, children: [] }
     case 'image':
-      return { kind, id, editability, children: [], alt: 'Image' }
+      return { kind, id, editability, provenance, children: [], alt: 'Image' }
+    case 'grid':
+      return { kind, id, editability, provenance, children: [], columns: 2, columnGap: 16, rowGap: 16 }
   }
 }

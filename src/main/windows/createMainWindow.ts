@@ -26,6 +26,10 @@ export function createMainWindow(): BrowserWindowType {
       contextIsolation: true,
       sandbox: true,
       webSecurity: true,
+      // Only <webview> use in the app is the V2 Capture Session — its guest
+      // content is locked down in captureWebviewGuard.ts (no preload, no
+      // node integration, http(s)-only navigation).
+      webviewTag: true,
     },
   })
 

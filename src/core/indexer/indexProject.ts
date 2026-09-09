@@ -1,67 +1,81 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { ProjectIndex, Framework, Language, Bundler } from '@shared/types/projectIndex'
-import { readPackageJson, hasDependency } from '@core/adapters/shared/packageJson'
-import { detectVite } from '@core/adapters/vite/viteAdapter'
-import { detectNext } from '@core/adapters/nextjs/nextAdapter'
-import { findPages } from '@core/adapters/react/findPages'
-import { findComponents } from '@core/adapters/react/findComponents'
+import type { ProjectIndex, Language, IndexProgressStep } from '@shared/types/projectIndex'
+import { readPackageJson } from '@core/adapters/shared/packageJson'
+import { readComposerJson } from '@core/adapters/shared/composerJson'
+import { detectProject } from '@core/adapters/registry'
+import { MARKUP_EXTENSIONS } from '@core/adapters/markup/findMarkupPages'
 import { resolveStyleTokens } from '@core/adapters/tailwind/resolveStyleTokens'
+import { buildProjectModel } from '@core/design-model/buildProjectModel'
+import type { AdapterContext } from '@core/adapters/types'
 import { createIgnoreRules } from './ignore'
 import { walkFiles } from './walkFiles'
 
-const SOURCE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js']
+const SOURCE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js', ...MARKUP_EXTENSIONS]
 
-function findConventionalPagesDir(rootPath: string): string | null {
-  for (const candidate of ['src/pages', 'pages']) {
-    const full = path.join(rootPath, candidate)
-    if (fs.existsSync(full) && fs.statSync(full).isDirectory()) return full
-  }
-  return null
+/** The one piece of framework-agnostic derived state that doesn't vary per
+ * adapter today — kept as a shared function rather than duplicated across
+ * seven adapters. */
+function deriveLanguage(framework: ProjectIndex['framework'], hasTsconfig: boolean, candidateFiles: string[]): Language {
+  if (framework === 'php') return hasTsconfig || candidateFiles.some((file) => /\.[jt]sx?$/.test(file)) ? 'mixed' : 'php'
+  if (framework === 'static') return 'html'
+  if (framework === 'react' || framework === 'vue' || framework === 'svelte') return hasTsconfig ? 'typescript' : 'javascript'
+  if (framework === 'astro') return 'mixed'
+  if (framework === 'node') return hasTsconfig ? 'typescript' : 'javascript'
+  return 'unknown'
 }
 
-export function indexProject(projectId: string, rootPath: string): ProjectIndex {
+export function indexProject(projectId: string, rootPath: string, onProgress?: (step: IndexProgressStep) => void): ProjectIndex {
   const startedAt = Date.now()
   const ignoreRules = createIgnoreRules()
   const pkg = readPackageJson(rootPath)
+  const composer = readComposerJson(rootPath)
 
-  const framework: Framework = pkg && hasDependency(pkg, 'react') ? 'react' : 'unknown'
+  // Walk once and use the same bounded, ignored source set for detection,
+  // page discovery and component discovery. Server templates commonly live
+  // outside `src` (resources/views, app/Views, views), so scanning only the
+  // React source root made them impossible to index.
+  const { files: candidateFiles, scannedFileCount } = walkFiles(rootPath, SOURCE_EXTENSIONS, ignoreRules)
+
+  const ctx: AdapterContext = { rootPath, pkg, composer, candidateFiles, ignoreRules }
+  const { adapter, match } = detectProject(ctx)
+  onProgress?.('detecting')
+
+  const pages = adapter.findPages(ctx, match)
+  onProgress?.('pages')
+  const components = adapter.findComponents(ctx, match, pages)
+  onProgress?.('components')
+
   const hasTsconfig = fs.existsSync(path.join(rootPath, 'tsconfig.json'))
-  const language: Language = pkg ? (hasTsconfig ? 'typescript' : 'javascript') : 'unknown'
+  const language = deriveLanguage(match.framework, hasTsconfig, candidateFiles)
 
-  const next = detectNext(rootPath, pkg)
-  const vite = next.detected ? { detected: false, devCommand: null } : detectVite(rootPath, pkg)
-
-  const bundler: Bundler = next.detected ? 'next' : vite.detected ? 'vite' : 'unknown'
-  const routesDir = next.detected ? next.routesDir : findConventionalPagesDir(rootPath)
-  const routerStyle = next.detected ? next.routerStyle : routesDir ? 'conventional' : 'unknown'
-  const devCommand = next.detected ? next.devCommand : vite.devCommand
-
-  const pages = findPages(rootPath, routerStyle, routesDir, ignoreRules)
-  const pageAbsolutePaths = new Set(pages.map((p) => path.join(rootPath, p.filePath)))
-
-  const sourceRoot = fs.existsSync(path.join(rootPath, 'src')) ? path.join(rootPath, 'src') : rootPath
-  const { files: candidateFiles, scannedFileCount } = walkFiles(sourceRoot, SOURCE_EXTENSIONS, ignoreRules)
-  const components = findComponents(rootPath, candidateFiles, pageAbsolutePaths)
   const styleTokens = resolveStyleTokens(rootPath, pkg)
+  onProgress?.('tokens')
+  const projectModel = buildProjectModel(projectId, rootPath, pages, components, styleTokens)
+  onProgress?.('model')
 
   const supportLevel =
-    framework === 'react' && bundler !== 'unknown' ? 'supported' : framework === 'react' ? 'partial' : 'inspect-only'
+    match.framework !== 'unknown' && pages.length > 0
+      ? 'supported'
+      : match.framework !== 'unknown'
+        ? 'partial'
+        : 'inspect-only'
 
-  return {
+  const index: ProjectIndex = {
     projectId,
     rootPath,
     supportLevel,
-    framework,
+    framework: match.framework,
+    phpFramework: match.phpFramework,
     language,
-    bundler,
-    routerStyle,
-    devCommand,
-    pages,
-    components,
-    styleTokens,
+    bundler: match.bundler,
+    routerStyle: match.routerStyle,
+    devCommand: match.devCommand,
+    projectModel,
     scannedFileCount,
     scanDurationMs: Date.now() - startedAt,
     scannedAt: new Date().toISOString(),
   }
+  onProgress?.('done')
+  return index
 }

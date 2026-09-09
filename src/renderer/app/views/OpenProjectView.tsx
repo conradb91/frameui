@@ -57,7 +57,7 @@ function LeftPane() {
 
   function enterProject(project: RecentProject) {
     setActiveProject(project)
-    setView('project-summary')
+    setView('workspace')
   }
 
   async function handleOpenDialog() {
