@@ -13,6 +13,7 @@ import { resolveLayout, type ResolvedBox } from '@core/design-model/layout'
 import type { DesignNode, Breakpoint } from '@shared/types/designNode'
 import type { FeaturePage, Journey, JourneyStep, JourneyConnection } from '@shared/types/model/featureModel'
 import type { PageStructureItem } from '@shared/types/pageStructure'
+import { applyDesignOperations } from '@core/design-model/operations'
 
 const BREAKPOINT_WIDTH: Record<Breakpoint, number> = { desktop: 900, tablet: 768, mobile: 375 }
 const BREAKPOINT_LABEL: Record<Breakpoint, string> = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' }
@@ -169,7 +170,8 @@ export function FeaturePreviewView() {
       const ownerId = currentStep!.alternativeId ?? currentStep!.designStateId
       if (!currentStep!.referenceOnly && ownerId) {
         const record = await window.frameui.workspace.getDesignTree(activeProject!.id, ownerId)
-        tree = record?.tree ?? null
+        const operations = await window.frameui.workspace.getDesignOperations(activeProject!.id, feature!.id, ownerId)
+        tree = record?.tree ? applyDesignOperations(record.tree, operations) : null
       }
 
       if (cancelled) return
@@ -180,7 +182,7 @@ export function FeaturePreviewView() {
     return () => {
       cancelled = true
     }
-  }, [activeProject, activeIndex, currentStep])
+  }, [activeProject, activeIndex, currentStep, feature])
 
   function goToStep(stepId: string) {
     setHistory((h) => [...h, stepId])

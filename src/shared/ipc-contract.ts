@@ -17,6 +17,10 @@ import type {
   Alternative,
   Journey,
   SharePreview,
+  Annotation,
+  DesignOperation,
+  Version,
+  VersionDifference,
 } from './types/model/featureModel'
 import type { Viewport } from './types/model/projectModel'
 import type { DesignTreeRecord } from './types/designTreeRecord'
@@ -152,6 +156,19 @@ export interface FrameUiApi {
     /** Reads a previously packaged bundle back for the in-app Share Preview
      * viewer — null if it hasn't been packaged yet. */
     readSharePackage(projectId: string, sharePreviewId: string): Promise<SharePackageBundle | null>
+
+    // ---- Phase 26-29 — Feature work packages ----
+    getDesignOperations(projectId: string, featureId: string, ownerId: string): Promise<DesignOperation[]>
+    saveDesignOperations(projectId: string, featureId: string, ownerId: string, operations: DesignOperation[]): Promise<DesignOperation[]>
+    listAnnotations(projectId: string, featureId: string): Promise<Annotation[]>
+    saveAnnotation(projectId: string, annotation: Annotation): Promise<Annotation>
+    deleteAnnotation(projectId: string, featureId: string, annotationId: string): Promise<{ ok: true }>
+    listVersions(projectId: string, featureId: string): Promise<Version[]>
+    createVersion(projectId: string, featureId: string, name: string, createdBy: string): Promise<Version>
+    renameVersion(projectId: string, featureId: string, versionId: string, name: string): Promise<Version>
+    restoreVersion(projectId: string, featureId: string, versionId: string, createdBy: string): Promise<Version>
+    duplicateVersion(projectId: string, featureId: string, versionId: string, createdBy: string): Promise<Version>
+    compareVersions(projectId: string, featureId: string, leftVersionId: string | null, rightVersionId: string | null): Promise<VersionDifference[]>
   }
   project: {
     /** Shows the native folder picker. `relinkId` re-points an existing

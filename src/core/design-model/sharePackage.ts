@@ -10,6 +10,8 @@ import * as designStateStore from '@core/workspace/models/designStateStore'
 import * as designTreeStore from '@core/workspace/models/designTreeStore'
 import * as featurePageStore from '@core/workspace/models/featurePageStore'
 import * as featureStore from '@core/workspace/models/featureStore'
+import * as featureWorkPackageStore from '@core/workspace/models/featureWorkPackageStore'
+import { applyDesignOperations } from './operations'
 import { readJsonFile, writeJsonFileAtomic } from '@core/workspace/atomicJson'
 
 export type { SharePackageBundle }
@@ -25,7 +27,9 @@ function resolveStepTree(userDataPath: string, projectId: string, step: JourneyS
   if (designState?.origin === 'captured' && !includeCapturedStates) return null
   const ownerId = step.alternativeId ?? step.designStateId
   if (!ownerId) return null
-  return designTreeStore.getDesignTree(userDataPath, projectId, ownerId)?.tree ?? null
+  const baseline = designTreeStore.getDesignTree(userDataPath, projectId, ownerId)?.tree ?? null
+  if (!baseline || !designState) return baseline
+  return applyDesignOperations(baseline, featureWorkPackageStore.getOperations(userDataPath, projectId, designState.featureId, ownerId))
 }
 
 function packageStepId(pageRef: PageRef, stateId: string | null): string {

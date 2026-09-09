@@ -269,33 +269,114 @@ export interface Journey {
 export interface Annotation {
   id: string
   featureId: string
-  pageId: string
-  pageStateId: string | null
+  pageRef: PageRef
+  designStateId: string | null
+  alternativeId: string | null
   viewport: Viewport
+  context: 'current' | 'proposed'
   elementId: string | null
+  elementLabel: string | null
   componentId: string | null
   versionId: string | null
   screenshotAssetId: string | null
   sourceReference: SourceReference | null
-  body: string
+  comment: string
+  status: 'open' | 'resolved' | 'reopened'
+  priority: 'low' | 'normal' | 'high'
+  /** True when the element no longer resolves. History is retained. */
+  needsAttention: boolean
   createdAt: string
+  updatedAt: string
   createdBy: string
 }
 
-/** Design intent, not flattened pixels (spec Phase 29) — e.g. "move
- * component after input" or "padding 16 -> 24", not an x/y delta. */
-export interface DesignChange {
+export type DesignOperationType =
+  | 'create'
+  | 'delete'
+  | 'move'
+  | 'reorder'
+  | 'replace'
+  | 'set-property'
+  | 'unset-property'
+  | 'set-layout'
+  | 'set-responsive-override'
+  | 'remove-responsive-override'
+  | 'change-content'
+  | 'create-component-instance'
+  | 'change-component-variant'
+  | 'change-state'
+  | 'change-interaction'
+  | 'change-visibility'
+
+/** A semantic, composable override above a source-derived Design Tree. */
+export interface DesignOperation {
   id: string
+  /** Immutable revision identity. `id` stays stable while edits compose. */
+  revisionId: string
   featureId: string
-  pageId: string
+  ownerId: string
+  pageRef: PageRef
+  designStateId: string
+  alternativeId: string | null
+  type: DesignOperationType
+  targetNodeId: string
+  /** Semantic composition key, e.g. node:set-property:style.padding. */
+  key: string
   summary: string
+  property: string | null
+  breakpoint: Exclude<import('../designNode').Breakpoint, 'desktop'> | null
+  baseValue: unknown
+  proposedValue: unknown
+  /** Only structured node data needed by create/duplicate operations. */
+  node: import('../designNode').DesignNode | null
+  parentId: string | null
+  index: number | null
   createdAt: string
+  updatedAt: string
 }
 
 export interface Version {
   id: string
   featureId: string
-  label: string
+  name: string
   createdAt: string
-  designChangeIds: string[]
+  createdBy: string
+  sourceBaselineRef: string | null
+  /** Owner -> immutable operation revision ids. */
+  operationRevisionIds: Record<string, string[]>
+  restoredFromVersionId: string | null
+  manifest: FeatureVersionManifest
+}
+
+export interface FeatureVersionManifest {
+  feature: Pick<Feature, 'name' | 'description' | 'status' | 'owner' | 'reviewers' | 'dueDate' | 'externalTicketRef' | 'pageIds' | 'referenceOnlyPageIds' | 'newPageIds'>
+  designStates: DesignState[]
+  alternatives: Alternative[]
+  conceptComponents: ConceptComponent[]
+  journeys: Journey[]
+  reviewItemIds: string[]
+  baselineOwnerIds: string[]
+}
+
+/** One persisted work package per Feature. Operation revisions are pooled
+ * once; working state and versions refer to them for structural sharing. */
+export interface FeatureWorkPackage {
+  schemaVersion: 1
+  projectId: string
+  featureId: string
+  annotations: Annotation[]
+  versions: Version[]
+  operationPool: Record<string, DesignOperation>
+  workingOperationRevisionIds: Record<string, string[]>
+  /** Owners migrated from pre-Phase-29 full-tree persistence. */
+  baselineOwnerIds: string[]
+  updatedAt: string
+}
+
+export interface VersionDifference {
+  operationId: string
+  kind: 'added' | 'removed' | 'changed'
+  summary: string
+  operationType: DesignOperationType
+  ownerId: string
 }

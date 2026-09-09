@@ -85,7 +85,7 @@ export function CanvasRoot({ node }: { node: DesignNode }) {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <RenderNode node={node} />
+      <div className="relative" data-frameui-node-id={node.id}><RenderNode node={node} /></div>
     </DndContext>
   )
 }
@@ -549,7 +549,7 @@ function SortableCanvasItem({
   const indicatorBase = axis === 'vertical' ? 'absolute left-0 right-0 h-0.5 rounded-full bg-accent-2' : 'absolute top-0 bottom-0 w-0.5 rounded-full bg-accent-2'
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative">
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative" data-frameui-node-id={node.id}>
       {showBefore && <div className={`${indicatorBase} ${axis === 'vertical' ? '-top-1.5' : '-left-1.5'}`} />}
       <RenderNode node={node} />
       {showAfter && <div className={`${indicatorBase} ${axis === 'vertical' ? '-bottom-1.5' : '-right-1.5'}`} />}
@@ -564,7 +564,7 @@ function SortableCanvasItem({
 function DraggableGridChild({ node, gridId }: { node: DesignNode; gridId: string }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: node.id, data: { type: 'sibling', parentId: gridId } })
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners} style={{ opacity: isDragging ? 0.4 : 1 }}>
+    <div ref={setNodeRef} {...attributes} {...listeners} style={{ opacity: isDragging ? 0.4 : 1 }} data-frameui-node-id={node.id}>
       <RenderNode node={node} />
     </div>
   )

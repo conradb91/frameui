@@ -3,7 +3,7 @@ import type { RecentProject } from '@shared/types/project'
 import type { Flow, FlowSummary } from '@shared/types/flow'
 import type { ScreenDraft } from '@shared/types/screenDraft'
 import type { DesignNode } from '@shared/types/designNode'
-import type { ConceptComponent, Feature, FeaturePage, DesignState, Alternative, Journey, SharePreview } from '@shared/types/model/featureModel'
+import type { ConceptComponent, Feature, FeaturePage, DesignState, Alternative, Journey, SharePreview, Annotation, DesignOperation, Version, VersionDifference } from '@shared/types/model/featureModel'
 import { listRecentProjects } from '@core/workspace/models/recentProjectsStore'
 import * as flowStore from '@core/workspace/models/flowStore'
 import * as screenDraftStore from '@core/workspace/models/screenDraftStore'
@@ -16,7 +16,9 @@ import type { DesignTreeRecord } from '@core/workspace/models/designTreeStore'
 import * as alternativeStore from '@core/workspace/models/alternativeStore'
 import * as journeyStore from '@core/workspace/models/journeyStore'
 import * as sharePreviewStore from '@core/workspace/models/sharePreviewStore'
+import * as featureWorkPackageStore from '@core/workspace/models/featureWorkPackageStore'
 import { buildSharePackage, readSharePackage, type SharePackageBundle } from '@core/design-model/sharePackage'
+import { applyDesignOperations } from '@core/design-model/operations'
 import {
   projectIdSchema,
   createFlowInputSchema,
@@ -63,6 +65,16 @@ import {
   deleteSharePreviewInputSchema,
   packageSharePreviewInputSchema,
   readSharePackageInputSchema,
+  getDesignOperationsInputSchema,
+  saveDesignOperationsInputSchema,
+  listAnnotationsInputSchema,
+  saveAnnotationInputSchema,
+  deleteAnnotationInputSchema,
+  listVersionsInputSchema,
+  createVersionInputSchema,
+  renameVersionInputSchema,
+  restoreVersionInputSchema,
+  compareVersionsInputSchema,
 } from '../schemas/workspace.schema'
 
 const { app, ipcMain } = electron
@@ -201,7 +213,15 @@ export function registerWorkspaceHandlers(): void {
 
   ipcMain.handle('workspace:duplicateDesignState', (_event, raw): DesignState => {
     const { projectId, sourceStateId, newName, newOrigin } = duplicateDesignStateInputSchema.parse(raw)
-    return designStateStore.duplicateDesignState(app.getPath('userData'), projectId, sourceStateId, newName, newOrigin)
+    const userDataPath = app.getPath('userData')
+    const source = designStateStore.getDesignState(userDataPath, projectId, sourceStateId)
+    const duplicate = designStateStore.duplicateDesignState(userDataPath, projectId, sourceStateId, newName, newOrigin)
+    const baseline = designTreeStore.getDesignTree(userDataPath, projectId, sourceStateId)
+    if (source && baseline) {
+      const operations = featureWorkPackageStore.getOperations(userDataPath, projectId, source.featureId, sourceStateId)
+      designTreeStore.saveDesignTree(userDataPath, { ownerId: duplicate.id, projectId, tree: applyDesignOperations(baseline.tree, operations), updatedAt: new Date().toISOString() })
+    }
+    return duplicate
   })
 
   ipcMain.handle('workspace:saveDesignState', (_event, raw): DesignState => {
@@ -217,7 +237,10 @@ export function registerWorkspaceHandlers(): void {
 
   ipcMain.handle('workspace:deleteDesignState', (_event, raw): { ok: true } => {
     const { projectId, stateId } = deleteDesignStateInputSchema.parse(raw)
-    designStateStore.deleteDesignState(app.getPath('userData'), projectId, stateId)
+    const userDataPath = app.getPath('userData')
+    const state = designStateStore.getDesignState(userDataPath, projectId, stateId)
+    designStateStore.deleteDesignState(userDataPath, projectId, stateId)
+    if (state) featureWorkPackageStore.deleteOwner(userDataPath, projectId, state.featureId, stateId)
     return { ok: true }
   })
 
@@ -242,7 +265,14 @@ export function registerWorkspaceHandlers(): void {
 
   ipcMain.handle('workspace:createAlternative', (_event, raw): Alternative => {
     const { projectId, ...input } = createAlternativeInputSchema.parse(raw)
-    return alternativeStore.createAlternative(app.getPath('userData'), projectId, input)
+    const userDataPath = app.getPath('userData')
+    const alternative = alternativeStore.createAlternative(userDataPath, projectId, input)
+    const baseline = designTreeStore.getDesignTree(userDataPath, projectId, input.sourceOwnerId)
+    if (baseline) {
+      const operations = featureWorkPackageStore.getOperations(userDataPath, projectId, input.featureId, input.sourceOwnerId)
+      designTreeStore.saveDesignTree(userDataPath, { ownerId: alternative.id, projectId, tree: applyDesignOperations(baseline.tree, operations), updatedAt: new Date().toISOString() })
+    }
+    return alternative
   })
 
   ipcMain.handle('workspace:saveAlternative', (_event, raw): Alternative => {
@@ -262,7 +292,10 @@ export function registerWorkspaceHandlers(): void {
 
   ipcMain.handle('workspace:deleteAlternative', (_event, raw): { ok: true } => {
     const { projectId, alternativeId } = deleteAlternativeInputSchema.parse(raw)
-    alternativeStore.deleteAlternative(app.getPath('userData'), projectId, alternativeId)
+    const userDataPath = app.getPath('userData')
+    const alternative = alternativeStore.getAlternative(userDataPath, projectId, alternativeId)
+    alternativeStore.deleteAlternative(userDataPath, projectId, alternativeId)
+    if (alternative) featureWorkPackageStore.deleteOwner(userDataPath, projectId, alternative.featureId, alternativeId)
     return { ok: true }
   })
 
@@ -334,5 +367,51 @@ export function registerWorkspaceHandlers(): void {
   ipcMain.handle('workspace:readSharePackage', (_event, raw): SharePackageBundle | null => {
     const { projectId, sharePreviewId } = readSharePackageInputSchema.parse(raw)
     return readSharePackage(app.getPath('userData'), projectId, sharePreviewId)
+  })
+
+  ipcMain.handle('workspace:getDesignOperations', (_event, raw): DesignOperation[] => {
+    const { projectId, featureId, ownerId } = getDesignOperationsInputSchema.parse(raw)
+    return featureWorkPackageStore.getOperations(app.getPath('userData'), projectId, featureId, ownerId)
+  })
+  ipcMain.handle('workspace:saveDesignOperations', (_event, raw): DesignOperation[] => {
+    const { projectId, featureId, ownerId, operations } = saveDesignOperationsInputSchema.parse(raw)
+    return featureWorkPackageStore.saveOperations(app.getPath('userData'), projectId, featureId, ownerId, operations as DesignOperation[])
+  })
+  ipcMain.handle('workspace:listAnnotations', (_event, raw): Annotation[] => {
+    const { projectId, featureId } = listAnnotationsInputSchema.parse(raw)
+    return featureWorkPackageStore.listAnnotations(app.getPath('userData'), projectId, featureId)
+  })
+  ipcMain.handle('workspace:saveAnnotation', (_event, raw): Annotation => {
+    const { projectId, annotation } = saveAnnotationInputSchema.parse(raw)
+    return featureWorkPackageStore.saveAnnotation(app.getPath('userData'), projectId, annotation as Annotation)
+  })
+  ipcMain.handle('workspace:deleteAnnotation', (_event, raw): { ok: true } => {
+    const { projectId, featureId, annotationId } = deleteAnnotationInputSchema.parse(raw)
+    featureWorkPackageStore.deleteAnnotation(app.getPath('userData'), projectId, featureId, annotationId)
+    return { ok: true }
+  })
+  ipcMain.handle('workspace:listVersions', (_event, raw): Version[] => {
+    const { projectId, featureId } = listVersionsInputSchema.parse(raw)
+    return featureWorkPackageStore.listVersions(app.getPath('userData'), projectId, featureId)
+  })
+  ipcMain.handle('workspace:createVersion', (_event, raw): Version => {
+    const { projectId, featureId, name, createdBy } = createVersionInputSchema.parse(raw)
+    return featureWorkPackageStore.createVersion(app.getPath('userData'), projectId, featureId, name, createdBy)
+  })
+  ipcMain.handle('workspace:renameVersion', (_event, raw): Version => {
+    const { projectId, featureId, versionId, name } = renameVersionInputSchema.parse(raw)
+    return featureWorkPackageStore.renameVersion(app.getPath('userData'), projectId, featureId, versionId, name)
+  })
+  ipcMain.handle('workspace:restoreVersion', (_event, raw): Version => {
+    const { projectId, featureId, versionId, createdBy } = restoreVersionInputSchema.parse(raw)
+    return featureWorkPackageStore.restoreVersion(app.getPath('userData'), projectId, featureId, versionId, createdBy)
+  })
+  ipcMain.handle('workspace:duplicateVersion', (_event, raw): Version => {
+    const { projectId, featureId, versionId, createdBy } = restoreVersionInputSchema.parse(raw)
+    return featureWorkPackageStore.duplicateVersion(app.getPath('userData'), projectId, featureId, versionId, createdBy)
+  })
+  ipcMain.handle('workspace:compareVersions', (_event, raw): VersionDifference[] => {
+    const { projectId, featureId, leftVersionId, rightVersionId } = compareVersionsInputSchema.parse(raw)
+    return featureWorkPackageStore.compareVersions(app.getPath('userData'), projectId, featureId, leftVersionId, rightVersionId)
   })
 }

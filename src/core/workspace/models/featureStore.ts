@@ -9,9 +9,20 @@ import * as featurePageStore from './featurePageStore'
 import * as designStateStore from './designStateStore'
 import * as journeyStore from './journeyStore'
 import * as sharePreviewStore from './sharePreviewStore'
+import * as featureWorkPackageStore from './featureWorkPackageStore'
 
 function readAll(userDataPath: string, projectId: string): Feature[] {
-  return readJsonFile<Feature[]>(getFeaturesFile(userDataPath, projectId), [])
+  return readJsonFile<Feature[]>(getFeaturesFile(userDataPath, projectId), []).map((feature) => ({
+    ...feature,
+    status: feature.status ?? 'concept',
+    owner: feature.owner ?? null,
+    reviewers: feature.reviewers ?? [],
+    dueDate: feature.dueDate ?? null,
+    externalTicketRef: feature.externalTicketRef ?? null,
+    pageIds: feature.pageIds ?? [],
+    referenceOnlyPageIds: feature.referenceOnlyPageIds ?? [],
+    newPageIds: feature.newPageIds ?? [],
+  }))
 }
 
 function writeAll(userDataPath: string, projectId: string, features: Feature[]): void {
@@ -93,4 +104,5 @@ export function deleteFeature(userDataPath: string, projectId: string, featureId
   featurePageStore.deleteAllForFeature(userDataPath, projectId, featureId)
   journeyStore.deleteAllForFeature(userDataPath, projectId, featureId)
   sharePreviewStore.deleteAllForFeature(userDataPath, projectId, featureId)
+  featureWorkPackageStore.deleteAllForFeature(userDataPath, projectId, featureId)
 }

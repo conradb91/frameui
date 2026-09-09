@@ -387,3 +387,51 @@ export const saveSharePreviewInputSchema = z.object({ projectId: idSchema, share
 export const deleteSharePreviewInputSchema = z.object({ projectId: idSchema, sharePreviewId: stableIdSchema })
 export const packageSharePreviewInputSchema = z.object({ projectId: idSchema, sharePreviewId: stableIdSchema })
 export const readSharePackageInputSchema = z.object({ projectId: idSchema, sharePreviewId: stableIdSchema })
+
+// ---------------------------------------------------------------------
+// Phase 26-29 — Feature work packages
+// ---------------------------------------------------------------------
+const looseIdSchema = z.string().min(1).max(300)
+const designOperationTypeSchema = z.enum(['create', 'delete', 'move', 'reorder', 'replace', 'set-property', 'unset-property', 'set-layout', 'set-responsive-override', 'remove-responsive-override', 'change-content', 'create-component-instance', 'change-component-variant', 'change-state', 'change-interaction', 'change-visibility'])
+const designOperationSchema = z.object({
+  id: looseIdSchema,
+  revisionId: looseIdSchema,
+  featureId: idSchema,
+  ownerId: looseIdSchema,
+  pageRef: pageRefSchema,
+  designStateId: stableIdSchema,
+  alternativeId: stableIdSchema.nullable(),
+  type: designOperationTypeSchema,
+  targetNodeId: looseIdSchema,
+  key: z.string().min(1).max(800),
+  summary: z.string().min(1).max(1000),
+  property: z.string().max(300).nullable(),
+  breakpoint: z.enum(['tablet', 'mobile']).nullable(),
+  baseValue: z.unknown(),
+  proposedValue: z.unknown(),
+  node: designNodeSchema.nullable(),
+  parentId: looseIdSchema.nullable(),
+  index: z.number().int().min(0).max(10000).nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const getDesignOperationsInputSchema = z.object({ projectId: idSchema, featureId: idSchema, ownerId: looseIdSchema })
+export const saveDesignOperationsInputSchema = z.object({ projectId: idSchema, featureId: idSchema, ownerId: looseIdSchema, operations: z.array(designOperationSchema).max(10000) })
+
+const annotationSchema = z.object({
+  id: looseIdSchema, featureId: idSchema, pageRef: pageRefSchema,
+  designStateId: stableIdSchema.nullable(), alternativeId: stableIdSchema.nullable(), viewport: viewportSchema,
+  context: z.enum(['current', 'proposed']), elementId: looseIdSchema.nullable(), elementLabel: z.string().max(300).nullable(),
+  componentId: looseIdSchema.nullable(), versionId: stableIdSchema.nullable(), screenshotAssetId: looseIdSchema.nullable(),
+  sourceReference: z.unknown().nullable(), comment: z.string().min(1).max(10000), status: z.enum(['open', 'resolved', 'reopened']),
+  priority: z.enum(['low', 'normal', 'high']), needsAttention: z.boolean(), createdAt: z.string(), updatedAt: z.string(), createdBy: z.string().max(200),
+})
+export const listAnnotationsInputSchema = z.object({ projectId: idSchema, featureId: idSchema })
+export const saveAnnotationInputSchema = z.object({ projectId: idSchema, annotation: annotationSchema })
+export const deleteAnnotationInputSchema = z.object({ projectId: idSchema, featureId: idSchema, annotationId: looseIdSchema })
+export const listVersionsInputSchema = z.object({ projectId: idSchema, featureId: idSchema })
+export const createVersionInputSchema = z.object({ projectId: idSchema, featureId: idSchema, name: z.string().min(1).max(120), createdBy: z.string().max(200) })
+export const renameVersionInputSchema = z.object({ projectId: idSchema, featureId: idSchema, versionId: stableIdSchema, name: z.string().min(1).max(120) })
+export const restoreVersionInputSchema = z.object({ projectId: idSchema, featureId: idSchema, versionId: stableIdSchema, createdBy: z.string().max(200) })
+export const compareVersionsInputSchema = z.object({ projectId: idSchema, featureId: idSchema, leftVersionId: stableIdSchema.nullable(), rightVersionId: stableIdSchema.nullable() })

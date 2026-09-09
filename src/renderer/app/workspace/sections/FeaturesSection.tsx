@@ -31,7 +31,7 @@ const STATUS_STYLE: Record<FeatureStatus, string> = {
 }
 
 function pageCount(feature: Feature): number {
-  return feature.pageIds.length + feature.referenceOnlyPageIds.length
+  return feature.pageIds.length + feature.referenceOnlyPageIds.length + feature.newPageIds.length
 }
 
 // formatRelativeTime's copy ("Opened…") is written for the recent-projects
@@ -52,6 +52,7 @@ export function FeaturesSection() {
   const loadFeatures = useFeatureStore((s) => s.loadFeatures)
   const createFeature = useFeatureStore((s) => s.createFeature)
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | FeatureStatus>('all')
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDescription, setNewDescription] = useState('')
@@ -63,9 +64,8 @@ export function FeaturesSection() {
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase()
-    if (!normalized) return features
-    return features.filter((feature) => [feature.name, feature.description, STATUS_LABEL[feature.status]].some((value) => value.toLowerCase().includes(normalized)))
-  }, [features, query])
+    return features.filter((feature) => (statusFilter === 'all' || feature.status === statusFilter) && (!normalized || [feature.name, feature.description, STATUS_LABEL[feature.status]].some((value) => value.toLowerCase().includes(normalized))))
+  }, [features, query, statusFilter])
 
   const recent = useMemo(() => [...features].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 4), [features])
 
@@ -144,9 +144,12 @@ export function FeaturesSection() {
             <section className="mt-8">
               <div className="mb-2 flex items-center justify-between">
                 <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-text-3">All Features</div>
+                <div className="flex items-center gap-2">
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="h-7 rounded-[5px] border border-border bg-panel px-2 text-[10.5px] text-text-2 outline-none"><option value="all">All statuses</option>{STATUS_ORDER.map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}</select>
                 <div className="flex h-7 w-60 items-center gap-2 rounded-[5px] border border-border bg-panel px-2">
                   <Search size={12} className="text-text-3" />
                   <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search features…" className="min-w-0 flex-1 bg-transparent text-[11px] text-text outline-none placeholder:text-text-3" />
+                </div>
                 </div>
               </div>
               <div className="border-t border-border">

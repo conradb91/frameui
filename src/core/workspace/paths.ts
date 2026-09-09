@@ -118,6 +118,14 @@ export function getSharePreviewsFile(userDataPath: string, projectId: string): s
   return path.join(dir, `${projectId}.json`)
 }
 
+/** Phase 26-29 — review, semantic intent and milestone history share one
+ * Feature work-package file so there is no competing source of truth. */
+export function getFeatureWorkPackagesFile(userDataPath: string, projectId: string): string {
+  const dir = path.join(getWorkspaceRoot(userDataPath), 'feature-work-packages')
+  fs.mkdirSync(dir, { recursive: true })
+  return path.join(dir, `${projectId}.json`)
+}
+
 /** One directory per share preview for its packaged, review-safe bundle
  * (HTML/JSON/assets) — binary/large content doesn't belong embedded in
  * getSharePreviewsFile's JSON array. */

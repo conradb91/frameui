@@ -72,6 +72,18 @@ const api: FrameUiApi = {
     deleteSharePreview: (projectId, sharePreviewId) => ipcRenderer.invoke('workspace:deleteSharePreview', { projectId, sharePreviewId }),
     packageSharePreview: (projectId, sharePreviewId) => ipcRenderer.invoke('workspace:packageSharePreview', { projectId, sharePreviewId }),
     readSharePackage: (projectId, sharePreviewId) => ipcRenderer.invoke('workspace:readSharePackage', { projectId, sharePreviewId }),
+
+    getDesignOperations: (projectId, featureId, ownerId) => ipcRenderer.invoke('workspace:getDesignOperations', { projectId, featureId, ownerId }),
+    saveDesignOperations: (projectId, featureId, ownerId, operations) => ipcRenderer.invoke('workspace:saveDesignOperations', { projectId, featureId, ownerId, operations }),
+    listAnnotations: (projectId, featureId) => ipcRenderer.invoke('workspace:listAnnotations', { projectId, featureId }),
+    saveAnnotation: (projectId, annotation) => ipcRenderer.invoke('workspace:saveAnnotation', { projectId, annotation }),
+    deleteAnnotation: (projectId, featureId, annotationId) => ipcRenderer.invoke('workspace:deleteAnnotation', { projectId, featureId, annotationId }),
+    listVersions: (projectId, featureId) => ipcRenderer.invoke('workspace:listVersions', { projectId, featureId }),
+    createVersion: (projectId, featureId, name, createdBy) => ipcRenderer.invoke('workspace:createVersion', { projectId, featureId, name, createdBy }),
+    renameVersion: (projectId, featureId, versionId, name) => ipcRenderer.invoke('workspace:renameVersion', { projectId, featureId, versionId, name }),
+    restoreVersion: (projectId, featureId, versionId, createdBy) => ipcRenderer.invoke('workspace:restoreVersion', { projectId, featureId, versionId, createdBy }),
+    duplicateVersion: (projectId, featureId, versionId, createdBy) => ipcRenderer.invoke('workspace:duplicateVersion', { projectId, featureId, versionId, createdBy }),
+    compareVersions: (projectId, featureId, leftVersionId, rightVersionId) => ipcRenderer.invoke('workspace:compareVersions', { projectId, featureId, leftVersionId, rightVersionId }),
   },
   project: {
     openDialog: (relinkId) => ipcRenderer.invoke('project:openDialog', relinkId),

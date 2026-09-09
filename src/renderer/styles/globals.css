@@ -57,6 +57,26 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Review pins are attached to stable DesignNode ids. They move with the
+   semantic node wrapper and stay deliberately small until selected. */
+[data-frameui-node-id][data-review-count]::after {
+  content: attr(data-review-count);
+  position: absolute;
+  z-index: 30;
+  top: -7px;
+  right: -7px;
+  width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--color-warning);
+  color: #17181d;
+  border: 2px solid var(--color-panel);
+  font: 700 9px/1 var(--font-mono);
+  pointer-events: none;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

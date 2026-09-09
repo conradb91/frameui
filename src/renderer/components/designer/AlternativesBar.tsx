@@ -4,6 +4,7 @@ import type { Alternative } from '@shared/types/model/featureModel'
 import type { DesignNode, Breakpoint } from '@shared/types/designNode'
 import { useDesignStore } from '../../state/designStore'
 import { RenderNode } from './RenderNode'
+import { applyDesignOperations } from '@core/design-model/operations'
 
 /**
  * Phase 19 — Current/Concept A/Concept B/Approved selector for one
@@ -41,6 +42,7 @@ export function AlternativesBar(props: {
   const storeTree = useDesignStore((s) => s.tree)
   const storeDesignStateId = useDesignStore((s) => s.designStateId)
   const storeAlternativeId = useDesignStore((s) => s.alternativeId)
+  const storeOperations = useDesignStore((s) => s.operations)
 
   const [alternatives, setAlternatives] = useState<Alternative[]>([])
 
@@ -93,7 +95,9 @@ export function AlternativesBar(props: {
       return storeTree
     }
     const record = await window.frameui.workspace.getDesignTree(projectId, ownerId)
-    return record?.tree ?? null
+    if (!record) return null
+    const operations = await window.frameui.workspace.getDesignOperations(projectId, featureId, ownerId)
+    return applyDesignOperations(record.tree, operations)
   }
 
   async function loadMetadata() {
@@ -126,12 +130,16 @@ export function AlternativesBar(props: {
     if (!name || creatingBusy) return
     setCreatingBusy(true)
     try {
+      const sourceOwnerId = activeAlternativeId ?? designStateId
+      if ((storeAlternativeId ?? storeDesignStateId) === sourceOwnerId) {
+        await window.frameui.workspace.saveDesignOperations(projectId, featureId, sourceOwnerId, storeOperations)
+      }
       const alt = await window.frameui.workspace.createAlternative(projectId, {
         featureId,
         designStateId,
         designStateSlugHint: designStateId,
         name,
-        sourceOwnerId: activeAlternativeId ?? designStateId,
+        sourceOwnerId,
       })
       setNewName('')
       setCreating(false)

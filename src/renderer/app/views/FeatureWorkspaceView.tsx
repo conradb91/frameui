@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Palette, FileStack, Component as ComponentIcon, Map as MapIcon, ShieldCheck, Download, Share2, Play, Plus, Search } from 'lucide-react'
+import { Palette, FileStack, Component as ComponentIcon, Map as MapIcon, ShieldCheck, Download, Share2, Play, Plus, Search, History } from 'lucide-react'
 import { useProjectStore } from '../../state/projectStore'
 import { useUiStore } from '../../state/uiStore'
 import { useFeatureStore } from '../../state/featureStore'
@@ -19,6 +19,8 @@ import { SharePreviewPanel } from '../../components/designer/SharePreviewPanel'
 import { JourneyListPanel } from '../../components/designer/JourneyListPanel'
 import { JourneyCanvas } from '../../components/designer/JourneyCanvas'
 import { JourneyInspector } from '../../components/designer/JourneyInspector'
+import { FeatureReviewPanel } from '../../components/designer/FeatureReviewPanel'
+import { VersionHistoryPanel } from '../../components/designer/VersionHistoryPanel'
 import { StructurePreview } from '../../components/project/StructurePreview'
 import { openDesignThisPage } from '../../lib/designThisPage'
 import { FrameMark, ChevronRightIcon } from '../../components/icons/icons'
@@ -28,9 +30,9 @@ import { classifyEditability } from '@core/design-model/editability'
 import { resolveProjectBreakpoints } from '@core/design-model/resolveBreakpoints'
 import type { DesignNode, PrimitiveKind, PlaceholderNode, Breakpoint } from '@shared/types/designNode'
 import type { Component, Page, ProjectModel } from '@shared/types/model/projectModel'
-import type { FeatureStatus, PageRef, FeaturePage } from '@shared/types/model/featureModel'
+import type { Annotation, Feature, FeatureStatus, PageRef, FeaturePage } from '@shared/types/model/featureModel'
 
-type Activity = 'design' | 'pages' | 'components' | 'journey' | 'review'
+type Activity = 'design' | 'pages' | 'components' | 'journey' | 'review' | 'history'
 type ViewMode = 'current' | 'proposed' | 'compare'
 
 const BREAKPOINT_LABEL: Record<Breakpoint, string> = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' }
@@ -41,6 +43,7 @@ const ACTIVITIES: { id: Activity; label: string; icon: typeof Palette }[] = [
   { id: 'components', label: 'Components', icon: ComponentIcon },
   { id: 'journey', label: 'Journey', icon: MapIcon },
   { id: 'review', label: 'Review', icon: ShieldCheck },
+  { id: 'history', label: 'Version History', icon: History },
 ]
 
 const STATUS_ORDER: FeatureStatus[] = ['concept', 'designing', 'review', 'approved', 'ready-for-development', 'implemented', 'verified']
@@ -208,6 +211,15 @@ export function FeatureWorkspaceView() {
     await saveFeature({ ...feature, status })
   }
 
+  async function handleJumpToAnnotation(item: Annotation) {
+    if (!item.designStateId) return
+    setActivePageRef(item.pageRef)
+    setBreakpoint(item.viewport)
+    await loadDesignState(activeProject!.id, item.designStateId, item.alternativeId)
+    select(item.elementId)
+    setActivity('review')
+  }
+
   function handleInsertPrimitive(kind: PrimitiveKind) {
     if (!tree || !insertTargetId) return
     const node = createPrimitiveNode(kind)
@@ -271,6 +283,9 @@ export function FeatureWorkspaceView() {
           <span className="truncate font-mono text-[12px] text-text-3">{activeProject.name}</span>
           <ChevronRightIcon className="h-3 w-3 shrink-0 text-text-3" />
           <span className="truncate text-[13.5px] font-semibold text-text">{feature.name}</span>
+          <select value={feature.status} onChange={(event) => void handleSetStatus(event.target.value as FeatureStatus)} className="rounded border border-border bg-panel-2 px-2 py-1 text-[10px] font-semibold text-accent-2 outline-none">
+            {STATUS_ORDER.map((status) => <option key={status} value={status} className="bg-panel text-text">{STATUS_LABEL[status]}</option>)}
+          </select>
         </div>
 
         <div className="flex items-center gap-3">
@@ -437,11 +452,9 @@ export function FeatureWorkspaceView() {
           )}
 
           {activity === 'review' && (
-            <div className="flex-1 overflow-y-auto p-2.5">
-              <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Status</div>
-              <div className="text-[12.5px] font-medium text-text">{STATUS_LABEL[feature.status]}</div>
-            </div>
+            <FeatureReviewPanel projectId={activeProject.id} featureId={feature.id} pageRef={activePageRef} designStateId={activeDesignStateId} alternativeId={activeAlternativeId} breakpoint={breakpoint} selectedNode={selectedNode} tree={tree} onJump={(item) => void handleJumpToAnnotation(item)} />
           )}
+          {activity === 'history' && <div className="p-3 text-[11px] leading-relaxed text-text-3">Named versions preserve semantic Feature operations. Restore creates a new milestone and never deletes later history.</div>}
         </div>
 
         {/* Main canvas */}
@@ -667,39 +680,12 @@ export function FeatureWorkspaceView() {
           )}
 
           {activity === 'review' && (
-            <div className="flex-1 overflow-y-auto p-6">
-              <h2 className="mb-4 text-[15px] font-semibold text-text">Review Status</h2>
-              <div className="mb-6 flex flex-wrap gap-1.5">
-                {STATUS_ORDER.map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => void handleSetStatus(status)}
-                    className={`rounded-md border px-3 py-1.5 text-[11.5px] font-semibold ${
-                      feature.status === status ? 'border-accent-2 bg-accent/15 text-accent-2' : 'border-border bg-panel-2 text-text-2 hover:text-text'
-                    }`}
-                  >
-                    {STATUS_LABEL[status]}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Diagnostics</div>
-              <div className="flex flex-col gap-2">
-                {(projectModel?.diagnostics ?? [])
-                  .filter((d) => designPages.some((p) => p.id === d.pageId))
-                  .map((d) => (
-                    <div key={d.id} className="rounded-lg border border-border bg-panel-2 px-3 py-2.5">
-                      <div className="text-[12px] font-medium text-text">{d.title}</div>
-                      <div className="mt-0.5 text-[11px] text-text-3">{d.detail}</div>
-                    </div>
-                  ))}
-                {(!projectModel || projectModel.diagnostics.filter((d) => designPages.some((p) => p.id === d.pageId)).length === 0) && (
-                  <div className="text-[12px] text-text-3">No diagnostics affecting this feature's pages.</div>
-                )}
-              </div>
+            <div className="relative flex-1 overflow-auto bg-bg p-8" onClick={() => select(null)}>
+              {tree ? <div className="mx-auto min-h-[500px] rounded-xl border border-border bg-panel p-8" style={{ width: breakpointWidths[breakpoint] }}><CanvasRoot node={tree}/></div> : <div className="flex h-full items-center justify-center text-[12px] text-text-3">Open a page, then enter Review to annotate its page or elements.</div>}
             </div>
           )}
+
+          {activity === 'history' && <div className="flex-1 overflow-y-auto"><VersionHistoryPanel projectId={activeProject.id} featureId={feature.id}/></div>}
         </div>
 
         {/* Right inspector */}
@@ -728,7 +714,9 @@ export function FeatureWorkspaceView() {
               connection). */}
           {activity === 'journey' && <JourneyInspector projectId={activeProject.id} featureId={feature.id} journeyId={selectedJourneyId} />}
 
-          {(activity === 'components' || activity === 'review') && <div className="text-[11.5px] text-text-3">Feature: {feature.name}</div>}
+          {activity === 'components' && <div className="text-[11.5px] text-text-3">Feature: {feature.name}</div>}
+          {activity === 'review' && <FeatureMetadataEditor feature={feature} onSave={saveFeature}/>}
+          {activity === 'history' && <div className="text-[11px] leading-relaxed text-text-3">Versions retain page/state/alternative operations and restore into a new working milestone.</div>}
         </div>
       </div>
 
@@ -743,6 +731,18 @@ export function FeatureWorkspaceView() {
       {sharePanelOpen && <SharePreviewPanel projectId={activeProject.id} featureId={feature.id} onClose={() => setSharePanelOpen(false)} />}
     </div>
   )
+}
+
+function FeatureMetadataEditor({ feature, onSave }: { feature: Feature; onSave: (feature: Feature) => Promise<Feature> }) {
+  const [owner, setOwner] = useState(feature.owner ?? '')
+  const [reviewers, setReviewers] = useState(feature.reviewers.join(', '))
+  const [dueDate, setDueDate] = useState(feature.dueDate ?? '')
+  const [ticket, setTicket] = useState(feature.externalTicketRef ?? '')
+  async function commit() {
+    await onSave({ ...feature, owner: owner.trim() || null, reviewers: reviewers.split(',').map((value) => value.trim()).filter(Boolean), dueDate: dueDate || null, externalTicketRef: ticket.trim() || null })
+  }
+  const inputClass = 'mt-1 h-7 w-full rounded border border-border bg-panel-2 px-2 text-[10.5px] text-text outline-none focus:border-accent/60'
+  return <div className="space-y-3"><div className="text-[10px] font-semibold uppercase tracking-wide text-text-3">Feature handoff</div><label className="block text-[10px] text-text-3">Owner<input value={owner} onChange={(e) => setOwner(e.target.value)} onBlur={() => void commit()} className={inputClass}/></label><label className="block text-[10px] text-text-3">Reviewers<input value={reviewers} onChange={(e) => setReviewers(e.target.value)} onBlur={() => void commit()} placeholder="Comma separated" className={inputClass}/></label><label className="block text-[10px] text-text-3">Due date<input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} onBlur={() => void commit()} className={inputClass}/></label><label className="block text-[10px] text-text-3">External ticket<input value={ticket} onChange={(e) => setTicket(e.target.value)} onBlur={() => void commit()} placeholder="e.g. APP-142" className={inputClass}/></label><div className="border-t border-border pt-2 text-[9.5px] text-text-3">Created {new Date(feature.createdAt).toLocaleDateString()}<br/>Updated {new Date(feature.updatedAt).toLocaleString()}</div></div>
 }
 
 function featureComponentList(projectModel: ProjectModel | null, pages: Page[]): Component[] {

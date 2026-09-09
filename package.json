@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "test": "bun test",
     "build": "bun run typecheck && vite build",
     "build:mac": "bun run build && electron-builder --mac dmg",
     "build:win": "bun run build && electron-builder --win nsis",

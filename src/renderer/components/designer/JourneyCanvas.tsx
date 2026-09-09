@@ -22,6 +22,7 @@ import '@xyflow/react/dist/style.css'
 import { Circle, Plus, X } from 'lucide-react'
 import type { Feature, FeaturePage, JourneyConnection, JourneyStep, Provenance } from '@shared/types/model/featureModel'
 import type { DesignNode } from '@shared/types/designNode'
+import { applyDesignOperations } from '@core/design-model/operations'
 import type { Page, ProjectModel } from '@shared/types/model/projectModel'
 import { useJourneyStore } from '../../state/journeyStore'
 import { useDesignStore } from '../../state/designStore'
@@ -139,11 +140,13 @@ function JourneyCanvasInner({ projectId, featureId, projectModel, journeyId, onO
       const featurePage = step.pageRef.kind === 'new' ? featurePages.find((item) => item.id === step.pageRef.pageId) ?? null : null
       const state = step.designStateId ? await window.frameui.workspace.getDesignState(projectId, step.designStateId) : null
       const treeOwner = step.alternativeId ?? step.designStateId
-      const tree = treeOwner ? (await window.frameui.workspace.getDesignTree(projectId, treeOwner))?.tree ?? null : null
+      const record = treeOwner ? await window.frameui.workspace.getDesignTree(projectId, treeOwner) : null
+      const operations = treeOwner ? await window.frameui.workspace.getDesignOperations(projectId, featureId, treeOwner) : []
+      const tree = record ? applyDesignOperations(record.tree, operations) : null
       return { id: step.id, type: 'journeyStep', position: step.position, data: { name: page?.name ?? featurePage?.name ?? step.pageRef.pageId, route: page?.route ?? featurePage?.suggestedRoute ?? null, stateName: state?.name ?? null, provenance: step.provenance, referenceOnly: step.referenceOnly, structure: page?.structure ?? null, tree } }
     })).then((nextNodes) => { if (!cancelled) { setNodes(nextNodes); setEdges(toEdges(journey.connections)) } })
     return () => { cancelled = true }
-  }, [featurePages, journey, projectId, projectModel])
+  }, [featureId, featurePages, journey, projectId, projectModel])
 
   const selectedStepId = useJourneyStore((state) => state.selectedStepId)
   const selectedStep = journey?.steps.find((step) => step.id === selectedStepId) ?? null
