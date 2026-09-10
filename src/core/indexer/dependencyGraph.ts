@@ -4,7 +4,7 @@ import type { DependencyGraph, ProjectIndex } from '@shared/types/projectIndex'
 
 const IMPORT_PATTERN = /(?:\bimport\s*(?:[\s\S]{0,180}?\bfrom\s*)?|\bexport\b[\s\S]{0,180}?\bfrom\s*|\brequire\s*\(|\bimport\s*\()\s*['"]([^'"]+)['"]/g
 const STYLE_PATTERN = /@(?:use|forward|import)\s+(?:url\()?['"]([^'"]+)['"]/g
-const EXTENSIONS = ['', '.ts', '.tsx', '.js', '.jsx', '.vue', '.svelte', '.astro', '.css', '.scss', '.sass', '.less', '.php', '.html', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.woff', '.woff2', '.ttf', '.otf']
+const EXTENSIONS = ['', '.ts', '.tsx', '.js', '.jsx', '.vue', '.svelte', '.astro', '.css', '.scss', '.sass', '.less', '.php', '.cshtml', '.razor', '.cs', '.html', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.woff', '.woff2', '.ttf', '.otf']
 
 function normalize(value: string): string { return value.split(path.sep).join('/') }
 
@@ -44,7 +44,15 @@ export function buildDependencyGraph(rootPath: string, files: string[], index: P
   for (const component of index.projectModel.components) (fileObjects[normalize(component.source.filePath)] ??= []).push(component.id)
   const dependencies: Record<string, string[]> = {}
   for (const file of known) dependencies[file] = referencesFor(rootPath, file, known)
+  addModelRelationships(dependencies, index)
   return finishGraph({ fileObjects, dependencies, dependents: {}, objectConsumers: {} })
+}
+
+function addModelRelationships(dependencies: Record<string, string[]>, index: Pick<ProjectIndex, 'projectModel'>) {
+  for (const relationship of index.projectModel.sourceRelationships ?? []) {
+    const existing = dependencies[relationship.sourceFile] ?? []
+    dependencies[relationship.sourceFile] = [...new Set([...existing, relationship.targetFile])]
+  }
 }
 
 function finishGraph(graph: DependencyGraph): DependencyGraph {
@@ -72,6 +80,7 @@ export function updateDependencyGraph(rootPath: string, graph: DependencyGraph, 
   for (const page of index.projectModel.pages) (fileObjects[normalize(page.source.filePath)] ??= []).push(page.id)
   for (const component of index.projectModel.components) (fileObjects[normalize(component.source.filePath)] ??= []).push(component.id)
   for (const key of Object.keys(fileObjects)) fileObjects[key] = [...new Set(fileObjects[key])]
+  addModelRelationships(dependencies, index)
   return finishGraph({ fileObjects, dependencies, dependents: {}, objectConsumers: {} })
 }
 

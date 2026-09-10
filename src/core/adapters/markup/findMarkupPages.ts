@@ -25,7 +25,7 @@ function titleCase(value: string): string {
     .replace(/[-_]+/g, ' ')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .split(' ')
-    .filter(Boolean)
+    .filter((segment) => !!segment && !/^\(.*\)$/.test(segment))
     .map((word) => word[0].toUpperCase() + word.slice(1))
     .join(' ')
 }
@@ -35,7 +35,7 @@ function routeFor(relativeWithinRoot: string): string {
   const base = withoutTemplateExtension(parts.pop() ?? '')
   if (base.toLowerCase() !== 'index') parts.push(base)
   const route = parts
-    .filter(Boolean)
+    .filter((segment) => !!segment && !/^\(.*\)$/.test(segment))
     .map((segment) => segment.replace(/^\[\.\.\.([^\]]+)\]$/, '*$1').replace(/^\[([^\]]+)\]$/, ':$1'))
     .join('/')
   return `/${route}`.replace(/\/$/, '') || '/'
@@ -43,10 +43,10 @@ function routeFor(relativeWithinRoot: string): string {
 
 function rootsFor(rootPath: string, framework: Framework): string[] {
   const candidates: string[] = []
-  if (framework === 'php') candidates.push('resources/views', 'app/Views', 'application/views', 'views', 'templates')
+  if (framework === 'php') candidates.push('resources/views', 'app/Views', 'application/views', 'views', 'templates', 'public', '.')
   if (framework === 'astro') candidates.push('src/pages')
   if (framework === 'svelte') candidates.push('src/routes', 'src/pages', 'routes', 'pages')
-  if (framework === 'vue') candidates.push('src/pages', 'pages', 'src/views', 'views')
+  if (framework === 'vue') candidates.push('app/pages', 'src/pages', 'pages', 'src/views', 'views')
   if (framework === 'node') candidates.push('views', 'src/views', 'pages', 'src/pages', 'templates')
   if (framework === 'static') candidates.push('pages', 'public', '.')
   const existing = [...new Set(candidates.map((candidate) => path.resolve(rootPath, candidate)))].filter(
@@ -78,13 +78,16 @@ export function findMarkupPages(rootPath: string, framework: Framework, ignoreRu
       if (pages.length >= MAX_PAGES) break
       const fullPath = path.join(dir, entry.name)
       if (entry.isDirectory()) {
-        if (ignoreRules.shouldSkipDir(entry.name) || NON_PAGE_DIRS.has(entry.name.toLowerCase())) continue
+        if (ignoreRules.shouldSkipDir(entry.name) || NON_PAGE_DIRS.has(entry.name.toLowerCase()) || (framework === 'php' && /^(controllers?|models?|config|database|migrations?|tests?|system|libraries|helpers|commands|filters)$/i.test(entry.name))) continue
         visit(fullPath, pagesRoot)
         continue
       }
       if (!entry.isFile() || ignoreRules.shouldSkipFile(entry.name)) continue
       const ext = path.extname(entry.name).toLowerCase()
       if (!EXTENSIONS.has(ext)) continue
+      if (framework === 'php' && /\.(php|phtml)$/i.test(entry.name)) {
+        try { if (!/<(?:html|body|div|main|section|h[1-6]|p|form|table|ul|a|button|header|article|nav|span)\b/i.test(fs.readFileSync(fullPath, 'utf8'))) continue } catch { continue }
+      }
       const base = withoutTemplateExtension(entry.name)
       if (NON_PAGE_NAMES.test(base) || (framework === 'php' && base.toLowerCase() === 'app')) continue
       const filePath = path.relative(rootPath, fullPath).split(path.sep).join('/')

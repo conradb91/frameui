@@ -1,3 +1,4 @@
+import { pendingWorkspaceSaves } from '../../state/pendingSaves'
 import { useEffect, useState } from 'react'
 import { Star, Check, Plus, Trash2, Pencil, X, Info, GitCompare } from 'lucide-react'
 import type { Alternative } from '@shared/types/model/featureModel'
@@ -134,6 +135,7 @@ export function AlternativesBar(props: {
       if ((storeAlternativeId ?? storeDesignStateId) === sourceOwnerId) {
         await window.frameui.workspace.saveDesignOperations(projectId, featureId, sourceOwnerId, storeOperations)
       }
+      await pendingWorkspaceSaves.flush()
       const alt = await window.frameui.workspace.createAlternative(projectId, {
         featureId,
         designStateId,
@@ -174,6 +176,7 @@ export function AlternativesBar(props: {
   }
 
   async function handleDelete(alt: Alternative) {
+    await pendingWorkspaceSaves.flush()
     await window.frameui.workspace.deleteAlternative(projectId, alt.id)
     setConfirmDeleteId(null)
     await refresh()
@@ -213,7 +216,7 @@ export function AlternativesBar(props: {
         type="button"
         onClick={() => onSelectAlternative(null)}
         className={`rounded-md border px-2.5 py-1 text-[11.5px] font-semibold ${
-          activeAlternativeId === null ? 'border-accent-2 bg-accent/15 text-accent-2' : 'border-border bg-panel-2 text-text-2 hover:text-text'
+          activeAlternativeId === null ? 'border-accent-2 bg-selected text-accent-2' : 'border-border bg-panel-2 text-text-2 hover:text-text'
         }`}
       >
         Current
@@ -223,7 +226,7 @@ export function AlternativesBar(props: {
         <div
           key={alt.id}
           className={`flex items-center gap-1 rounded-md border px-1.5 py-1 ${
-            activeAlternativeId === alt.id ? 'border-accent-2 bg-accent/15 text-accent-2' : 'border-border bg-panel-2 text-text-2'
+            activeAlternativeId === alt.id ? 'border-accent-2 bg-selected text-accent-2' : 'border-border bg-panel-2 text-text-2'
           }`}
         >
           {renamingId === alt.id ? (
@@ -236,7 +239,7 @@ export function AlternativesBar(props: {
                 if (e.key === 'Enter') void commitRename(alt)
                 if (e.key === 'Escape') setRenamingId(null)
               }}
-              className="w-24 bg-transparent text-[11.5px] outline-none"
+              className="w-24 bg-transparent text-[12px] outline-none"
             />
           ) : (
             <button
@@ -253,7 +256,7 @@ export function AlternativesBar(props: {
             type="button"
             title={alt.isPreferred ? 'Preferred alternative' : 'Set as preferred'}
             onClick={() => void handleSetPreferred(alt)}
-            className={alt.isPreferred ? 'text-amber-400' : 'text-text-3 hover:text-text-2'}
+            className={alt.isPreferred ? 'text-warning' : 'text-text-3 hover:text-text-2'}
           >
             <Star size={11} fill={alt.isPreferred ? 'currentColor' : 'none'} />
           </button>
@@ -261,7 +264,7 @@ export function AlternativesBar(props: {
             type="button"
             title={alt.isApproved ? 'Approved alternative' : 'Set as approved'}
             onClick={() => void handleSetApproved(alt)}
-            className={alt.isApproved ? 'text-emerald-400' : 'text-text-3 hover:text-text-2'}
+            className={alt.isApproved ? 'text-success' : 'text-text-3 hover:text-text-2'}
           >
             <Check size={11} />
           </button>
@@ -269,7 +272,7 @@ export function AlternativesBar(props: {
             <Pencil size={10} />
           </button>
           {confirmDeleteId === alt.id ? (
-            <span className="flex items-center gap-1 pl-0.5 text-[10px] text-danger">
+            <span className="flex items-center gap-1 pl-0.5 text-[11px] text-danger">
               Delete?
               <button type="button" onClick={() => void handleDelete(alt)} className="font-semibold underline">
                 Yes
@@ -297,9 +300,9 @@ export function AlternativesBar(props: {
           New
         </button>
         {creating && (
-          <div className="absolute left-0 top-9 z-30 w-64 rounded-md border border-border-strong bg-panel p-2.5 shadow-2xl">
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-3">Duplicate as Alternative</div>
-            <div className="mb-2 text-[10.5px] leading-relaxed text-text-3">
+          <div className="absolute left-0 top-9 z-30 w-64 rounded-md border border-border-strong bg-panel p-2.5 shadow-sm">
+            <div className="mb-1.5 text-[11px] font-semibold tracking-wide text-text-3">Duplicate as Alternative</div>
+            <div className="mb-2 text-[11px] leading-relaxed text-text-3">
               Copies {activeAlternativeId ? 'the currently selected alternative' : 'Current'}'s design into a new, independent alternative.
             </div>
             <input
@@ -307,21 +310,21 @@ export function AlternativesBar(props: {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Alternative name (e.g. Concept B)"
-              className="mb-2 h-7 w-full rounded border border-border bg-bg px-2 text-[11.5px] text-text outline-none placeholder:text-text-3 focus:border-accent/60"
+              className="mb-2 h-7 w-full rounded border border-border bg-bg px-2 text-[12px] text-text outline-none placeholder:text-text-3 focus:border-accent/60"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void handleCreate()
                 if (e.key === 'Escape') setCreating(false)
               }}
             />
             <div className="flex items-center justify-end gap-2">
-              <button type="button" onClick={() => setCreating(false)} className="text-[10.5px] text-text-3 hover:text-text-2">
+              <button type="button" onClick={() => setCreating(false)} className="text-[11px] text-text-3 hover:text-text-2">
                 Cancel
               </button>
               <button
                 type="button"
                 disabled={!newName.trim() || creatingBusy}
                 onClick={() => void handleCreate()}
-                className="rounded bg-accent px-2.5 py-1 text-[10.5px] font-semibold text-white hover:bg-accent-2 disabled:opacity-40"
+                className="rounded bg-accent px-2.5 py-1 text-[11px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-40"
               >
                 {creatingBusy ? 'Creating…' : 'Create'}
               </button>
@@ -342,9 +345,9 @@ export function AlternativesBar(props: {
             Metadata
           </button>
           {metadataOpen && (
-            <div className="absolute right-0 top-9 z-30 w-72 rounded-md border border-border-strong bg-panel p-3 shadow-2xl">
+            <div className="absolute right-0 top-9 z-30 w-72 rounded-md border border-border-strong bg-panel p-3 shadow-sm">
               <div className="mb-2 flex items-center justify-between">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-text-3">
+                <div className="text-[11px] font-semibold tracking-wide text-text-3">
                   {activeAlternativeId ? (alternatives.find((a) => a.id === activeAlternativeId)?.name ?? 'Alternative') : 'Current'}
                 </div>
                 <button type="button" onClick={() => setMetadataOpen(false)} className="text-text-3 hover:text-text-2">
@@ -387,8 +390,8 @@ export function AlternativesBar(props: {
       </div>
 
       {compareOpen && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-6">
-          <div className="flex max-h-full w-full max-w-[95vw] flex-col rounded-xl border border-border-strong bg-bg-raised shadow-2xl">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-scrim p-4">
+          <div className="flex max-h-full w-full max-w-[95vw] flex-col rounded-xl border border-border-strong bg-bg-raised shadow-sm">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div className="text-[13px] font-semibold text-text">Compare Alternatives</div>
               <button
@@ -412,21 +415,21 @@ export function AlternativesBar(props: {
                 type="button"
                 disabled={compareSelection.length < 2 || compareLoading}
                 onClick={() => void runCompare()}
-                className="ml-auto rounded-md bg-accent px-3 py-1.5 text-[11.5px] font-semibold text-white hover:bg-accent-2 disabled:opacity-40"
+                className="ml-auto rounded-md bg-accent px-3 py-1.5 text-[11.5px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-40"
               >
                 {compareLoading ? 'Loading…' : 'Show Comparison'}
               </button>
             </div>
 
-            <div className="flex-1 overflow-auto p-6">
+            <div className="flex-1 overflow-auto p-4">
               {!comparePanes ? (
                 <div className="flex h-40 items-center justify-center text-[12px] text-text-3">Pick two or more variants above, then Show Comparison.</div>
               ) : (
-                <div className="flex justify-center gap-6">
+                <div className="flex justify-center gap-3">
                   {comparePanes.map((pane) => (
                     <div key={pane.key} className="flex flex-col items-center gap-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-text-3">{pane.label}</div>
-                      <div className="min-h-[500px] overflow-auto rounded-xl border border-border bg-panel p-8" style={{ width: paneWidth }}>
+                      <div className="text-[11px] font-semibold tracking-wide text-text-3">{pane.label}</div>
+                      <div className="min-h-[500px] overflow-auto rounded-xl border border-border bg-panel p-4" style={{ width: paneWidth }}>
                         {pane.tree ? (
                           // Read-only: this tree is not the one loaded into
                           // useDesignStore, so pointer-events are disabled
@@ -463,7 +466,7 @@ function MetadataRow({ label, value, hint }: { label: string; value: number | st
 
 function CompareCheckbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
   return (
-    <label className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11.5px] ${checked ? 'border-accent-2 bg-accent/15 text-accent-2' : 'border-border bg-panel-2 text-text-2'}`}>
+    <label className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11.5px] ${checked ? 'border-accent-2 bg-selected text-accent-2' : 'border-border bg-panel-2 text-text-2'}`}>
       <input type="checkbox" checked={checked} onChange={onChange} className="accent-accent-2" />
       {label}
     </label>

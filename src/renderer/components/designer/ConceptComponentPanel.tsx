@@ -73,12 +73,15 @@ export function ConceptComponentPanel({
 
   if (editing) {
     return (
+      <>
       <ConceptComponentEditor
         projectId={projectId}
         component={editing}
         onClose={() => setEditingId(null)}
         onDelete={() => setPendingDeleteId(editing.id)}
       />
+      {pendingDeleteId && <ConfirmDeleteDialog name={editing.name} usagesInOpenTree={countUsagesInTree(useDesignStore.getState().tree, editing.id)} onCancel={() => setPendingDeleteId(null)} onConfirm={() => void handleDelete(editing.id)} />}
+      </>
     )
   }
 
@@ -86,8 +89,8 @@ export function ConceptComponentPanel({
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-text-3">Concept Components</div>
-          <div className="mt-0.5 text-[10px] text-text-3">Invented for this feature — no source in the codebase yet.</div>
+          <div className="text-[11px] font-semibold tracking-wide text-text-3">Concept Components</div>
+          <div className="mt-0.5 text-[11px] text-text-3">Invented for this feature — no source in the codebase yet.</div>
         </div>
         {!creating && (
           <button
@@ -128,11 +131,11 @@ export function ConceptComponentPanel({
                   <div className="min-w-0">
                     <div className="truncate text-[12px] font-semibold text-text">{component.name}</div>
                     {component.description && (
-                      <div className="mt-0.5 line-clamp-2 text-[10.5px] leading-relaxed text-text-3">{component.description}</div>
+                      <div className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-text-3">{component.description}</div>
                     )}
                   </div>
                 </div>
-                <div className="mt-1.5 flex items-center gap-3 text-[10px] text-text-3">
+                <div className="mt-1.5 flex items-center gap-3 text-[11px] text-text-3">
                   <span className="flex items-center gap-1">
                     <Layers size={10} /> {component.variants.length} variant{component.variants.length === 1 ? '' : 's'}
                   </span>
@@ -144,7 +147,7 @@ export function ConceptComponentPanel({
                   <button
                     type="button"
                     onClick={() => handleInsert(component)}
-                    className="flex-1 rounded-md border border-accent-2/30 bg-accent-2/[0.08] px-2 py-1 text-[10.5px] font-semibold text-accent-2 hover:bg-accent-2/[0.14]"
+                    className="flex-1 rounded-md border border-accent-2/30 bg-selected px-2 py-1 text-[11px] font-semibold text-accent-2 hover:bg-selected"
                   >
                     Insert
                   </button>
@@ -210,9 +213,9 @@ function CreateConceptComponentForm({
   }
 
   return (
-    <div className="border-b border-border bg-panel-2/60 p-3">
+    <div className="border-b border-border bg-panel p-3">
       <label className="mb-2 block">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">Name</div>
+        <div className="mb-1 text-[11px] font-semibold tracking-wide text-text-3">Name</div>
         <input
           autoFocus
           value={name}
@@ -222,7 +225,7 @@ function CreateConceptComponentForm({
         />
       </label>
       <label className="mb-2 block">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">Description</div>
+        <div className="mb-1 text-[11px] font-semibold tracking-wide text-text-3">Description</div>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -236,7 +239,7 @@ function CreateConceptComponentForm({
           type="button"
           disabled={!name.trim() || saving}
           onClick={() => void handleCreate()}
-          className="flex-1 rounded-md border border-accent-2/30 bg-accent-2/[0.08] px-2 py-1.5 text-[11px] font-semibold text-accent-2 disabled:opacity-40"
+          className="flex-1 rounded-md border border-accent-2/30 bg-selected px-2 py-1.5 text-[11px] font-semibold text-accent-2 disabled:opacity-40"
         >
           {saving ? 'Creating…' : 'Create'}
         </button>
@@ -333,7 +336,7 @@ function ConceptComponentEditor({
             type="button"
             disabled={!dirty || saving}
             onClick={() => void handleSave()}
-            className="rounded-md border border-accent-2/30 bg-accent-2/[0.08] px-2.5 py-1 text-[10.5px] font-semibold text-accent-2 disabled:opacity-40"
+            className="rounded-md border border-accent-2/30 bg-selected px-2.5 py-1 text-[11px] font-semibold text-accent-2 disabled:opacity-40"
           >
             {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
           </button>
@@ -342,7 +345,7 @@ function ConceptComponentEditor({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         <label className="mb-2 block">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">Name</div>
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-text-3">Name</div>
           <input
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
@@ -350,7 +353,7 @@ function ConceptComponentEditor({
           />
         </label>
         <label className="mb-4 block">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">Description</div>
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-text-3">Description</div>
           <textarea
             value={draft.description}
             onChange={(e) => setDraft({ ...draft, description: e.target.value })}
@@ -361,13 +364,13 @@ function ConceptComponentEditor({
 
         <div className="mb-4">
           <div className="mb-1.5 flex items-center justify-between">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-text-3">Variants</div>
-            <button type="button" onClick={addVariant} className="flex items-center gap-1 text-[10.5px] font-semibold text-accent-2">
+            <div className="text-[11px] font-semibold tracking-wide text-text-3">Variants</div>
+            <button type="button" onClick={addVariant} className="flex items-center gap-1 text-[11px] font-semibold text-accent-2">
               <Plus size={11} /> Add
             </button>
           </div>
           {draft.variants.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border px-2 py-2 text-[10.5px] text-text-3">
+            <div className="rounded-md border border-dashed border-border px-2 py-2 text-[11px] text-text-3">
               No variants — e.g. "Default", "Warning", "Complete".
             </div>
           ) : (
@@ -377,7 +380,7 @@ function ConceptComponentEditor({
                   <input
                     value={variant.name}
                     onChange={(e) => updateVariant(variant.id, e.target.value)}
-                    className="min-w-0 flex-1 rounded-md border border-border bg-panel-2 px-2 py-1 text-[11.5px] text-text outline-none focus:border-accent-2"
+                    className="min-w-0 flex-1 rounded-md border border-border bg-panel-2 px-2 py-1 text-[12px] text-text outline-none focus:border-accent-2"
                   />
                   <button
                     type="button"
@@ -394,13 +397,13 @@ function ConceptComponentEditor({
 
         <div>
           <div className="mb-1.5 flex items-center justify-between">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-text-3">Properties</div>
-            <button type="button" onClick={addProperty} className="flex items-center gap-1 text-[10.5px] font-semibold text-accent-2">
+            <div className="text-[11px] font-semibold tracking-wide text-text-3">Properties</div>
+            <button type="button" onClick={addProperty} className="flex items-center gap-1 text-[11px] font-semibold text-accent-2">
               <Plus size={11} /> Add
             </button>
           </div>
           {draft.properties.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border px-2 py-2 text-[10.5px] text-text-3">No properties yet.</div>
+            <div className="rounded-md border border-dashed border-border px-2 py-2 text-[11px] text-text-3">No properties yet.</div>
           ) : (
             <div className="flex flex-col gap-2">
               {draft.properties.map((property) => (
@@ -449,12 +452,12 @@ function PropertyRow({
           value={property.name}
           onChange={(e) => onChange({ name: e.target.value })}
           placeholder="Property name"
-          className="min-w-0 flex-1 rounded-md border border-border bg-panel px-2 py-1 text-[11.5px] text-text outline-none focus:border-accent-2"
+          className="min-w-0 flex-1 rounded-md border border-border bg-panel px-2 py-1 text-[12px] text-text outline-none focus:border-accent-2"
         />
         <select
           value={property.type}
           onChange={(e) => handleTypeChange(e.target.value as ConceptComponentPropertyType)}
-          className="rounded-md border border-border bg-panel px-1.5 py-1 text-[11px] text-text outline-none focus:border-accent-2"
+          className="rounded-md border border-border bg-panel px-1.5 py-1 text-[12px] text-text outline-none focus:border-accent-2"
         >
           <option value="text">Text</option>
           <option value="number">Number</option>
@@ -467,12 +470,12 @@ function PropertyRow({
       </div>
 
       <div className="mt-1.5">
-        <div className="mb-1 text-[9.5px] text-text-3">Default value</div>
+        <div className="mb-1 text-[11px] text-text-3">Default value</div>
         {property.type === 'boolean' ? (
           <select
             value={property.defaultValue}
             onChange={(e) => onChange({ defaultValue: e.target.value })}
-            className="w-full rounded-md border border-border bg-panel px-2 py-1 text-[11px] text-text outline-none focus:border-accent-2"
+            className="w-full rounded-md border border-border bg-panel px-2 py-1 text-[12px] text-text outline-none focus:border-accent-2"
           >
             <option value="true">true</option>
             <option value="false">false</option>
@@ -481,7 +484,7 @@ function PropertyRow({
           <select
             value={property.defaultValue}
             onChange={(e) => onChange({ defaultValue: e.target.value })}
-            className="w-full rounded-md border border-border bg-panel px-2 py-1 text-[11px] text-text outline-none focus:border-accent-2"
+            className="w-full rounded-md border border-border bg-panel px-2 py-1 text-[12px] text-text outline-none focus:border-accent-2"
           >
             <option value="">—</option>
             {(property.options ?? []).map((option) => (
@@ -495,19 +498,19 @@ function PropertyRow({
             type={property.type === 'number' ? 'number' : 'text'}
             value={property.defaultValue}
             onChange={(e) => onChange({ defaultValue: e.target.value })}
-            className="w-full rounded-md border border-border bg-panel px-2 py-1 text-[11px] text-text outline-none focus:border-accent-2"
+            className="w-full rounded-md border border-border bg-panel px-2 py-1 text-[12px] text-text outline-none focus:border-accent-2"
           />
         )}
       </div>
 
       {property.type === 'select' && (
         <div className="mt-1.5">
-          <div className="mb-1 text-[9.5px] text-text-3">Options (comma-separated)</div>
+          <div className="mb-1 text-[11px] text-text-3">Options (comma-separated)</div>
           <input
             value={optionsText}
             onChange={(e) => handleOptionsChange(e.target.value)}
             placeholder="e.g. Small, Medium, Large"
-            className="w-full rounded-md border border-border bg-panel px-2 py-1 text-[11px] text-text outline-none focus:border-accent-2"
+            className="w-full rounded-md border border-border bg-panel px-2 py-1 text-[12px] text-text outline-none focus:border-accent-2"
           />
         </div>
       )}
@@ -527,19 +530,19 @@ function ConfirmDeleteDialog({
   onConfirm: () => void
 }) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-bg/70 p-4">
+    <div role="dialog" aria-modal="true" aria-label={`Delete ${name}`} className="absolute inset-0 z-50 flex items-center justify-center bg-bg/70 p-4">
       <div className="w-full max-w-[280px] rounded-md border border-border bg-panel-2 p-3">
         <div className="text-[12px] font-semibold text-text">Delete "{name}"?</div>
         {usagesInOpenTree > 0 && (
-          <div className="mt-1.5 rounded-md border border-warning/30 bg-warning/[0.08] px-2 py-1.5 text-[10.5px] font-medium text-warning">
+          <div className="mt-1.5 rounded-md border border-warning/30 bg-panel px-2 py-1.5 text-[11px] font-medium text-warning">
             Used {usagesInOpenTree} time{usagesInOpenTree === 1 ? '' : 's'} on the page currently open.
           </div>
         )}
-        <div className="mt-1 text-[10.5px] leading-relaxed text-text-3">
+        <div className="mt-1 text-[11px] leading-relaxed text-text-3">
           Any instances already placed on a canvas keep working but will no longer resolve to a saved concept component.
         </div>
         <div className="mt-3 flex items-center gap-1.5">
-          <button type="button" onClick={onConfirm} className="flex-1 rounded-md border border-danger/30 bg-danger/[0.08] px-2 py-1.5 text-[11px] font-semibold text-danger">
+          <button type="button" onClick={onConfirm} className="flex-1 rounded-md border border-danger/30 bg-panel px-2 py-1.5 text-[11px] font-semibold text-danger">
             Delete
           </button>
           <button type="button" onClick={onCancel} className="flex-1 rounded-md border border-border px-2 py-1.5 text-[11px] font-semibold text-text-2 hover:text-text">

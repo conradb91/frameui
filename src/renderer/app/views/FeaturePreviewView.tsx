@@ -226,7 +226,7 @@ export function FeaturePreviewView() {
           <FrameMark className="h-[14px] w-[14px] shrink-0 text-accent-2" />
           <span className="truncate font-mono text-[12px] text-text-3">{feature.name}</span>
           <ChevronRightIcon className="h-3 w-3 shrink-0 text-text-3" />
-          <span className="rounded-md bg-accent-2/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-accent-2">Preview</span>
+          <span className="rounded-md bg-selected px-2 py-0.5 text-[12px] font-semibold tracking-wide text-accent-2">Preview</span>
           {journey && <span className="truncate text-[12.5px] font-semibold text-text">{journey.name}</span>}
         </div>
 
@@ -241,8 +241,8 @@ export function FeaturePreviewView() {
                     type="button"
                     onClick={() => setViewport(bp)}
                     title={BREAKPOINT_LABEL[bp]}
-                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold ${
-                      viewport === bp ? 'bg-accent/20 text-accent-2' : 'text-text-2'
+                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-semibold ${
+                      viewport === bp ? 'bg-selected text-accent-2' : 'text-text-2'
                     }`}
                   >
                     <Icon size={12} />
@@ -257,7 +257,7 @@ export function FeaturePreviewView() {
             type="button"
             onClick={() => setHotspotsVisible((v) => !v)}
             className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold ${
-              hotspotsVisible ? 'border-accent-2/40 bg-accent-2/15 text-accent-2' : 'border-border bg-panel-2 text-text-2'
+              hotspotsVisible ? 'border-accent-2/40 bg-selected text-accent-2' : 'border-border bg-panel-2 text-text-2'
             }`}
             title="Toggle hotspot outlines — interactions stay clickable either way"
           >
@@ -288,7 +288,7 @@ export function FeaturePreviewView() {
           <button
             type="button"
             onClick={exitPreview}
-            className="flex items-center gap-1.5 rounded-lg border border-accent bg-gradient-to-b from-[#8676F4] to-[#7461EE] px-2.5 py-1.5 text-[12px] font-semibold text-white"
+            className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent   px-2.5 py-1.5 text-[12px] font-semibold text-on-accent"
           >
             <X size={12} />
             Exit Preview
@@ -305,12 +305,12 @@ export function FeaturePreviewView() {
         <div className="flex flex-1 items-center justify-center text-[12.5px] text-text-3">This journey has no steps yet.</div>
       ) : (
         <div className="flex flex-1 min-h-0">
-          <div className="flex-1 overflow-auto bg-bg p-10">
-            <div className="mb-3 text-center font-mono text-[11px] text-text-3">
+          <div className="flex-1 overflow-auto bg-bg p-4">
+            <div className="mb-3 text-center font-mono text-[12px] text-text-3">
               {stepData?.pageName ?? '…'} · {BREAKPOINT_WIDTH[viewport]}px · {BREAKPOINT_LABEL[viewport]}
             </div>
             <div
-              className="relative mx-auto min-h-[600px] rounded-xl border border-border bg-panel p-8 transition-[width] duration-200"
+              className="relative mx-auto min-h-[600px] rounded-xl border border-border bg-panel p-4 transition-[width] duration-200"
               style={{ width: BREAKPOINT_WIDTH[viewport] }}
             >
               {stepLoading || !stepData || stepData.stepId !== currentStep.id ? (
@@ -343,7 +343,7 @@ export function FeaturePreviewView() {
                           title={`${connection.trigger}${connection.label ? `: ${connection.label}` : ''}`}
                           className={`pointer-events-auto absolute rounded-md ${
                             hotspotsVisible
-                              ? 'border-2 border-accent-2 bg-accent-2/20 outline outline-2 outline-offset-1 outline-accent-2/50 transition-colors hover:bg-accent-2/35'
+                              ? 'border-2 border-accent-2 bg-selected outline outline-2 outline-offset-1 outline-accent-2/50 transition-colors hover:bg-selected'
                               : ''
                           }`}
                           style={{ left: box.x, top: box.y, width: Math.max(box.width, 12), height: Math.max(box.height, 12) }}
@@ -375,7 +375,7 @@ export function FeaturePreviewView() {
                         key={connection.id}
                         type="button"
                         onClick={() => goToStep(connection.toStepId)}
-                        className="rounded-full border border-accent-2/40 bg-accent-2/10 px-3 py-1.5 text-[11.5px] font-medium text-accent-2 hover:bg-accent-2/20"
+                        className="rounded-md border border-accent-2/40 bg-selected px-3 py-1.5 text-[12px] font-medium text-accent-2 hover:bg-selected"
                       >
                         {connection.trigger}
                         {connection.elementLabel ? `: ${connection.elementLabel}` : connection.label ? `: ${connection.label}` : ''} → {destName}
@@ -389,15 +389,15 @@ export function FeaturePreviewView() {
 
           {/* Step rail */}
           <div className="w-56 shrink-0 border-l border-border bg-bg-raised p-3">
-            <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Steps</div>
+            <div className="mb-2 text-[12px] font-semibold tracking-wide text-text-3">Steps</div>
             <div className="flex flex-col gap-1">
               {journey.steps.map((step, i) => (
                 <button
                   key={step.id}
                   type="button"
                   onClick={() => goToStep(step.id)}
-                  className={`truncate rounded-md px-2.5 py-1.5 text-left text-[11.5px] font-medium ${
-                    step.id === currentStep.id ? 'bg-accent-2/15 text-accent-2' : 'text-text-2 hover:bg-white/5'
+                  className={`truncate rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium ${
+                    step.id === currentStep.id ? 'bg-selected text-accent-2' : 'text-text-2 hover:bg-hover'
                   }`}
                 >
                   {i + 1}. {step.id === currentStep.id ? stepData?.pageName ?? '…' : describeStepPage(step, activeIndex)}
@@ -438,7 +438,7 @@ function JourneyPicker({
   return (
     <div className="flex flex-1 items-center justify-center">
       <div className="w-[360px] rounded-xl border border-border bg-bg-raised p-5">
-        <div className="mb-3 text-[13.5px] font-semibold text-text">Choose a Journey to preview</div>
+        <div className="mb-3 text-[13px] font-semibold text-text">Choose a Journey to preview</div>
         {!journeysLoaded ? (
           <div className="text-[12px] text-text-3">Loading journeys…</div>
         ) : journeys.length === 0 ? (
@@ -458,7 +458,7 @@ function JourneyPicker({
                 className="rounded-lg border border-border bg-panel-2 px-3 py-2 text-left text-[12.5px] font-medium text-text-2 hover:text-text"
               >
                 {j.name}
-                <div className="text-[11px] text-text-3">{j.steps.length} step{j.steps.length === 1 ? '' : 's'}</div>
+                <div className="text-[12px] text-text-3">{j.steps.length} step{j.steps.length === 1 ? '' : 's'}</div>
               </button>
             ))}
           </div>

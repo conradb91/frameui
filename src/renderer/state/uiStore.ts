@@ -24,7 +24,7 @@ export type TopLevelView =
    * Preview, no editor chrome. */
   | 'share-preview'
 
-export type ShellSection = 'start' | 'canvas' | 'features' | 'overview' | 'screens' | 'flows' | 'components' | 'design-system' | 'captures' | 'review' | 'changes' | 'settings'
+export type ShellSection = 'start' | 'project-home' | 'canvas' | 'features' | 'overview' | 'screens' | 'flows' | 'components' | 'design-system' | 'captures' | 'review' | 'changes' | 'settings' | 'environment'
 
 interface UiState {
   view: TopLevelView
@@ -53,7 +53,7 @@ interface UiState {
 // view-state, not a router (see plan's tech-stack rationale).
 export const useUiStore = create<UiState>((set) => ({
   view: 'open-project',
-  setView: (view) => set({ view }),
+  setView: (view) => set(view === 'flow-workspace' ? { view, activeFeatureId: null } : { view }),
   // The visual canvas is the primary product workspace. Features and the
   // repository browsers remain first-class supporting workflows.
   section: 'start',

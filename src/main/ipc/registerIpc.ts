@@ -4,6 +4,7 @@ import { registerProjectHandlers } from './handlers/project.handlers'
 import { registerPreviewHandlers } from './handlers/preview.handlers'
 import { registerExportHandlers } from './handlers/export.handlers'
 import { registerCaptureHandlers } from './handlers/capture.handlers'
+import { registerHostingHandlers } from './handlers/hosting.handlers'
 
 // Single place the whole IPC channel surface is wired up. Each capability
 // group (project, workspace, preview, export, capture) gets its own handlers
@@ -11,6 +12,7 @@ import { registerCaptureHandlers } from './handlers/capture.handlers'
 // declared in src/shared/ipc-contract.ts and exposed narrowly from
 // src/preload/index.ts.
 export function registerIpc(): void {
+  registerHostingHandlers()
   registerAppHandlers()
   registerWorkspaceHandlers()
   registerProjectHandlers()

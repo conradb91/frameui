@@ -5,9 +5,8 @@ type IconProps = SVGProps<SVGSVGElement>
 export function FrameMark(props: IconProps) {
   return (
     <svg viewBox="0 0 20 20" fill="none" {...props}>
-      <path d="M4 4H16V8.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M4 4V16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M4 10.5H11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M4 3h13v4H8v3h7v4H8v4H4V3Z" fill="currentColor" />
+      <path d="M10 8h7v2h-7z" fill="currentColor" opacity=".45" />
     </svg>
   )
 }

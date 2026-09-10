@@ -4,10 +4,10 @@ import type { ProjectModel } from './model/projectModel'
  * should use `capabilityLevel` and the individual capability flags. */
 export type SupportLevel = 'supported' | 'partial' | 'inspect-only'
 export type ProjectCapabilityLevel = 'full' | 'partial' | 'runtime-only' | 'source-only' | 'limited'
-export type Framework = 'react' | 'vue' | 'svelte' | 'astro' | 'node' | 'php' | 'static' | 'unknown'
-export type Language = 'typescript' | 'javascript' | 'php' | 'html' | 'mixed' | 'unknown'
+export type Framework = 'react' | 'vue' | 'svelte' | 'astro' | 'angular' | 'dotnet' | 'node' | 'php' | 'static' | 'unknown' | (string & {})
+export type Language = 'typescript' | 'javascript' | 'php' | 'csharp' | 'html' | 'mixed' | 'unknown'
 export type Bundler = 'vite' | 'next' | 'astro' | 'node' | 'unknown'
-export type RouterStyle = 'next-app' | 'next-pages' | 'filesystem' | 'templates' | 'static' | 'conventional' | 'codeigniter' | 'unknown'
+export type RouterStyle = 'next-app' | 'next-pages' | 'filesystem' | 'templates' | 'static' | 'conventional' | 'codeigniter' | 'unknown' | (string & {})
 /** V2 spec §4: which PHP framework, when `framework === 'php'`. Kept
  * separate from `Bundler` (a JS-bundler concept) rather than overloading it. */
 export type PhpFramework = 'codeigniter' | 'laravel' | null
@@ -49,6 +49,10 @@ export interface ProjectCapabilities {
 }
 
 export interface ProjectApplication {
+  technologies?: DetectedTechnology[]
+  adapterIds?: string[]
+  routerStyle?: RouterStyle
+  phpFramework?: PhpFramework
   id: string
   name: string
   /** Relative to the repository root; `.` identifies the root app. */
@@ -108,6 +112,9 @@ export interface ProjectIndex {
   capabilityLevel?: ProjectCapabilityLevel
   capabilities?: ProjectCapabilities
   framework: Framework
+  /** All contributing adapters and detected technologies, including mixed stacks. */
+  technologies?: DetectedTechnology[]
+  adapterIds?: string[]
   phpFramework: PhpFramework
   language: Language
   bundler: Bundler
@@ -130,6 +137,12 @@ export interface ProjectIndex {
   scannedFileCount: number
   scanDurationMs: number
   scannedAt: string // ISO timestamp
+}
+
+export interface DetectedTechnology {
+  id: string
+  kind: 'framework' | 'runtime' | 'language' | 'build-tool' | 'styling' | 'ui-library'
+  evidence: string[]
 }
 
 export interface FileChangeNotice {

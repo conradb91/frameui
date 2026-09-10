@@ -43,7 +43,7 @@ export function PreviewRenderNode({ node, breakpoint }: { node: DesignNode; brea
       return <div className="text-[14px] text-text-2" style={style}>{node.content}</div>
 
     case 'heading':
-      return <div className="text-[22px] font-bold text-white" style={style}>{node.content}</div>
+      return <div className="text-[22px] font-bold text-text" style={style}>{node.content}</div>
 
     case 'button':
       return (
@@ -51,7 +51,7 @@ export function PreviewRenderNode({ node, breakpoint }: { node: DesignNode; brea
           type="button"
           style={style}
           className={`w-fit rounded-lg px-4 py-2.5 text-[13px] font-semibold ${
-            node.variant === 'primary' ? 'bg-gradient-to-b from-[#8676F4] to-[#7461EE] text-white' : 'border border-border bg-panel-2 text-text'
+            node.variant === 'primary' ? 'bg-accent   text-on-accent' : 'border border-border bg-panel-2 text-text'
           }`}
         >
           {node.label}
@@ -88,7 +88,7 @@ export function PreviewRenderNode({ node, breakpoint }: { node: DesignNode; brea
       )
 
     case 'concept':
-      return <div className="rounded-lg border border-dashed border-accent-2/40 bg-accent-2/[0.06] px-3 py-2.5 text-[12px] text-accent-2" style={style}>Concept component</div>
+      return <div className="rounded-lg border border-dashed border-accent-2/40 bg-selected px-3 py-2.5 text-[12px] text-accent-2" style={style}>Concept component</div>
   }
 }
 
@@ -115,7 +115,7 @@ function effectiveStyle(node: DesignNode, breakpoint: Breakpoint): NodeStyle | u
 
 function styleToCss(value: NodeStyle | undefined, kind: DesignNode['kind']): CSSProperties {
   if (!value) return {}
-  const style: CSSProperties = {}
+  const style: CSSProperties = { position: value.position, left: value.left, top: value.top }
   if (value.width !== undefined) style.width = value.width === 'fill' ? '100%' : value.width === 'auto' ? undefined : value.width
   if (value.height !== undefined) style.height = value.height === 'fill' ? '100%' : value.height === 'auto' ? undefined : value.height
   if (value.minWidth !== undefined) style.minWidth = value.minWidth

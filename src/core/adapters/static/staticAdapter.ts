@@ -7,6 +7,8 @@ import type { SourceAdapter } from '../types'
  * `unknown`. */
 export const staticAdapter: SourceAdapter = {
   id: 'static',
+  ownsFile: (file) => /\.html?$/i.test(file),
+  fallback: true,
 
   detect(ctx) {
     if (ctx.pkg) return null

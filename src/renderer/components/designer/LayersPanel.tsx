@@ -118,7 +118,7 @@ function LayerRow({
           select(node.id, additive ? { additive: true } : undefined)
         }}
         className={`flex items-center gap-1.5 rounded-md px-1.5 py-1.5 text-[12px] ${
-          isSelected ? 'bg-accent/15 text-white' : 'text-text-2 hover:bg-white/5'
+          isSelected ? 'bg-selected text-text' : 'text-text-2 hover:bg-hover'
         } ${node.hidden ? 'opacity-40' : ''}`}
         style={{ ...style, paddingLeft: 6 + depth * 14 }}
       >
@@ -129,13 +129,13 @@ function LayerRow({
               e.stopPropagation()
               toggleCollapsed(node.id)
             }}
-            className="w-3 shrink-0 text-[9px] text-text-3 hover:text-text"
+            className="w-3 shrink-0 text-[11px] text-text-3 hover:text-text"
             title={isCollapsed ? 'Expand' : 'Collapse'}
           >
             {isCollapsed ? '▸' : '▾'}
           </button>
         ) : (
-          <span className="w-3 shrink-0 font-mono text-[9px] text-text-3">{KIND_LABEL[node.kind][0]}</span>
+          <span className="w-3 shrink-0 font-mono text-[11px] text-text-3">{KIND_LABEL[node.kind][0]}</span>
         )}
         <span className="flex-1 truncate">{label}</span>
         {!isRoot && <ProvenanceBadge provenance={node.provenance} />}
@@ -147,7 +147,7 @@ function LayerRow({
                 e.stopPropagation()
                 copy(node.id)
               }}
-              className="rounded px-1 text-[10px] text-text-3 hover:text-text"
+              className="rounded px-1 text-[11px] text-text-3 hover:text-text"
               title="Copy"
             >
               {'\u{1F4CB}'}
@@ -159,7 +159,7 @@ function LayerRow({
                 if (!isSelected) select(node.id)
                 duplicateSelected()
               }}
-              className="rounded px-1 text-[10px] text-text-3 hover:text-text"
+              className="rounded px-1 text-[11px] text-text-3 hover:text-text"
               title="Duplicate"
             >
               {'\u{29C9}'}
@@ -172,7 +172,7 @@ function LayerRow({
             e.stopPropagation()
             dispatch({ type: 'SetHidden', nodeId: node.id, hidden: !node.hidden })
           }}
-          className="rounded px-1 text-[10px] text-text-3 hover:text-text"
+          className="rounded px-1 text-[11px] text-text-3 hover:text-text"
           title={node.hidden ? 'Show' : 'Hide'}
         >
           {node.hidden ? '○' : '●'}
@@ -183,7 +183,7 @@ function LayerRow({
             e.stopPropagation()
             dispatch({ type: 'SetLocked', nodeId: node.id, locked: !node.locked })
           }}
-          className="rounded px-1 text-[10px] text-text-3 hover:text-text"
+          className="rounded px-1 text-[11px] text-text-3 hover:text-text"
           title={node.locked ? 'Unlock' : 'Lock'}
         >
           {node.locked ? '\u{1F512}' : '\u{1F513}'}

@@ -1,0 +1,24 @@
+[
+  {
+    "engine": "postgres",
+    "product": "PostgreSQL",
+    "version": "17.11",
+    "architecture": "x64",
+    "file": "postgresql-17.11-3-windows-x64-binaries.zip",
+    "url": "https://get.enterprisedb.com/postgresql/postgresql-17.11-3-windows-x64-binaries.zip",
+    "sha256": "4b8db0930c38f6ef845db919551dedda3b6b845aeb0927b3d79a6e8e9e4537cf",
+    "executable": "postgres.exe",
+    "requiredExecutables": ["postgres.exe", "pg_ctl.exe", "initdb.exe", "psql.exe", "createdb.exe", "dropdb.exe", "pg_dump.exe", "pg_restore.exe"]
+  },
+  {
+    "engine": "mariadb",
+    "product": "MySQL Community Server",
+    "version": "8.4.11",
+    "architecture": "x64",
+    "file": "mysql-8.4.11-winx64.zip",
+    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.11-winx64.zip",
+    "sha256": "a492371d687d2bab088b0062581144a0044b8964baefdf4faa579292b423d25c",
+    "executable": "mysqld.exe",
+    "requiredExecutables": ["mysqld.exe", "mysql.exe", "mysqladmin.exe", "mysqldump.exe"]
+  }
+]

@@ -45,16 +45,16 @@ type JourneyFlowNode = Node<JourneyNodeData, 'journeyStep'>
 
 function JourneyNodeCard({ data, selected }: NodeProps<JourneyFlowNode>) {
   return (
-    <div className={`w-[248px] overflow-hidden rounded-md border bg-panel-2 shadow-xl ${selected ? 'border-accent-2 ring-1 ring-accent-2/30' : 'border-border'} ${data.referenceOnly ? 'opacity-75' : ''}`}>
+    <div className={`w-[248px] overflow-hidden rounded-md border bg-panel-2 shadow-sm ${selected ? 'border-accent-2 ring-1 ring-accent-2/30' : 'border-border'} ${data.referenceOnly ? 'opacity-75' : ''}`}>
       <Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-2 !border-accent-2 !bg-panel" />
       <Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border-2 !border-accent-2 !bg-panel" />
-      <div className="h-32 overflow-hidden bg-white">
-        {data.tree ? <div className="origin-top-left scale-[0.45] p-3 text-black"><PreviewRenderNode node={data.tree} breakpoint="desktop" /></div> : data.structure ? <StructurePreview structure={data.structure} compact /> : <div className="flex h-full items-center justify-center bg-panel text-[10px] text-text-3">Design preview unavailable</div>}
+      <div className="h-32 overflow-hidden bg-panel">
+        {data.tree ? <div className="origin-top-left scale-[0.45] p-3 text-text"><PreviewRenderNode node={data.tree} breakpoint="desktop" /></div> : data.structure ? <StructurePreview structure={data.structure} compact /> : <div className="flex h-full items-center justify-center bg-panel text-[11px] text-text-3">Design preview unavailable</div>}
       </div>
       <div className="border-t border-border px-3 py-2.5">
         <div className="flex items-center justify-between gap-2"><span className="truncate text-[12px] font-semibold text-text">{data.name}</span><ProvenanceBadge provenance={data.provenance} /></div>
-        <div className="mt-0.5 truncate font-mono text-[9.5px] text-text-3">{data.route ?? 'No route'}</div>
-        <div className="mt-1 text-[9px] text-text-3">{data.stateName ?? 'Page'} · Desktop</div>
+        <div className="mt-0.5 truncate font-mono text-[11px] text-text-3">{data.route ?? 'No route'}</div>
+        <div className="mt-1 text-[11px] text-text-3">{data.stateName ?? 'Page'} · Desktop</div>
       </div>
     </div>
   )
@@ -68,9 +68,9 @@ function toEdges(connections: JourneyConnection[]): Edge[] {
     source: connection.fromStepId,
     target: connection.toStepId,
     label: connection.label || connection.trigger,
-    labelBgStyle: { fill: '#0a0a0c', fillOpacity: 1 },
-    labelStyle: { fill: '#8f80ff', fontSize: 10, fontWeight: 600 },
-    style: { stroke: '#8f80ff', strokeWidth: 1.6 },
+    labelBgStyle: { fill: 'var(--color-panel)', fillOpacity: 1 },
+    labelStyle: { fill: 'var(--color-accent-2)', fontSize: 11, fontWeight: 600 },
+    style: { stroke: 'var(--color-accent-2)', strokeWidth: 1.6 },
   }))
 }
 
@@ -221,23 +221,23 @@ function JourneyCanvasInner({ projectId, featureId, projectModel, journeyId, onO
   return (
     <div className="relative flex-1">
       <div className="absolute left-3 top-3 z-20 flex gap-1.5">
-        <button type="button" onClick={() => setPicker('page')} className="flex items-center gap-1 rounded-md border border-border bg-panel px-2.5 py-1.5 text-[11px] text-text-2 shadow"><Plus size={12} /> Add Page</button>
-        <button type="button" onClick={() => setPicker('reference')} className="rounded-md border border-border bg-panel px-2.5 py-1.5 text-[11px] text-text-2 shadow">Add Reference</button>
-        <button type="button" disabled={!selectedStep || selectedStep.referenceOnly} onClick={() => setPicker('state')} className="rounded-md border border-border bg-panel px-2.5 py-1.5 text-[11px] text-text-2 shadow disabled:opacity-40">Add State</button>
-        <button type="button" onClick={() => startJourneyRecording(projectId, featureId, journey.id)} className="flex items-center gap-1 rounded-md border border-red-500/30 bg-panel px-2.5 py-1.5 text-[11px] text-red-400 shadow"><Circle size={9} fill="currentColor" /> Record</button>
+        <button type="button" onClick={() => setPicker('page')} className="flex items-center gap-1 rounded-md border border-border bg-panel px-2.5 py-1.5 text-[11px] text-text-2 shadow-sm"><Plus size={12} /> Add Page</button>
+        <button type="button" onClick={() => setPicker('reference')} className="rounded-md border border-border bg-panel px-2.5 py-1.5 text-[11px] text-text-2 shadow-sm">Add Reference</button>
+        <button type="button" disabled={!selectedStep || selectedStep.referenceOnly} onClick={() => setPicker('state')} className="rounded-md border border-border bg-panel px-2.5 py-1.5 text-[11px] text-text-2 shadow-sm disabled:opacity-40">Add State</button>
+        <button type="button" onClick={() => startJourneyRecording(projectId, featureId, journey.id)} className="flex items-center gap-1 rounded-md border border-danger bg-panel px-2.5 py-1.5 text-[11px] text-danger shadow-sm"><Circle size={9} fill="currentColor" /> Record</button>
       </div>
-      {notice && <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded border border-border bg-panel px-3 py-1.5 text-[11px] text-text-2 shadow">{notice}</div>}
+      {notice && <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded border border-border bg-panel px-3 py-1.5 text-[11px] text-text-2 shadow-sm">{notice}</div>}
       {picker && (
         <Picker title={picker === 'state' ? 'Choose State' : picker === 'reference' ? 'Reference Pages' : 'Feature Pages'} onClose={() => setPicker(null)}>
           {picker === 'state' && selectedStep ? <StateChoices projectId={projectId} step={selectedStep} onChoose={(id) => void chooseState(id)} /> : <>
-            {availablePages.map((page) => <button key={page.id} type="button" onClick={() => addStep({ kind: 'existing', pageId: page.id }, picker === 'reference', picker === 'reference' ? 'reference-only' : 'existing')} className="w-full rounded px-2 py-2 text-left hover:bg-white/5"><div className="text-[11.5px] text-text">{page.name}</div><div className="font-mono text-[9.5px] text-text-3">{page.route}</div></button>)}
-            {picker === 'page' && featurePages.map((page) => <button key={page.id} type="button" onClick={() => addStep({ kind: 'new', pageId: page.id }, false, 'new')} className="w-full rounded px-2 py-2 text-left hover:bg-white/5"><div className="text-[11.5px] text-text">{page.name}</div><div className="font-mono text-[9.5px] text-text-3">{page.suggestedRoute ?? 'New page'}</div></button>)}
+            {availablePages.map((page) => <button key={page.id} type="button" onClick={() => addStep({ kind: 'existing', pageId: page.id }, picker === 'reference', picker === 'reference' ? 'reference-only' : 'existing')} className="w-full rounded px-2 py-2 text-left hover:bg-hover"><div className="text-[11.5px] text-text">{page.name}</div><div className="font-mono text-[11px] text-text-3">{page.route}</div></button>)}
+            {picker === 'page' && featurePages.map((page) => <button key={page.id} type="button" onClick={() => addStep({ kind: 'new', pageId: page.id }, false, 'new')} className="w-full rounded px-2 py-2 text-left hover:bg-hover"><div className="text-[11.5px] text-text">{page.name}</div><div className="font-mono text-[11px] text-text-3">{page.suggestedRoute ?? 'New page'}</div></button>)}
             {availablePages.length === 0 && (picker !== 'page' || featurePages.length === 0) && <div className="px-2 py-3 text-[11px] text-text-3">No eligible pages in this Feature.</div>}
           </>}
         </Picker>
       )}
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeDoubleClick={(_event, node) => void openInDesign(node.id)} onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => { if (selectedNodes[0]) selectStep(selectedNodes[0].id); else if (selectedEdges[0]) selectConnection(selectedEdges[0].id); else { selectStep(null); selectConnection(null) } }} onBeforeDelete={({ nodes: removedNodes, edges: removedEdges }) => Promise.resolve(removedNodes.length > 0 && removedEdges.length > 0 ? window.confirm(`Deleting ${removedNodes.length} step(s) also removes ${removedEdges.length} interaction(s). Continue?`) : true)} deleteKeyCode={['Backspace', 'Delete']} colorMode="dark" fitView proOptions={{ hideAttribution: true }}>
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="rgba(255,255,255,0.08)" />
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeDoubleClick={(_event, node) => void openInDesign(node.id)} onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => { if (selectedNodes[0]) selectStep(selectedNodes[0].id); else if (selectedEdges[0]) selectConnection(selectedEdges[0].id); else { selectStep(null); selectConnection(null) } }} onBeforeDelete={({ nodes: removedNodes, edges: removedEdges }) => Promise.resolve(removedNodes.length > 0 && removedEdges.length > 0 ? window.confirm(`Deleting ${removedNodes.length} step(s) also removes ${removedEdges.length} interaction(s). Continue?`) : true)} deleteKeyCode={['Backspace', 'Delete']} colorMode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} fitView proOptions={{ hideAttribution: true }}>
+        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--color-grid)" />
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>
@@ -245,11 +245,11 @@ function JourneyCanvasInner({ projectId, featureId, projectModel, journeyId, onO
 }
 
 function Picker({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  return <div className="absolute left-3 top-12 z-30 w-72 rounded-lg border border-border bg-panel p-1.5 shadow-xl"><div className="flex items-center justify-between px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-3"><span>{title}</span><button type="button" onClick={onClose}><X size={12} /></button></div><div className="max-h-72 overflow-y-auto">{children}</div></div>
+  return <div className="absolute left-3 top-12 z-30 w-72 rounded-lg border border-border bg-panel p-1.5 shadow-sm"><div className="flex items-center justify-between px-2 py-1.5 text-[11px] font-semibold tracking-wide text-text-3"><span>{title}</span><button type="button" onClick={onClose}><X size={12} /></button></div><div className="max-h-72 overflow-y-auto">{children}</div></div>
 }
 
 function StateChoices({ projectId, step, onChoose }: { projectId: string; step: JourneyStep; onChoose: (id: string) => void }) {
   const [states, setStates] = useState<Awaited<ReturnType<typeof window.frameui.workspace.listDesignStatesForPage>>>([])
   useEffect(() => { void window.frameui.workspace.listDesignStatesForPage(projectId, step.pageRef).then(setStates) }, [projectId, step.pageRef])
-  return <>{states.map((state) => <button key={state.id} type="button" onClick={() => onChoose(state.id)} className="w-full rounded px-2 py-2 text-left text-[11.5px] text-text hover:bg-white/5">{state.name}</button>)}{states.length === 0 && <div className="px-2 py-3 text-[11px] text-text-3">No states exist for this page yet.</div>}</>
+  return <>{states.map((state) => <button key={state.id} type="button" onClick={() => onChoose(state.id)} className="w-full rounded px-2 py-2 text-left text-[11.5px] text-text hover:bg-hover">{state.name}</button>)}{states.length === 0 && <div className="px-2 py-3 text-[11px] text-text-3">No states exist for this page yet.</div>}</>
 }

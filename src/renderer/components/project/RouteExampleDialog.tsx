@@ -1,0 +1,9 @@
+import { useEffect, useRef, useState } from 'react'
+const parameters = /\(:[^)]+\)|\{[^}]+\}|\[\[?[^\]]+\]\]?|:[A-Za-z_]\w*\??/g
+export function RouteExampleDialog({ name, route, onChoose, onClose }: { name: string; route: string; onChoose: (route: string) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null)
+  const parts = [...route.matchAll(parameters)].map(match => match[0])
+  const [values, setValues] = useState<string[]>(parts.map(() => ''))
+  useEffect(() => { ref.current?.showModal() }, [])
+  return <dialog ref={ref} className="preparation-dialog" aria-labelledby="example-title" onCancel={event => { event.preventDefault(); onClose() }}><form className="p-5" onSubmit={event => { event.preventDefault(); let index = 0; const resolved = route.replace(parameters, () => encodeURIComponent(values[index++].trim())); onChoose(resolved) }}><h2 id="example-title" className="text-[17px] font-semibold">Choose an example for {name}</h2><p className="mt-2 text-sm text-text-2">Which saved item should this screen show? FrameUI will remember your example on this computer.</p>{parts.map((part, index) => <label key={index} className="mt-4 block text-sm">Example {part.replace(/[{}[\]():?.]/g, '').replace(/([a-z])([A-Z])/g, '$1 $2')}<input required autoFocus={index === 0} value={values[index]} onChange={event => setValues(current => current.map((value, i) => i === index ? event.target.value : value))} className="mt-2 h-8 w-full rounded border border-border bg-input px-2 text-sm"/></label>)}<div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="h-8 rounded border border-border px-3 text-sm">Cancel</button><button disabled={values.some(value => !value.trim())} className="h-8 rounded bg-accent px-3 text-sm text-on-accent disabled:opacity-40">Open screen</button></div></form></dialog>
+}

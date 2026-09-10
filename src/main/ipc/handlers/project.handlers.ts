@@ -1,3 +1,4 @@
+import { readProjectVisuals } from '@core/design-system/projectVisuals'
 import electron from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -73,6 +74,7 @@ export function registerProjectHandlers(): void {
     const folderPath = result.filePaths[0]
     const name = path.basename(folderPath)
     const project = recordProjectOpened(app.getPath('userData'), folderPath, name, relinkId)
+    previewProcess.stop()
     activateProject(project.id, folderPath, app.getPath('userData'))
     return { cancelled: false, project }
   })
@@ -86,33 +88,35 @@ export function registerProjectHandlers(): void {
 
     const name = path.basename(folderPath)
     const project = recordProjectOpened(app.getPath('userData'), folderPath, name)
+    previewProcess.stop()
     activateProject(project.id, folderPath, app.getPath('userData'))
     return { ok: true, project }
   })
 
-  ipcMain.handle('project:getIndex', (): ProjectIndex | null => {
+  ipcMain.handle('project:getIndex', async (): Promise<ProjectIndex | null> => {
     const active = getActiveProject()
     if (!active) return null
     let index = getCachedIndex()
     if (!index) {
-      index = getIndexService()!.load((step) => broadcast('project:onIndexProgress', { step }))
-      setCachedIndex(index)
+      index = await getIndexService()!.load((step) => broadcast('project:onIndexProgress', { step }))
+      if (getActiveProject()?.projectId === index.projectId) setCachedIndex(index)
     }
     return index
   })
 
-  ipcMain.handle('project:reindex', (): ProjectIndex | null => {
+  ipcMain.handle('project:reindex', async (): Promise<ProjectIndex | null> => {
     const active = getActiveProject()
     if (!active) return null
-    const index = getIndexService()!.rebuild((step) => broadcast('project:onIndexProgress', { step }))
-    setCachedIndex(index)
+    const index = await getIndexService()!.rebuild((step) => broadcast('project:onIndexProgress', { step }))
+    if (getActiveProject()?.projectId === index.projectId) setCachedIndex(index)
     return index
   })
 
-  ipcMain.handle('project:selectApplication', (_event, rawId): ProjectIndex | null => {
+  ipcMain.handle('project:selectApplication', async (_event, rawId): Promise<ProjectIndex | null> => {
     if (!getActiveProject()) return null
-    const index = getIndexService()!.selectApplication(selectApplicationInputSchema.parse(rawId))
-    setCachedIndex(index)
+    previewProcess.stop()
+    const index = await getIndexService()!.selectApplication(selectApplicationInputSchema.parse(rawId))
+    if (getActiveProject()?.projectId === index.projectId) setCachedIndex(index)
     return index
   })
 
@@ -122,7 +126,14 @@ export function registerProjectHandlers(): void {
     return { ok: true }
   })
 
-  ipcMain.handle('project:getPageStructure', (_event, rawPath): PageStructureItem[] => {
+  ipcMain.handle('project:getVisuals', async () => {
+    const active = getActiveProject()
+    if (!active) throw new Error('No active project')
+    const index = getCachedIndex() ?? await getIndexService()!.load()
+    return readProjectVisuals(active.rootPath, Object.keys(index.files ?? {}), index.projectModel.assetRoots)
+  })
+
+  ipcMain.handle('project:getPageStructure', async (_event, rawPath): Promise<PageStructureItem[]> => {
     const relativePath = getPageStructureInputSchema.parse(rawPath)
     const active = getActiveProject()
     if (!active) return []
@@ -137,8 +148,8 @@ export function registerProjectHandlers(): void {
 
     if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) return []
 
-    const index = getCachedIndex() ?? getIndexService()!.load()
-    if (!getCachedIndex()) setCachedIndex(index)
+    const index = getCachedIndex() ?? await getIndexService()!.load()
+    if (!getCachedIndex() && getActiveProject()?.projectId === index.projectId) setCachedIndex(index)
     const components = index.projectModel.components
     const knownComponentNames = new Set(components.map((c) => c.name))
     const componentPathsByName = new Map(components.map((component) => [componentKey(component.name), component.source.filePath]))

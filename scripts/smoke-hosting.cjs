@@ -1,0 +1,54 @@
+const { _electron: electron } = require('playwright-core');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+(async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'frameui-hosting-'));
+  const projectRoot = path.join(root, 'project');
+  fs.mkdirSync(projectRoot);
+  fs.writeFileSync(path.join(projectRoot, 'index.html'), '<h1>Hosted inside FrameUI</h1><a href="/login.html">Sign in</a>');
+  fs.writeFileSync(path.join(projectRoot, 'login.html'), '<h1>Project sign in</h1>');
+  fs.writeFileSync(path.join(projectRoot, '.env'), 'APP_LABEL=Original\nDB_PASSWORD=fixture-secret\n');
+  let app;
+  try {
+    app = await electron.launch({ executablePath: process.env.FRAMEUI_ELECTRON_PATH || require('electron'), args: [path.resolve(__dirname, '..'), `--user-data-dir=${root}/profile`], env: { ...process.env, ELECTRON_RUN_AS_NODE: '', FRAMEUI_ALLOW_MULTIPLE_INSTANCES: '1' } });
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: 'Get started', exact: true }).click();
+    await app.evaluate(({ dialog }, folder) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [folder] }); }, projectRoot);
+    await page.getByRole('button', { name: 'Open Project', exact: true }).first().click();
+    await page.getByRole('heading', { name: 'Local environment', exact: true }).waitFor();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    const review = page.getByRole('button', { name: 'Prepare and start application', exact: true });
+    await page.getByText('Review before setup', { exact: true }).waitFor();
+    for (let i = 0; i < 100 && await page.getByText('Detecting your application and its requirements…', { exact: true }).count(); i++) await page.waitForTimeout(100);
+    const errors = await page.getByRole('alert').allTextContents();
+    assert.equal(errors.length, 0, errors.join('\n'));
+    const records = await page.evaluate(() => window.frameui.project.listLibrary());
+    const id = records.find(record => fs.realpathSync(record.path) === fs.realpathSync(projectRoot)).id;
+    const env = await page.evaluate(id => window.frameui.hosting.readEnvironment(id), id);
+    assert.equal(env.variables.find(v => v.key === 'DB_PASSWORD').value, '');
+    await page.evaluate(({ id, file }) => window.frameui.hosting.updateEnvironment(id, file, [{ key: 'APP_LABEL', value: 'Updated' }]), { id, file: env.file });
+    assert(fs.readFileSync(path.join(projectRoot, '.env'), 'utf8').includes('DB_PASSWORD=fixture-secret'));
+    assert(fs.existsSync(path.join(projectRoot, '.env.stacker-backup')));
+    const denied = await page.evaluate(async () => { try { await window.frameui.hosting.action('another-project', 'start'); return false; } catch { return true; } });
+    assert(denied, 'An unrelated project must not be accessible');
+    assert.equal(await review.isDisabled(), true, 'Setup must require approval');
+    await page.getByRole('checkbox').check();
+    await review.click();
+    await page.getByRole('button', { name: 'Open live canvas', exact: true }).waitFor();
+    for (let i = 0; i < 600 && await page.getByRole('button', { name: 'Open live canvas', exact: true }).isDisabled(); i++) { if (await page.getByRole('alert').count()) throw new Error(await page.getByRole('alert').innerText()); await page.waitForTimeout(100); }
+    await page.getByRole('button', { name: 'Open live canvas', exact: true }).click();
+    await page.getByRole('button', { name: 'Use existing page', exact: true }).click();
+    await page.locator('webview').first().waitFor();
+    const status = await page.evaluate(() => window.frameui.preview.getStatus());
+    assert.equal(status.status, 'running');
+    assert(status.url.includes('.localhost:4181'));
+    const text = await page.evaluate(async () => { const guest = document.querySelector('webview'); for (let i = 0; i < 100; i++) { try { const text = await guest.executeJavaScript('document.body.innerText'); if (text.includes('Hosted inside')) return text; } catch {} await new Promise(resolve => setTimeout(resolve, 100)); } throw new Error('Hosted page did not render'); });
+    assert(text.includes('Hosted inside FrameUI'));
+    const isolated = await page.locator('webview').first().getAttribute('partition');
+    assert.equal(isolated, `persist:project-${id}`);
+    await page.evaluate(() => window.frameui.project.close());
+    console.log('Approved project setup, managed start, local routing and live canvas passed.');
+  } finally { if (app) await app.close(); fs.rmSync(root, { recursive: true, force: true }); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

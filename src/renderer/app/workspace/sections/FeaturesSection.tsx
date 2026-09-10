@@ -21,13 +21,13 @@ const STATUS_LABEL: Record<FeatureStatus, string> = {
 // Muted, distinct per status — same `bg-*/15 text-*-300` convention already
 // used for the blue "active" highlight elsewhere in the workspace.
 const STATUS_STYLE: Record<FeatureStatus, string> = {
-  concept: 'bg-white/[0.06] text-text-3',
-  designing: 'bg-blue-500/15 text-blue-300',
-  review: 'bg-amber-400/15 text-amber-300',
-  approved: 'bg-violet-500/15 text-violet-300',
-  'ready-for-development': 'bg-cyan-500/15 text-cyan-300',
-  implemented: 'bg-emerald-500/15 text-emerald-300',
-  verified: 'bg-green-500/15 text-green-300',
+  concept: 'bg-hover text-text-3',
+  designing: 'bg-selected text-accent-2',
+  review: 'bg-panel text-warning',
+  approved: 'bg-selected text-accent-2',
+  'ready-for-development': 'bg-selected text-accent-2',
+  implemented: 'bg-selected text-text',
+  verified: 'bg-selected text-text',
 }
 
 function pageCount(feature: Feature): number {
@@ -86,20 +86,20 @@ export function FeaturesSection() {
   if (!activeProject) return null
 
   return (
-    <main className="min-w-0 flex-1 overflow-y-auto bg-bg px-8 py-7">
+    <main className="min-w-0 flex-1 overflow-y-auto bg-bg px-4 py-4">
       <div className="mx-auto max-w-[980px]">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="flex items-center gap-2 text-[18px] font-semibold text-text"><Sparkles size={16} className="text-accent-2" />Features</h1>
+            <h1 className="flex items-center gap-2 text-[13px] font-semibold text-text"><Sparkles size={16} className="text-accent-2" />Features</h1>
             <p className="mt-1.5 max-w-xl text-[12px] leading-relaxed text-text-3">Scoped design work — pull in existing pages, sketch new ones, and track a feature from concept through to verified in production.</p>
           </div>
           <div className="relative shrink-0">
-            <button type="button" onClick={() => setCreating((v) => !v)} className="flex h-8 items-center gap-1.5 rounded-md border border-accent bg-accent px-3 text-[12px] font-semibold text-white hover:bg-accent-2">
+            <button type="button" onClick={() => setCreating((v) => !v)} className="flex h-8 items-center gap-1.5 rounded-md border border-accent bg-accent px-3 text-[12px] font-semibold text-on-accent hover:bg-accent-hover">
               <Plus size={14} />New Feature
             </button>
             {creating && (
-              <div className="absolute right-0 top-10 z-20 w-80 rounded-md border border-border-strong bg-panel p-3 shadow-2xl">
-                <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">New feature</div>
+              <div className="absolute right-0 top-10 z-20 w-80 rounded-md border border-border-strong bg-panel p-3 shadow-sm">
+                <div className="mb-2 text-[12px] font-semibold tracking-wide text-text-3">New feature</div>
                 <input
                   autoFocus
                   value={newName}
@@ -116,11 +116,11 @@ export function FeaturesSection() {
                   onChange={(event) => setNewDescription(event.target.value)}
                   placeholder="Description (optional)"
                   rows={3}
-                  className="mb-3 w-full resize-none rounded border border-border bg-bg px-2.5 py-2 text-[11.5px] text-text outline-none placeholder:text-text-3 focus:border-accent/60"
+                  className="mb-3 w-full resize-none rounded border border-border bg-bg px-2.5 py-2 text-[12px] text-text outline-none placeholder:text-text-3 focus:border-accent/60"
                 />
                 <div className="flex items-center justify-end gap-2">
-                  <button type="button" onClick={() => setCreating(false)} className="rounded px-2.5 py-1.5 text-[11.5px] text-text-3 hover:text-text-2">Cancel</button>
-                  <button type="button" disabled={!newName.trim() || submitting} onClick={() => void handleCreate()} className="rounded bg-accent px-3 py-1.5 text-[11.5px] font-semibold text-white hover:bg-accent-2 disabled:opacity-40">{submitting ? 'Creating…' : 'Create'}</button>
+                  <button type="button" onClick={() => setCreating(false)} className="rounded px-2.5 py-1.5 text-[12px] text-text-3 hover:text-text-2">Cancel</button>
+                  <button type="button" disabled={!newName.trim() || submitting} onClick={() => void handleCreate()} className="rounded bg-accent px-3 py-1.5 text-[12px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-40">{submitting ? 'Creating…' : 'Create'}</button>
                 </div>
               </div>
             )}
@@ -128,34 +128,34 @@ export function FeaturesSection() {
         </div>
 
         {loading && features.length === 0 ? (
-          <div className="mt-10 text-[12px] text-text-3">Loading features…</div>
+          <div className="mt-3 text-[12px] text-text-3">Loading features…</div>
         ) : features.length === 0 ? (
           <EmptyState onCreate={() => setCreating(true)} />
         ) : (
           <>
             {recent.length > 0 && (
-              <section className="mt-7">
-                <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-text-3">Recent Features</div>
+              <section className="mt-3">
+                <div className="mb-2 text-[12px] font-semibold tracking-normal text-text-3">Recent Features</div>
                 <div className="grid grid-cols-4 gap-3">
                   {recent.map((feature) => <RecentFeatureCard key={feature.id} feature={feature} />)}
                 </div>
               </section>
             )}
 
-            <section className="mt-8">
+            <section className="mt-3">
               <div className="mb-2 flex items-center justify-between">
-                <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-text-3">All Features</div>
+                <div className="text-[12px] font-semibold tracking-normal text-text-3">All Features</div>
                 <div className="flex items-center gap-2">
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="h-7 rounded-[5px] border border-border bg-panel px-2 text-[10.5px] text-text-2 outline-none"><option value="all">All statuses</option>{STATUS_ORDER.map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}</select>
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="h-7 rounded-[5px] border border-border bg-panel px-2 text-[12px] text-text-2 outline-none"><option value="all">All statuses</option>{STATUS_ORDER.map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}</select>
                 <div className="flex h-7 w-60 items-center gap-2 rounded-[5px] border border-border bg-panel px-2">
                   <Search size={12} className="text-text-3" />
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search features…" className="min-w-0 flex-1 bg-transparent text-[11px] text-text outline-none placeholder:text-text-3" />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search features…" className="min-w-0 flex-1 bg-transparent text-[12px] text-text outline-none placeholder:text-text-3" />
                 </div>
                 </div>
               </div>
               <div className="border-t border-border">
                 {filtered.length === 0 ? (
-                  <div className="py-6 text-center text-[11.5px] text-text-3">No features match “{query}”.</div>
+                  <div className="py-4 text-center text-[12px] text-text-3">No features match “{query}”.</div>
                 ) : (
                   filtered.map((feature) => <FeatureRow key={feature.id} feature={feature} />)
                 )}
@@ -171,11 +171,11 @@ export function FeaturesSection() {
 function RecentFeatureCard({ feature }: { feature: Feature }) {
   const count = pageCount(feature)
   return (
-    <button type="button" onClick={() => openFeature(feature)} className="flex flex-col items-start rounded-md border border-border bg-panel p-3 text-left hover:border-border-strong hover:bg-white/[0.03]">
-      <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${STATUS_STYLE[feature.status]}`}>{STATUS_LABEL[feature.status]}</span>
+    <button type="button" onClick={() => openFeature(feature)} className="flex flex-col items-start rounded-md border border-border bg-panel p-3 text-left hover:border-border-strong hover:bg-hover">
+      <span className={`rounded px-1.5 py-0.5 text-[12px] font-semibold ${STATUS_STYLE[feature.status]}`}>{STATUS_LABEL[feature.status]}</span>
       <span className="mt-2 line-clamp-1 w-full text-[12.5px] font-semibold text-text">{feature.name}</span>
-      <span className="mt-1 line-clamp-2 w-full text-[10.5px] leading-relaxed text-text-3">{feature.description || 'No description yet.'}</span>
-      <span className="mt-2.5 flex items-center gap-1.5 text-[9.5px] text-text-3">
+      <span className="mt-1 line-clamp-2 w-full text-[12px] leading-relaxed text-text-3">{feature.description || 'No description yet.'}</span>
+      <span className="mt-2.5 flex items-center gap-1.5 text-[12px] text-text-3">
         <Layers size={10} />{count} page{count === 1 ? '' : 's'}<span>·</span>{relativeUpdated(feature.updatedAt)}
       </span>
     </button>
@@ -244,12 +244,12 @@ function FeatureRow({ feature }: { feature: Feature }) {
               onChange={(event) => setDraftDescription(event.target.value)}
               rows={2}
               placeholder="Description"
-              className="mt-1.5 w-full max-w-xl resize-none rounded border border-border bg-bg px-2 py-1.5 text-[11px] text-text outline-none focus:border-accent/60"
+              className="mt-1.5 w-full max-w-xl resize-none rounded border border-border bg-bg px-2 py-1.5 text-[12px] text-text outline-none focus:border-accent/60"
             />
           ) : (
-            <p className="mt-1 line-clamp-1 max-w-xl text-[11px] text-text-3">{feature.description || 'No description yet.'}</p>
+            <p className="mt-1 line-clamp-1 max-w-xl text-[12px] text-text-3">{feature.description || 'No description yet.'}</p>
           )}
-          <div className="mt-1.5 flex items-center gap-3 text-[10px] text-text-3">
+          <div className="mt-1.5 flex items-center gap-3 text-[12px] text-text-3">
             <span>{count} page{count === 1 ? '' : 's'}</span>
             <span>{relativeUpdated(feature.updatedAt)}</span>
           </div>
@@ -259,27 +259,27 @@ function FeatureRow({ feature }: { feature: Feature }) {
           <select
             value={feature.status}
             onChange={(event) => void setStatus(feature, event.target.value as FeatureStatus)}
-            className={`h-6 rounded border-0 px-1.5 text-[10px] font-semibold outline-none ${STATUS_STYLE[feature.status]}`}
+            className={`h-6 rounded border-0 px-1.5 text-[12px] font-semibold outline-none ${STATUS_STYLE[feature.status]}`}
           >
             {STATUS_ORDER.map((status) => <option key={status} value={status} className="bg-panel text-text">{STATUS_LABEL[status]}</option>)}
           </select>
           {editing ? (
             <>
-              <button type="button" onClick={() => setEditing(false)} className="text-[10.5px] text-text-3 hover:text-text-2">Cancel</button>
-              <button type="button" disabled={!draftName.trim() || saving} onClick={() => void commitEdit()} className="rounded bg-accent px-2 py-1 text-[10.5px] font-semibold text-white hover:bg-accent-2 disabled:opacity-40">{saving ? 'Saving…' : 'Save'}</button>
+              <button type="button" onClick={() => setEditing(false)} className="text-[12px] text-text-3 hover:text-text-2">Cancel</button>
+              <button type="button" disabled={!draftName.trim() || saving} onClick={() => void commitEdit()} className="rounded bg-accent px-2 py-1 text-[12px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-40">{saving ? 'Saving…' : 'Save'}</button>
             </>
           ) : (
-            <button type="button" onClick={startEditing} className="text-[10.5px] text-text-3 hover:text-text-2">Edit</button>
+            <button type="button" onClick={startEditing} className="text-[12px] text-text-3 hover:text-text-2">Edit</button>
           )}
-          <button type="button" onClick={() => openFeature(feature)} className="rounded border border-border px-2 py-1 text-[10.5px] text-text-2 hover:border-border-strong hover:text-text">Open</button>
+          <button type="button" onClick={() => openFeature(feature)} className="rounded border border-border px-2 py-1 text-[12px] text-text-2 hover:border-border-strong hover:text-text">Open</button>
           {confirmingDelete ? (
-            <span className="flex items-center gap-1.5 rounded border border-danger/40 bg-danger/10 px-2 py-1 text-[10px] text-danger">
+            <span className="flex items-center gap-1.5 rounded border border-danger/40 bg-panel px-2 py-1 text-[12px] text-danger">
               Delete + Journeys + Concept Components?
               <button type="button" disabled={deleting} onClick={() => void handleDelete()} className="font-semibold underline">{deleting ? '…' : 'Confirm'}</button>
               <button type="button" onClick={() => setConfirmingDelete(false)} className="text-text-3">Cancel</button>
             </span>
           ) : (
-            <button type="button" onClick={() => setConfirmingDelete(true)} title="Delete feature" className="flex h-6 w-6 items-center justify-center rounded text-text-3 hover:bg-danger/10 hover:text-danger"><Trash2 size={12} /></button>
+            <button type="button" onClick={() => setConfirmingDelete(true)} title="Delete feature" className="flex h-6 w-6 items-center justify-center rounded text-text-3 hover:bg-panel hover:text-danger"><Trash2 size={12} /></button>
           )}
         </div>
       </div>
@@ -292,8 +292,8 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
     <div className="mt-16 flex flex-col items-center justify-center text-center">
       <Sparkles size={22} className="mb-3 text-text-3" />
       <div className="text-[13px] font-semibold text-text">No features yet</div>
-      <p className="mt-1.5 max-w-sm text-[11.5px] leading-relaxed text-text-3">Features are scoped design work — group existing pages, sketch new screens, and move the work from concept through to verified. Create your first one to get started.</p>
-      <button type="button" onClick={onCreate} className="mt-4 flex items-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-2 text-[12px] font-semibold text-white hover:bg-accent-2"><Plus size={14} />New Feature</button>
+      <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-text-3">Features are scoped design work — group existing pages, sketch new screens, and move the work from concept through to verified. Create your first one to get started.</p>
+      <button type="button" onClick={onCreate} className="mt-4 flex items-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-2 text-[12px] font-semibold text-on-accent hover:bg-accent-hover"><Plus size={14} />New Feature</button>
     </div>
   )
 }

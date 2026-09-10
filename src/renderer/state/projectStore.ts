@@ -1,3 +1,4 @@
+import { pendingWorkspaceSaves } from './pendingSaves'
 import { create } from 'zustand'
 import type { RecentProject } from '@shared/types/project'
 import type { ProjectIndex, IndexProgressStep, FileChangeNotice } from '@shared/types/projectIndex'
@@ -5,10 +6,8 @@ import type { ProjectIndex, IndexProgressStep, FileChangeNotice } from '@shared/
 interface ProjectState {
   activeProject: RecentProject | null
   activeIndex: ProjectIndex | null
+  indexError: string | null
   indexing: boolean
-  /** Real stages of the in-flight `indexProject` call, in completion order —
-   * driven by `project:onIndexProgress`, not a fake timer. Reset at the
-   * start of each fetch/reindex. */
   indexProgress: IndexProgressStep[]
   sourceStatus: 'idle' | 'updating' | 'up-to-date' | 'warning'
   sourceNotice: FileChangeNotice | null
@@ -21,48 +20,44 @@ interface ProjectState {
   selectApplication: (applicationId: string) => Promise<void>
 }
 
-export const useProjectStore = create<ProjectState>((set, get) => ({
-  activeProject: null,
-  activeIndex: null,
-  indexing: false,
-  indexProgress: [],
-  sourceStatus: 'idle',
-  sourceNotice: null,
-  setActiveProject: (project) => set({ activeProject: project, activeIndex: null }),
-  fetchIndex: async () => {
+let generation = 0
+export const useProjectStore = create<ProjectState>((set, get) => {
+  async function load(loadIndex: () => Promise<ProjectIndex | null>) {
     if (!get().activeProject) return
-    set({ indexing: true, indexProgress: [] })
+    const request = ++generation
+    set({ indexing: true, indexProgress: [], indexError: null })
     try {
-      const activeIndex = await window.frameui.project.getIndex()
-      set({ activeIndex, sourceStatus: activeIndex ? 'up-to-date' : 'idle' })
+      const activeIndex = await loadIndex()
+      if (request === generation) set({ activeIndex, sourceStatus: activeIndex ? 'up-to-date' : 'idle' })
+    } catch (error) {
+      if (request === generation) set({ sourceStatus: 'warning', indexError: error instanceof Error ? error.message : String(error) })
     } finally {
-      set({ indexing: false })
+      if (request === generation) set({ indexing: false })
     }
-  },
-  reindex: async () => {
-    if (!get().activeProject) return
-    set({ indexing: true, indexProgress: [] })
-    try {
-      const activeIndex = await window.frameui.project.reindex()
-      set({ activeIndex, sourceStatus: activeIndex ? 'up-to-date' : 'idle' })
-    } finally {
-      set({ indexing: false })
-    }
-  },
-  closeProject: async () => {
-    await window.frameui.project.close()
-    set({ activeProject: null, activeIndex: null, sourceStatus: 'idle', sourceNotice: null })
-  },
-  recordProgressStep: (step) => set((state) => (state.indexProgress.includes(step) ? state : { indexProgress: [...state.indexProgress, step] })),
-  handleFileChange: async (notice) => {
-    set({ sourceStatus: notice.status ?? 'updating', sourceNotice: notice })
-    if (notice.status === 'up-to-date') {
-      const activeIndex = await window.frameui.project.getIndex()
-      set({ activeIndex, sourceStatus: 'up-to-date', sourceNotice: notice })
-    }
-  },
-  selectApplication: async (applicationId) => {
-    const activeIndex = await window.frameui.project.selectApplication(applicationId)
-    set({ activeIndex })
-  },
-}))
+  }
+  return {
+    activeProject: null, activeIndex: null, indexing: false, indexError: null, indexProgress: [], sourceStatus: 'idle', sourceNotice: null,
+    setActiveProject: (project) => {
+      generation++
+      set({ activeProject: project, activeIndex: null, indexing: false, indexError: null, indexProgress: [], sourceStatus: 'idle', sourceNotice: null })
+    },
+    fetchIndex: async () => {
+      if (get().indexing) return
+      await load(() => window.frameui.project.getIndex())
+    },
+    reindex: () => load(() => window.frameui.project.reindex()),
+    closeProject: async () => {
+      await pendingWorkspaceSaves.flush()
+      await window.frameui.project.close()
+      generation++
+      set({ activeProject: null, activeIndex: null, indexing: false, indexError: null, indexProgress: [], sourceStatus: 'idle', sourceNotice: null })
+    },
+    recordProgressStep: (step) => set((state) => state.indexProgress.includes(step) ? state : { indexProgress: [...state.indexProgress, step] }),
+    handleFileChange: async (notice) => {
+      if (notice.projectId !== get().activeProject?.id) return
+      set({ sourceStatus: notice.status ?? 'updating', sourceNotice: notice })
+      if (notice.status === 'up-to-date') await load(() => window.frameui.project.getIndex())
+    },
+    selectApplication: (applicationId) => load(() => window.frameui.project.selectApplication(applicationId)),
+  }
+})

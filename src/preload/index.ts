@@ -2,6 +2,7 @@
 // for why (Electron's ESM built-in module + cjs-module-lexer interop gap).
 import electron from 'electron'
 import type { FrameUiApi } from '@shared/ipc-contract'
+import type { HostingEvent } from '@shared/types/hosting'
 import type { FileChangeNotice, IndexProgressUpdate } from '@shared/types/projectIndex'
 import type { PreviewOutputLine, PreviewStatusUpdate, PreviewUrlDetected } from '@shared/types/preview'
 
@@ -12,6 +13,17 @@ const { contextBridge, ipcRenderer } = electron
 // every method here is one specific, named call. Add to this file (and its
 // matching handler in src/main/ipc) as each phase needs a new capability.
 const api: FrameUiApi = {
+  hosting: {
+    importGitHub: (url) => ipcRenderer.invoke('hosting:importGitHub', url),
+    planCreate: (name, framework) => ipcRenderer.invoke('hosting:planCreate', { name, framework }),
+    create: (token) => ipcRenderer.invoke('hosting:create', token),
+    readEnvironment: (projectId) => ipcRenderer.invoke('hosting:environment', projectId),
+    updateEnvironment: (projectId, file, changes) => ipcRenderer.invoke('hosting:updateEnvironment', { projectId, file, changes }),
+    inspect: (projectId) => ipcRenderer.invoke('hosting:inspect', projectId),
+    prepare: (projectId, options) => ipcRenderer.invoke('hosting:prepare', { projectId, options }),
+    action: (projectId, action, confirmation) => ipcRenderer.invoke('hosting:action', { projectId, action, confirmation }),
+    onProgress: (callback) => { const listener = (_event: Electron.IpcRendererEvent, payload: HostingEvent) => callback(payload); ipcRenderer.on('hosting:onProgress', listener); return () => ipcRenderer.removeListener('hosting:onProgress', listener) },
+  },
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
@@ -117,6 +129,7 @@ const api: FrameUiApi = {
       ipcRenderer.on('project:onFileChanged', listener)
       return () => ipcRenderer.off('project:onFileChanged', listener)
     },
+    getVisuals: () => ipcRenderer.invoke('project:getVisuals'),
     getPageStructure: (relativeFilePath) => ipcRenderer.invoke('project:getPageStructure', relativeFilePath),
     onIndexProgress: (callback) => {
       const listener = (_event: unknown, update: IndexProgressUpdate) => callback(update)

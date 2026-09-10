@@ -20,11 +20,12 @@ function findConventionalPagesDir(rootPath: string): string | null {
  * with a `react` dependency (islands) still matches Astro first. */
 export const reactAdapter: SourceAdapter = {
   id: 'react',
+  ownsFile: (file) => /\.[jt]sx?$/i.test(file),
 
   detect(ctx) {
-    if (!ctx.pkg || !hasDependency(ctx.pkg, 'react')) return null
+    if (!(ctx.pkg && (hasDependency(ctx.pkg, 'react') || hasDependency(ctx.pkg, 'next'))) && !ctx.candidateFiles.some((file) => /\.[jt]sx$/.test(file))) return null
 
-    const next = detectNext(ctx.rootPath, ctx.pkg)
+    const next = ctx.pkg ? detectNext(ctx.rootPath, ctx.pkg) : { detected: false, routesDir: null, routerStyle: 'unknown' as const, devCommand: null }
     const generic = next.detected ? null : resolveGenericBundler(ctx.rootPath, ctx.pkg, false)
     const bundler: AdapterMatch['bundler'] = next.detected ? 'next' : (generic!.bundler)
     const routesDir = next.detected ? next.routesDir : findConventionalPagesDir(ctx.rootPath)

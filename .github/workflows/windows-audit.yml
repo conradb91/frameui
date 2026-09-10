@@ -1,0 +1,69 @@
+name: Windows implementation audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/windows-ci-*]
+permissions:
+  contents: read
+jobs:
+  desktop:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: [static, mixed-workspace, dotnet, php]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - name: Platform regression checks
+        run: bun test src/core/hosting/platformRuntime.test.ts src/core/hosting/windowsCrt.test.ts src/core/hosting/windowsDatabase.test.ts src/core/hosting/processSignals.test.ts src/core/hosting/keychain.test.ts src/core/hosting/serviceConnections.test.ts
+      - name: Stage app-local Visual C++ runtime
+        run: node scripts/stage-windows-crt.cjs
+      - name: Native database lifecycle
+        if: matrix.fixture == 'static'
+        shell: pwsh
+        run: |
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          & ./node_modules/electron/dist/electron.exe scripts/audit-managed-databases.cjs
+          $result = $LASTEXITCODE
+          Remove-Item Env:ELECTRON_RUN_AS_NODE
+          if ($result -ne 0) { exit $result }
+      - run: bun run build
+      - name: Real desktop journey
+        shell: pwsh
+        env:
+          FIXTURE: ${{ matrix.fixture }}
+        run: |
+          if ($env:FIXTURE -eq 'mixed-workspace') {
+            $env:FRAMEUI_SMOKE_MIXED = '1'
+            $env:FRAMEUI_SMOKE_WORKSPACE = '1'
+          }
+          if ($env:FIXTURE -eq 'dotnet') { $env:FRAMEUI_SMOKE_DOTNET = '1' }
+          if ($env:FIXTURE -eq 'php') { $env:FRAMEUI_SMOKE_PHP = '1' }
+          node scripts/smoke-designer-preparation.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package Windows application
+        if: matrix.fixture == 'static'
+        run: bunx electron-builder --win --dir --x64
+      - name: Packaged desktop journey
+        if: matrix.fixture == 'static'
+        shell: pwsh
+        run: |
+          $env:FRAMEUI_ELECTRON_PATH = (Resolve-Path 'release/win-unpacked/FrameUI.exe').Path
+          node scripts/smoke-designer-preparation.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-${{ matrix.fixture }}-evidence
+          path: |
+            docs/designer-preparation-smoke.png
+            docs/designer-preparation-failure.png
+          if-no-files-found: ignore

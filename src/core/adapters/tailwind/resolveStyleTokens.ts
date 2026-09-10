@@ -40,6 +40,11 @@ export function resolveStyleTokens(rootPath: string, pkg: PackageJsonInfo | null
     const primary = preferV4 ? readTailwindV4Tokens(rootPath) : readTailwindV3Tokens(rootPath)
     const secondary = preferV4 ? readTailwindV3Tokens(rootPath) : readTailwindV4Tokens(rootPath)
     const tokens = primary ?? secondary ?? { source: preferV4 ? 'tailwind-v4' : 'tailwind-v3', colors: [], spacing: [], radius: [], breakpoints: [] }
+    const stylesheetTokens = readCustomPropertyTokens(rootPath)
+    for (const category of ['colors', 'spacing', 'radius', 'breakpoints'] as const) {
+      const names = new Set(tokens[category].map((token) => token.name))
+      tokens[category].push(...stylesheetTokens[category].filter((token) => !names.has(token.name)))
+    }
     return fillUnresolvedWithDefaults(tokens)
   }
 

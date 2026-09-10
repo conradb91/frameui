@@ -1,3 +1,4 @@
+import { UI_FONT, themes } from '../../shared/theme'
 import type { DesignNode, Breakpoint } from '@shared/types/designNode'
 import type { Annotation, ConceptComponent, DesignState, Feature, FeaturePage, Journey, PageRef, Version } from '@shared/types/model/featureModel'
 import type { Page, ProjectModel } from '@shared/types/model/projectModel'
@@ -82,7 +83,7 @@ function referenceTree(page: Page): DesignNode {
 
 function annotationLayer(scene: ExportScene): string {
   if (!scene.annotations.length) return ''
-  const rows = scene.annotations.map((note, index) => `<g id="annotation-${index + 1}"><circle cx="${scene.width - 28}" cy="${28 + index * 28}" r="10" fill="#f5b84b"/><text x="${scene.width - 28}" y="${32 + index * 28}" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#111114">${index + 1}</text><title>${escapeXml(note.comment)}</title></g>`).join('')
+  const rows = scene.annotations.map((note, index) => `<g id="annotation-${index + 1}"><circle cx="${scene.width - 28}" cy="${28 + index * 28}" r="10" fill="${themes.dark['warning']}"/><text x="${scene.width - 28}" y="${32 + index * 28}" text-anchor="middle" font-family="${UI_FONT.replace(/"/g, '&quot;')}" font-size="10" font-weight="700" fill="${themes.dark['canvas']}">${index + 1}</text><title>${escapeXml(note.comment)}</title></g>`).join('')
   return `<g id="Annotations" aria-label="Annotations">${rows}</g>`
 }
 function injectBeforeClose(svg: string, content: string): string { return content ? svg.replace(/<\/svg>\s*$/, `${content}</svg>`) : svg }
@@ -148,7 +149,7 @@ export function serializeJourneyBoard(journey: Journey, input: FeatureExportInpu
     positions.set(step.id, { x, y })
     const state = step.designStateId ? input.states.find((item) => item.id === step.designStateId) : null
     const tree = step.designStateId ? input.trees[step.designStateId] : null
-    let preview = `<rect x="${x + 12}" y="${y + 46}" width="${cardWidth - 24}" height="${cardHeight - 62}" rx="8" fill="#202027"/><text x="${x + cardWidth / 2}" y="${y + 168}" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" fill="#85858e">Reference page</text>`
+    let preview = `<rect x="${x + 12}" y="${y + 46}" width="${cardWidth - 24}" height="${cardHeight - 62}" rx="8" fill="${themes.dark['panel-2']}"/><text x="${x + cardWidth / 2}" y="${y + 168}" text-anchor="middle" font-family="${UI_FONT.replace(/"/g, '&quot;')}" font-size="12" fill="${themes.dark['text-3']}">Reference page</text>`
     if (tree) {
       const result = new SvgExporter().exportScene({ id: step.id, name: pageName(step.pageRef, input), kind: 'page', pageRef: step.pageRef, stateId: state?.id ?? null, viewport: 'desktop', width: 900, tree, provenance: step.provenance, annotations: [] }, input.settings)
       warnings.push(...result.warnings)
@@ -156,12 +157,12 @@ export function serializeJourneyBoard(journey: Journey, input: FeatureExportInpu
       const previewWidth = cardWidth - 24, previewHeight = cardHeight - 62
       const scale = Math.min(previewWidth / result.width, previewHeight / result.height)
       const clipId = `journey-clip-${index}`
-      preview = `<defs><clipPath id="${clipId}"><rect x="${x + 12}" y="${y + 46}" width="${previewWidth}" height="${previewHeight}" rx="8"/></clipPath></defs><rect x="${x + 12}" y="${y + 46}" width="${previewWidth}" height="${previewHeight}" rx="8" fill="#111114"/><g clip-path="url(#${clipId})" transform="translate(${x + 12} ${y + 46}) scale(${scale})">${inner}</g>`
+      preview = `<defs><clipPath id="${clipId}"><rect x="${x + 12}" y="${y + 46}" width="${previewWidth}" height="${previewHeight}" rx="8"/></clipPath></defs><rect x="${x + 12}" y="${y + 46}" width="${previewWidth}" height="${previewHeight}" rx="8" fill="${themes.dark['canvas']}"/><g clip-path="url(#${clipId})" transform="translate(${x + 12} ${y + 46}) scale(${scale})">${inner}</g>`
     }
-    const indicator = step.provenance === 'new' ? '#55c98b' : step.provenance === 'existing-modified' ? '#f5b84b' : '#7c6af2'
+    const indicator = step.provenance === 'new' ? themes.dark.success : step.provenance === 'existing-modified' ? themes.dark.warning : themes.dark.accent
     const stepNotes = input.settings.includeAnnotations ? input.annotations.filter((note) => pageRefKey(note.pageRef) === pageRefKey(step.pageRef) && (note.designStateId === null || note.designStateId === step.designStateId) && note.status !== 'resolved') : []
-    const noteBadge = stepNotes.length ? `<g aria-label="${stepNotes.length} annotations"><circle cx="${x + cardWidth - 18}" cy="${y + cardHeight - 18}" r="11" fill="#f5b84b"/><text x="${x + cardWidth - 18}" y="${y + cardHeight - 14}" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#111114">${stepNotes.length}</text><title>${escapeXml(stepNotes.map((note) => note.comment).join(' · '))}</title></g>` : ''
-    cards.push(`<g id="${sanitizeFilename(pageName(step.pageRef, input))}" aria-label="${escapeXml(pageName(step.pageRef, input))}"><rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="14" fill="#17171b" stroke="#37373d"/><circle cx="${x + 16}" cy="${y + 21}" r="5" fill="${indicator}"/><text x="${x + 29}" y="${y + 25}" font-family="Inter, sans-serif" font-size="14" font-weight="700" fill="#fff">${escapeXml(pageName(step.pageRef, input))}</text>${state ? `<text x="${x + cardWidth - 14}" y="${y + 25}" text-anchor="end" font-family="Inter, sans-serif" font-size="10" fill="#aaaab2">${escapeXml(state.name)}</text>` : ''}${preview}${noteBadge}</g>`)
+    const noteBadge = stepNotes.length ? `<g aria-label="${stepNotes.length} annotations"><circle cx="${x + cardWidth - 18}" cy="${y + cardHeight - 18}" r="11" fill="${themes.dark['warning']}"/><text x="${x + cardWidth - 18}" y="${y + cardHeight - 14}" text-anchor="middle" font-family="${UI_FONT.replace(/"/g, '&quot;')}" font-size="10" font-weight="700" fill="${themes.dark['canvas']}">${stepNotes.length}</text><title>${escapeXml(stepNotes.map((note) => note.comment).join(' · '))}</title></g>` : ''
+    cards.push(`<g id="${sanitizeFilename(pageName(step.pageRef, input))}" aria-label="${escapeXml(pageName(step.pageRef, input))}"><rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="14" fill="${themes.dark['panel']}" stroke="${themes.dark['border']}"/><circle cx="${x + 16}" cy="${y + 21}" r="5" fill="${indicator}"/><text x="${x + 29}" y="${y + 25}" font-family="${UI_FONT.replace(/"/g, '&quot;')}" font-size="14" font-weight="700" fill="${themes.dark['text']}">${escapeXml(pageName(step.pageRef, input))}</text>${state ? `<text x="${x + cardWidth - 14}" y="${y + 25}" text-anchor="end" font-family="${UI_FONT.replace(/"/g, '&quot;')}" font-size="10" fill="${themes.dark['text-3']}">${escapeXml(state.name)}</text>` : ''}${preview}${noteBadge}</g>`)
   })
   const connections = journey.connections.flatMap((connection) => {
     const from = positions.get(connection.fromStepId), to = positions.get(connection.toStepId)
@@ -169,8 +170,8 @@ export function serializeJourneyBoard(journey: Journey, input: FeatureExportInpu
     const x1 = horizontal ? from.x + cardWidth : from.x + cardWidth / 2, y1 = horizontal ? from.y + cardHeight / 2 : from.y + cardHeight
     const x2 = horizontal ? to.x : to.x + cardWidth / 2, y2 = horizontal ? to.y + cardHeight / 2 : to.y
     const mx = (x1 + x2) / 2, my = (y1 + y2) / 2
-    return [`<g aria-label="${escapeXml(connection.trigger)} ${escapeXml(connection.label)}"><path d="M${x1} ${y1} L${x2} ${y2}" stroke="#7c6af2" stroke-width="2" fill="none" marker-end="url(#arrow)"/><rect x="${mx - 52}" y="${my - 14}" width="104" height="24" rx="12" fill="#202027"/><text x="${mx}" y="${my + 3}" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#c8c1ff">${escapeXml(connection.label || connection.elementLabel || connection.trigger)}</text></g>`]
+    return [`<g aria-label="${escapeXml(connection.trigger)} ${escapeXml(connection.label)}"><path d="M${x1} ${y1} L${x2} ${y2}" stroke="${themes.dark['accent']}" stroke-width="2" fill="none" marker-end="url(#arrow)"/><rect x="${mx - 52}" y="${my - 14}" width="104" height="24" rx="12" fill="${themes.dark['panel-2']}"/><text x="${mx}" y="${my + 3}" text-anchor="middle" font-family="${UI_FONT.replace(/"/g, '&quot;')}" font-size="10" font-weight="600" fill="${themes.dark['text-2']}">${escapeXml(connection.label || connection.elementLabel || connection.trigger)}</text></g>`]
   })
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(journey.name)}"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#7c6af2"/></marker></defs><rect width="${width}" height="${height}" fill="#0f0f12"/><text x="${padding}" y="46" font-family="Inter, sans-serif" font-size="24" font-weight="700" fill="#fff">${escapeXml(journey.name)}</text>${connections.join('')}${cards.join('')}</svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(journey.name)}"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="${themes.dark['accent']}"/></marker></defs><rect width="${width}" height="${height}" fill="${themes.dark['canvas']}"/><text x="${padding}" y="46" font-family="${UI_FONT.replace(/"/g, '&quot;')}" font-size="24" font-weight="700" fill="${themes.dark['text']}">${escapeXml(journey.name)}</text>${connections.join('')}${cards.join('')}</svg>`
   return { svg, warnings }
 }

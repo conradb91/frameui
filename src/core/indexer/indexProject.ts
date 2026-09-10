@@ -4,7 +4,8 @@ import type { ProjectIndex, Language, IndexProgressStep, ProjectApplication } fr
 import type { ProjectModel } from '@shared/types/model/projectModel'
 import { readPackageJson } from '@core/adapters/shared/packageJson'
 import { readComposerJson } from '@core/adapters/shared/composerJson'
-import { detectProject } from '@core/adapters/registry'
+import { detectProject, sourceAdapterExtensions } from '@core/adapters/registry'
+import { detectTechnologies } from '@core/adapters/detectTechnologies'
 import { MARKUP_EXTENSIONS } from '@core/adapters/markup/findMarkupPages'
 import { resolveStyleTokens } from '@core/adapters/tailwind/resolveStyleTokens'
 import { buildProjectModel } from '@core/design-model/buildProjectModel'
@@ -13,7 +14,7 @@ import { createIgnoreRules } from './ignore'
 import { walkFiles } from './walkFiles'
 import { walkFileMetadata } from './walkFiles'
 import { buildDependencyGraph } from './dependencyGraph'
-import { capabilitiesFor, discoverApplications } from './projectCapabilities'
+import { capabilitiesFor, discoverApplications, discoverApplicationRoots, applicationMetadata, preferredApplication } from './projectCapabilities'
 import crypto from 'node:crypto'
 
 const normalize = (value: string) => value.split(path.sep).join('/')
@@ -27,12 +28,14 @@ export function indexApplicationModel(projectId: string, repositoryRoot: string,
   const ignoreRules = createIgnoreRules()
   const pkg = readPackageJson(appRoot)
   const composer = readComposerJson(appRoot)
-  const { files } = walkFiles(appRoot, SOURCE_EXTENSIONS, ignoreRules)
+  const walked = walkFiles(appRoot, sourceExtensions(), ignoreRules)
+  const nestedRoots = discoverApplicationRoots(appRoot).filter((dir) => dir !== appRoot)
+  const files = walked.files.filter((file) => !nestedRoots.some((dir) => file.startsWith(dir + path.sep)))
   const ctx: AdapterContext = { rootPath: appRoot, pkg, composer, candidateFiles: files, ignoreRules }
   const { adapter, match } = detectProject(ctx)
   const pages = adapter.findPages(ctx, match)
   const components = adapter.findComponents(ctx, match, pages)
-  const local = buildProjectModel(projectId, appRoot, pages, components, resolveStyleTokens(appRoot, pkg), match.phpFramework ?? match.framework)
+  const local = buildProjectModel(projectId, appRoot, pages, components, resolveStyleTokens(appRoot, pkg), match.phpFramework ?? match.framework, files)
   const designSystem = local.designSystem!
   const pageIds = new Map(local.pages.map((item) => [item.id, prefixId(application.id, item.id)]))
   const componentIds = new Map(local.components.map((item) => [item.id, prefixId(application.id, item.id)]))
@@ -46,6 +49,10 @@ export function indexApplicationModel(projectId: string, repositoryRoot: string,
     ...local,
     projectId,
     pages: pagesOut,
+    assetRoots: adapter.assetRoots?.map((root) => prefixFile(application.rootPath, root)),
+    sourceRelationships: local.sourceRelationships?.map((item) => ({ ...item, sourceFile: prefixFile(application.rootPath, item.sourceFile), targetFile: prefixFile(application.rootPath, item.targetFile) })),
+    assets: local.assets.map((item) => ({ ...item, id: prefixId(application.id, item.id), source: mapSource(item.source) })),
+    styles: local.styles.map((item) => ({ ...item, id: prefixId(application.id, item.id), source: item.source ? mapSource(item.source) : undefined, tokenIds: item.tokenIds.map((id) => tokenIds.get(id) ?? id) })),
     components: componentsOut,
     tokens: local.tokens.map((item) => ({ ...item, id: tokenIds.get(item.id)! })),
     routes: local.routes.map((item) => ({ ...item, id: routeIds.get(item.id)!, pageId: pageIds.get(item.pageId)!, source: mapSource(item.source) })),
@@ -62,12 +69,16 @@ export function indexApplicationModel(projectId: string, repositoryRoot: string,
   }
 }
 
-export const SOURCE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js', '.css', '.scss', '.sass', '.less', '.vue', '.svelte', '.astro', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.woff', '.woff2', '.ttf', '.otf', ...MARKUP_EXTENSIONS]
+export const SOURCE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js', '.css', '.scss', '.sass', '.less', '.vue', '.svelte', '.astro', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.woff', '.woff2', '.ttf', '.otf', ...MARKUP_EXTENSIONS, ...sourceAdapterExtensions()]
+
+export function sourceExtensions(): string[] { return [...new Set([...SOURCE_EXTENSIONS, ...sourceAdapterExtensions()])] }
 
 /** The one piece of framework-agnostic derived state that doesn't vary per
  * adapter today — kept as a shared function rather than duplicated across
  * seven adapters. */
 function deriveLanguage(framework: ProjectIndex['framework'], hasTsconfig: boolean, candidateFiles: string[]): Language {
+  if (framework === 'dotnet') return candidateFiles.some((file) => /\.[jt]sx?$/.test(file)) ? 'mixed' : 'csharp'
+  if (framework === 'angular') return 'typescript'
   if (framework === 'php') return hasTsconfig || candidateFiles.some((file) => /\.[jt]sx?$/.test(file)) ? 'mixed' : 'php'
   if (framework === 'static') return 'html'
   if (framework === 'react' || framework === 'vue' || framework === 'svelte') return hasTsconfig ? 'typescript' : 'javascript'
@@ -86,10 +97,10 @@ export function indexProject(projectId: string, rootPath: string, onProgress?: (
   // page discovery and component discovery. Server templates commonly live
   // outside `src` (resources/views, app/Views, views), so scanning only the
   // React source root made them impossible to index.
-  const { files: candidateFiles, scannedFileCount } = walkFiles(rootPath, SOURCE_EXTENSIONS, ignoreRules)
+  const { files: candidateFiles, scannedFileCount } = walkFiles(rootPath, sourceExtensions(), ignoreRules)
 
   const ctx: AdapterContext = { rootPath, pkg, composer, candidateFiles, ignoreRules }
-  const { adapter, match } = detectProject(ctx)
+  const { adapter, match, matches } = detectProject(ctx)
   onProgress?.('detecting')
 
   const pages = adapter.findPages(ctx, match)
@@ -102,7 +113,8 @@ export function indexProject(projectId: string, rootPath: string, onProgress?: (
 
   const styleTokens = resolveStyleTokens(rootPath, pkg)
   onProgress?.('tokens')
-  let projectModel = buildProjectModel(projectId, rootPath, pages, components, styleTokens, match.phpFramework ?? match.framework)
+  let projectModel = buildProjectModel(projectId, rootPath, pages, components, styleTokens, match.phpFramework ?? match.framework, candidateFiles)
+  projectModel.assetRoots = adapter.assetRoots
   onProgress?.('model')
 
   const supportLevel =
@@ -112,14 +124,14 @@ export function indexProject(projectId: string, rootPath: string, onProgress?: (
         ? 'partial'
         : 'inspect-only'
 
-  const { files: metadata } = walkFileMetadata(rootPath, SOURCE_EXTENSIONS, ignoreRules)
+  const { files: metadata } = walkFileMetadata(rootPath, sourceExtensions(), ignoreRules)
   const indexedFiles = Object.fromEntries(metadata.map((file) => [file.relativePath, { path: file.relativePath, mtimeMs: file.mtimeMs, size: file.size }]))
   const configurationFingerprint = crypto.createHash('sha1').update([
     pkg ? JSON.stringify(pkg.raw) : '', composer ? JSON.stringify(composer.raw) : '', match.framework, match.bundler,
   ].join('\u0000')).digest('hex')
   const capability = capabilitiesFor(match)
   const applications = discoverApplications(rootPath, candidateFiles)
-  const activeApplication = applications.find((item) => item.kind === 'application') ?? applications[0]
+  const activeApplication = preferredApplication(applications)
   if (activeApplication && (applications.filter((item) => item.kind === 'application').length > 1 || projectModel.pages.length === 0)) {
     projectModel = indexApplicationModel(projectId, rootPath, activeApplication)
   }
@@ -130,18 +142,21 @@ export function indexProject(projectId: string, rootPath: string, onProgress?: (
     capabilityLevel: capability.level,
     capabilities: capability.capabilities,
     framework: match.framework,
+    technologies: detectTechnologies(ctx, matches.map((item) => item.match.phpFramework ?? item.match.framework)),
+    adapterIds: matches.map((item) => item.adapter.id),
     phpFramework: match.phpFramework,
     language,
     bundler: match.bundler,
     routerStyle: match.routerStyle,
     devCommand: match.devCommand,
+    ...(activeApplication ? applicationMetadata(activeApplication) : {}),
     projectModel,
     applications,
     activeApplicationId: activeApplication?.id ?? null,
     indexedApplicationId: activeApplication?.id ?? null,
     files: indexedFiles,
     cacheVersion: 2,
-    parserVersion: 'frameui-indexer-v3',
+    parserVersion: 'frameui-indexer-v5',
     configurationFingerprint,
     scannedFileCount,
     scanDurationMs: Date.now() - startedAt,

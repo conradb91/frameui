@@ -168,7 +168,7 @@ export function RenderNode({ node }: { node: DesignNode }) {
           type="button"
           onClick={handleClick}
           className={`relative w-fit rounded-lg px-4 py-2.5 text-[13px] font-semibold ${selectionRing} ${
-            node.variant === 'primary' ? 'bg-gradient-to-b from-[#8676F4] to-[#7461EE] text-white' : 'border border-border bg-panel-2 text-text'
+            node.variant === 'primary' ? 'bg-accent   text-on-accent' : 'border border-border bg-panel-2 text-text'
           }`}
           style={styleObj}
         >
@@ -211,13 +211,13 @@ export function RenderNode({ node }: { node: DesignNode }) {
       return (
         <div
           onClick={handleClick}
-          className={`relative rounded-lg border-2 border-dashed border-accent-2/50 bg-accent-2/[0.06] px-3 py-2.5 text-[12px] ${selectionRing}`}
+          className={`relative rounded-lg border-2 border-dashed border-accent-2/50 bg-selected px-3 py-2.5 text-[12px] ${selectionRing}`}
           style={styleObj}
         >
           <div className="flex items-center gap-1.5">
             <span className="text-accent-2">{'◇'}</span>
             <span className="truncate font-semibold text-text">{concept?.name ?? 'Unknown concept component'}</span>
-            {variant && <span className="ml-auto shrink-0 rounded bg-accent-2/15 px-1.5 py-px text-[9.5px] font-semibold text-accent-2">{variant.name}</span>}
+            {variant && <span className="ml-auto shrink-0 rounded bg-selected px-1.5 py-px text-[9.5px] font-semibold text-accent-2">{variant.name}</span>}
           </div>
           {concept && concept.properties.length > 0 && (
             <div className="mt-1.5 flex flex-col gap-0.5 border-t border-dashed border-accent-2/25 pt-1.5 text-[10.5px] text-text-3">
@@ -360,7 +360,7 @@ function justifyToCss(justify: 'start' | 'center' | 'end' | 'space-between' | un
  * existing class, only adds inline style for whatever the designer set. */
 function styleToCss(style: NodeStyle | undefined, kind: DesignNode['kind']): React.CSSProperties {
   if (!style) return {}
-  const css: React.CSSProperties = {}
+  const css: React.CSSProperties = { position: style.position, left: style.left, top: style.top }
   if (style.width !== undefined) css.width = style.width === 'fill' ? '100%' : style.width === 'auto' ? undefined : style.width
   if (style.height !== undefined) css.height = style.height === 'fill' ? '100%' : style.height === 'auto' ? undefined : style.height
   if (style.minWidth !== undefined) css.minWidth = style.minWidth
@@ -456,7 +456,7 @@ function ResizeHandles({ node }: { node: DesignNode }) {
           onPointerDown={(e) => startResize(e, 'width')}
           onClick={(e) => e.stopPropagation()}
           title="Drag to resize width — hold Shift for exact pixels"
-          className="absolute right-[-5px] top-1/2 h-4 w-2.5 -translate-y-1/2 cursor-ew-resize rounded-sm border border-white/40 bg-accent-2"
+          className="absolute right-[-5px] top-1/2 h-4 w-2.5 -translate-y-1/2 cursor-ew-resize rounded-sm border border-border bg-accent-2"
         />
       )}
       {hasHeight && (
@@ -464,7 +464,7 @@ function ResizeHandles({ node }: { node: DesignNode }) {
           onPointerDown={(e) => startResize(e, 'height')}
           onClick={(e) => e.stopPropagation()}
           title="Drag to resize height — hold Shift for exact pixels"
-          className="absolute bottom-[-5px] left-1/2 h-2.5 w-4 -translate-x-1/2 cursor-ns-resize rounded-sm border border-white/40 bg-accent-2"
+          className="absolute bottom-[-5px] left-1/2 h-2.5 w-4 -translate-x-1/2 cursor-ns-resize rounded-sm border border-border bg-accent-2"
         />
       )}
       {hasWidth && hasHeight && (
@@ -472,7 +472,7 @@ function ResizeHandles({ node }: { node: DesignNode }) {
           onPointerDown={(e) => startResize(e, 'both')}
           onClick={(e) => e.stopPropagation()}
           title="Drag to resize — hold Shift for exact pixels"
-          className="absolute bottom-[-5px] right-[-5px] h-3 w-3 cursor-nwse-resize rounded-sm border border-white/40 bg-accent-2"
+          className="absolute bottom-[-5px] right-[-5px] h-3 w-3 cursor-nwse-resize rounded-sm border border-border bg-accent-2"
         />
       )}
     </>
@@ -576,7 +576,7 @@ function GridCellDropTarget({ gridId, col, row }: { gridId: string; col: number;
     <div
       ref={setNodeRef}
       style={{ gridColumn: col, gridRow: row }}
-      className={`pointer-events-auto rounded-sm border border-dashed transition-colors ${isOver ? 'border-accent-2 bg-accent-2/25' : 'border-accent-2/20'}`}
+      className={`pointer-events-auto rounded-sm border border-dashed transition-colors ${isOver ? 'border-accent-2 bg-selected' : 'border-accent-2/20'}`}
     />
   )
 }
@@ -717,7 +717,7 @@ function EditableText({
         setDraft(node.content)
         setEditing(true)
       }}
-      className={`relative ${node.locked ? 'cursor-default' : 'cursor-text'} w-fit rounded px-0.5 ${selectionRing} ${node.kind === 'heading' ? 'text-[22px] font-bold text-white' : 'text-[14px] text-text-2'}`}
+      className={`relative ${node.locked ? 'cursor-default' : 'cursor-text'} w-fit rounded px-0.5 ${selectionRing} ${node.kind === 'heading' ? 'text-[22px] font-bold text-text' : 'text-[14px] text-text-2'}`}
       style={styleObj}
     >
       {node.content || <span className="text-text-3">Empty text — double-click to edit</span>}

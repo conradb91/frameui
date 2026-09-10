@@ -76,9 +76,9 @@ export function LivePreviewPanel({ devCommand }: { devCommand: DevCommand | null
   }
 
   return (
-    <div className="rounded-[6px] border border-border bg-panel p-3">
+    <div className="border-t border-border py-3">
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-[11px] text-text-3">Live Preview</div>
+        <div className="text-[12px] text-text-3">Live Preview</div>
         <StatusPill status={status} />
       </div>
 
@@ -93,19 +93,19 @@ export function LivePreviewPanel({ devCommand }: { devCommand: DevCommand | null
               if (e.key === 'Escape') setEditing(false)
             }}
             placeholder="npm run dev"
-            className="flex-1 rounded-[5px] border border-accent-2 bg-panel-2 px-2.5 py-1.5 font-mono text-[11px] text-text outline-none"
+            className="flex-1 rounded-[5px] border border-accent-2 bg-panel-2 px-2.5 py-1.5 font-mono text-[12px] text-text outline-none"
           />
           <button
             type="button"
             onClick={() => void commitEdit()}
-            className="rounded-[5px] bg-blue-600 px-2.5 py-1.5 text-[11px] font-semibold text-white"
+            className="rounded-[5px] bg-accent px-2.5 py-1.5 text-[12px] font-semibold text-on-accent"
           >
             Save
           </button>
           <button
             type="button"
             onClick={() => setEditing(false)}
-            className="rounded-[5px] border border-border bg-panel-2 px-2.5 py-1.5 text-[11px] font-semibold text-text-2"
+            className="rounded-[5px] border border-border bg-panel-2 px-2.5 py-1.5 text-[12px] font-semibold text-text-2"
           >
             Cancel
           </button>
@@ -115,21 +115,21 @@ export function LivePreviewPanel({ devCommand }: { devCommand: DevCommand | null
           <span className="font-mono text-[12.5px] text-text-2">
             {effectiveCommand ? `${effectiveCommand.command} ${effectiveCommand.args.join(' ')}` : 'No preview command detected'}
           </span>
-          <button type="button" onClick={beginEdit} className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold text-text-3 hover:text-text">
+          <button type="button" onClick={beginEdit} className="shrink-0 rounded px-1.5 py-0.5 text-[12px] font-semibold text-text-3 hover:text-text">
             Edit Command
           </button>
         </div>
       )}
 
       {status === 'error' && (
-        <div className="mb-3 rounded-lg border border-danger/30 bg-danger/[0.06] px-2.5 py-2 text-[11.5px] text-danger">
+        <div className="mb-3 rounded-lg border border-danger/30 bg-panel px-2.5 py-2 text-[12px] text-danger">
           The project couldn't be started with this command. Edit it above, then Retry.
         </div>
       )}
 
       <div className="mb-3 flex items-center gap-2">
         {status === 'running' ? (
-          <button type="button" onClick={() => void handleStop()} className="rounded-[5px] border border-danger/30 bg-danger/10 px-3 py-1.5 text-[11px] font-semibold text-danger">
+          <button type="button" onClick={() => void handleStop()} className="rounded-[5px] border border-danger/30 bg-panel px-3 py-1.5 text-[12px] font-semibold text-danger">
             Stop
           </button>
         ) : (
@@ -137,7 +137,7 @@ export function LivePreviewPanel({ devCommand }: { devCommand: DevCommand | null
             type="button"
             onClick={() => void handleStart()}
             disabled={!effectiveCommand}
-            className="rounded-[5px] bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
+            className="rounded-[5px] bg-accent px-3 py-1.5 text-[12px] font-semibold text-on-accent disabled:opacity-50"
           >
             {status === 'error' ? 'Retry' : 'Start Preview'}
           </button>
@@ -146,7 +146,7 @@ export function LivePreviewPanel({ devCommand }: { devCommand: DevCommand | null
           <button
             type="button"
             onClick={() => void window.frameui.preview.openExternal(url)}
-            className="rounded-[5px] border border-border bg-panel-2 px-3 py-1.5 text-[11px] font-semibold text-text-2 hover:text-text"
+            className="rounded-[5px] border border-border bg-panel-2 px-3 py-1.5 text-[12px] font-semibold text-text-2 hover:text-text"
           >
             Open {url}
           </button>
@@ -154,7 +154,7 @@ export function LivePreviewPanel({ devCommand }: { devCommand: DevCommand | null
       </div>
 
       {lines.length > 0 && (
-        <div ref={logRef} className="max-h-32 overflow-y-auto rounded-[4px] bg-bg p-2 font-mono text-[10.5px] leading-relaxed text-text-3">
+        <div ref={logRef} className="max-h-32 overflow-y-auto rounded-[4px] bg-bg p-2 font-mono text-[12px] leading-relaxed text-text-3">
           {lines.map((line, i) => (
             <div key={i} className="whitespace-pre-wrap">
               {line}
@@ -169,9 +169,9 @@ export function LivePreviewPanel({ devCommand }: { devCommand: DevCommand | null
 function StatusPill({ status }: { status: Status }) {
   const styles: Record<Status, string> = {
     idle: 'text-text-3 border-border bg-panel-2',
-    running: 'text-success border-success/30 bg-success/10',
+    running: 'text-success border-success/30 bg-panel',
     stopped: 'text-text-3 border-border bg-panel-2',
-    error: 'text-danger border-danger/30 bg-danger/10',
+    error: 'text-danger border-danger/30 bg-panel',
   }
-  return <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${styles[status]}`}>{status}</span>
+  return <span className={`rounded-md border px-2 py-0.5 text-[12px] font-semibold ${styles[status]}`}>{status}</span>
 }

@@ -75,7 +75,7 @@ export interface Component {
 
 export type TokenCategory = 'color' | 'spacing' | 'radius' | 'breakpoint' | 'typography' | 'effect'
 export type TokenConfidence = 'full' | 'unresolved'
-export type TokenSource = 'tailwind-v3' | 'tailwind-v4' | 'css-custom-properties' | 'none'
+export type TokenSource = 'tailwind-v3' | 'tailwind-v4' | 'css-custom-properties' | 'stylesheets' | 'none'
 
 export interface Token {
   id: string
@@ -90,6 +90,7 @@ export interface Token {
  * extracts typography/box styles into named rules; kept here so future
  * phases don't need another schema rewrite. */
 export interface Style {
+  source?: SourceReference
   id: string
   name: string
   tokenIds: string[]
@@ -142,6 +143,8 @@ export interface ProjectModel {
   tokenSource: TokenSource
   styles: Style[]
   assets: Asset[]
+  assetRoots?: string[]
+  sourceRelationships?: { sourceFile: string; targetFile: string; kind: 'component' | 'layout' }[]
   interactions: Interaction[]
   diagnostics: Diagnostic[]
   /** Phase 30-33 source-derived product UI intelligence. Optional keeps

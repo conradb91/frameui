@@ -1,3 +1,5 @@
+import { projectAssets } from '../../lib/projectAssets'
+import { useProjectStore } from '../../state/projectStore'
 import { useState } from 'react'
 import { findParent } from '@core/design-model/tree'
 import type { DesignCommand } from '@core/design-model/commands'
@@ -36,10 +38,13 @@ export function LayoutInspector(props: {
   components: Component[]
   conceptComponents: ConceptComponent[]
   tokens: Token[]
+  projectFonts?: string[]
+  projectShadows?: { label: string; value: string }[]
   dispatch: (command: DesignCommand) => void
   onSelect: (id: string | null) => void
 }): JSX.Element {
-  const { node, tree, breakpoint, components, conceptComponents, tokens, dispatch, onSelect } = props
+  const { node: baseNode, tree, breakpoint, components, conceptComponents, tokens, dispatch, onSelect, projectFonts, projectShadows } = props
+  const node = breakpoint === 'desktop' ? baseNode : { ...baseNode, style: { ...baseNode.style, ...baseNode.responsiveOverrides?.[breakpoint]?.style } }
   const isRoot = node.id === tree.id
   const parentInfo = findParent(tree, node.id)
   const parentIsGrid = parentInfo?.parent.kind === 'grid'
@@ -47,19 +52,22 @@ export function LayoutInspector(props: {
   const nonDesktopBp = breakpoint === 'desktop' ? null : breakpoint
 
   function setStyle(style: Partial<NodeStyle>) {
-    dispatch({ type: 'SetStyle', nodeId: node.id, style })
+    if (breakpoint === 'desktop') dispatch({ type: 'SetStyle', nodeId: node.id, style })
+    else dispatch({ type: 'SetResponsiveOverride', nodeId: node.id, breakpoint, override: { ...baseNode.responsiveOverrides?.[breakpoint], style: { ...baseNode.responsiveOverrides?.[breakpoint]?.style, ...style } } })
   }
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-[10.5px] font-semibold uppercase tracking-wide text-text-3">{node.kind}</span>
+        <span className="text-[11px] font-semibold tracking-wide text-text-3">{node.kind}</span>
         <div className="flex items-center gap-1">
           <ProvenanceBadge provenance={node.provenance} />
           <EditabilityBadge editability={node.editability} />
         </div>
       </div>
 
+      {node.kind === 'placeholder' && <TypographyFields fonts={projectFonts} style={node.style} disabled={locked} onChange={setStyle} showAlign/>}
+      {node.kind === 'placeholder' && !node.children.length && node.textPreview !== undefined && <Field label="Text"><textarea value={node.textPreview} disabled={locked} onChange={(event) => dispatch({ type: 'SetText', nodeId: node.id, content: event.target.value })} className="w-full rounded border border-border bg-panel p-2 text-xs text-text"/></Field>}
       {node.kind === 'placeholder' && <PlaceholderFields node={node} components={components} dispatch={dispatch} locked={locked} />}
 
       {node.kind === 'concept' && (
@@ -77,7 +85,7 @@ export function LayoutInspector(props: {
                   disabled={locked}
                   onClick={() => dispatch({ type: 'SetDirection', nodeId: node.id, direction: dir })}
                   className={`flex-1 rounded-md border px-2 py-1.5 text-[11.5px] font-semibold disabled:opacity-40 ${
-                    node.direction === dir ? 'border-accent-2 bg-accent/15 text-accent-2' : 'border-border bg-panel-2 text-text-2'
+                    node.direction === dir ? 'border-accent-2 bg-selected text-accent-2' : 'border-border bg-panel-2 text-text-2'
                   }`}
                 >
                   {dir === 'column' ? 'Vertical' : 'Horizontal'}
@@ -199,7 +207,7 @@ export function LayoutInspector(props: {
               className="w-full resize-none rounded-md border border-border bg-panel-2 px-2 py-1.5 text-[12.5px] text-text outline-none focus:border-accent-2 disabled:opacity-40"
             />
           </Field>
-          <TypographyFields style={node.style} disabled={locked} onChange={setStyle} showAlign />
+          <TypographyFields fonts={projectFonts} style={node.style} disabled={locked} onChange={setStyle} showAlign />
         </>
       )}
 
@@ -222,7 +230,7 @@ export function LayoutInspector(props: {
               onChange={(variant) => dispatch({ type: 'SetVariant', nodeId: node.id, variant })}
             />
           </Field>
-          <TypographyFields style={node.style} disabled={locked} onChange={setStyle} />
+          <TypographyFields fonts={projectFonts} style={node.style} disabled={locked} onChange={setStyle} />
         </>
       )}
 
@@ -272,7 +280,7 @@ export function LayoutInspector(props: {
         </Field>
       )}
 
-      {!isRoot && <NormalElementFields style={node.style} disabled={locked} onChange={setStyle} />}
+      {!isRoot && <NormalElementFields presets={projectShadows} style={node.style} disabled={locked} onChange={setStyle} />}
 
       <Field label="Visibility">
         <label className="flex items-center gap-2 text-[12px] text-text-2">
@@ -299,12 +307,12 @@ export function LayoutInspector(props: {
             dispatch({ type: 'DeleteNode', nodeId: node.id })
             onSelect(null)
           }}
-          className="rounded-md border border-danger/30 bg-danger/10 px-2 py-1.5 text-[11.5px] font-semibold text-danger"
+          className="rounded-md border border-danger/30 bg-panel px-2 py-1.5 text-[11.5px] font-semibold text-danger"
         >
           Delete
         </button>
       ) : (
-        <div className="text-[10.5px] text-text-3">Root screen container</div>
+        <div className="text-[11px] text-text-3">Root screen container</div>
       )}
     </div>
   )
@@ -321,22 +329,29 @@ function PlaceholderFields({
   dispatch: (command: DesignCommand) => void
   locked: boolean
 }) {
+  const model = useProjectStore((s) => s.activeIndex?.projectModel)
+  const styles = projectAssets(model?.pages ?? []).filter((asset) => asset.structure[0]?.tagName.toLowerCase() === node.label.toLowerCase())
+  const intelligence = model?.designSystem?.components.find((component) => component.componentId === node.componentDefinitionId)
+  const classKey = node.attributes?.className !== undefined ? 'className' : 'class'
   const filePath = node.sourceReference?.filePath ?? node.sourceFilePath
   const line = node.sourceReference?.line ?? node.sourceLine
   return (
     <>
+      {styles.length > 1 && <Field label="Project styles"><select aria-label="Project style" value={node.attributes?.[classKey] ?? ''} disabled={locked} onChange={(e) => { dispatch({ type: 'SetAttribute', nodeId: node.id, name: classKey, value: e.target.value }); if (node.attributes?.style) dispatch({ type: 'SetAttribute', nodeId: node.id, name: 'style', value: null }) }} className="w-full rounded border border-border bg-panel p-2 text-xs"><option value={node.attributes?.[classKey] ?? ''}>Current style</option>{styles.map((asset) => <option key={asset.id} value={asset.structure[0].attributes?.class ?? asset.structure[0].attributes?.className ?? ''}>{asset.name}</option>)}</select></Field>}
+      {['placeholder', 'title', 'alt', 'aria-label'].filter((name) => node.attributes?.[name] !== undefined).map((name) => <Field key={name} label={name}><input value={node.attributes?.[name] ?? ''} disabled={locked} onChange={(e) => dispatch({ type: 'SetAttribute', nodeId: node.id, name, value: e.target.value })} className="w-full rounded border border-border bg-panel p-2 text-xs"/></Field>)}
+      {intelligence && intelligence.props.length > 0 && <Field label="Detected component properties">{intelligence.props.map((prop) => <div key={prop.name} className="mb-2 text-xs"><span className="text-text">{prop.name}</span><p className="mt-1 text-text-3">{prop.values.join(' · ') || prop.type}</p></div>)}<p className="text-[11px] text-text-3">Application-dependent properties are shown as source information.</p></Field>}
       {node.editability === 'limited' && !locked && (
         <SwapField node={node} components={components} onSwap={(c) => dispatch({ type: 'SwapComponent', nodeId: node.id, component: c })} />
       )}
       <Field label="Source">
-        <div className="break-all font-mono text-[10px] leading-relaxed text-text-2">
+        <div className="break-all font-mono text-[11px] leading-relaxed text-text-2">
           {filePath ?? 'Unknown source'}
           {line ? `:${line}` : ''}
         </div>
       </Field>
       {(node.attributes?.className || node.attributes?.class) && (
         <Field label="Classes">
-          <div className="break-all font-mono text-[10px] leading-relaxed text-text-2">{node.attributes.className ?? node.attributes.class}</div>
+          <div className="break-all font-mono text-[11px] leading-relaxed text-text-2">{node.attributes.className ?? node.attributes.class}</div>
         </Field>
       )}
       {node.textPreview && (
@@ -379,7 +394,7 @@ function SwapField({
                   onSwap({ name: c.name, filePath: c.source.filePath })
                   setOpen(false)
                 }}
-                className="block w-full truncate px-2.5 py-1.5 text-left text-[12px] text-text-2 hover:bg-white/5 hover:text-text"
+                className="block w-full truncate px-2.5 py-1.5 text-left text-[12px] text-text-2 hover:bg-hover hover:text-text"
               >
                 {c.name}
               </button>
@@ -476,6 +491,7 @@ function ConceptFields({
 }
 
 function TypographyFields({
+  fonts = FONT_PRESETS,
   style,
   disabled,
   onChange,
@@ -485,6 +501,7 @@ function TypographyFields({
   disabled: boolean
   onChange: (style: Partial<NodeStyle>) => void
   showAlign?: boolean
+  fonts?: string[]
 }) {
   return (
     <>
@@ -498,7 +515,7 @@ function TypographyFields({
           className="w-full rounded-md border border-border bg-panel-2 px-2 py-1.5 text-[12.5px] text-text outline-none focus:border-accent-2 disabled:opacity-40"
         />
         <datalist id="frameui-font-presets">
-          {FONT_PRESETS.map((f) => (
+          {fonts.map((f) => (
             <option key={f} value={f} />
           ))}
         </datalist>
@@ -548,15 +565,17 @@ function DimensionsFields({
 }
 
 function NormalElementFields({
+  presets = SHADOW_PRESETS,
   style,
   disabled,
   onChange,
 }: {
+  presets?: { label: string; value: string }[]
   style: NodeStyle | undefined
   disabled: boolean
   onChange: (style: Partial<NodeStyle>) => void
 }) {
-  const matchedPreset = SHADOW_PRESETS.find((p) => p.value === (style?.boxShadow ?? ''))
+  const matchedPreset = presets.find((p) => p.value === (style?.boxShadow ?? ''))
   return (
     <>
       <Field label="Border">
@@ -566,14 +585,14 @@ function NormalElementFields({
         </div>
       </Field>
       <LabeledNumber label="Border radius" value={style?.borderRadius} disabled={disabled} onChange={(v) => onChange({ borderRadius: v })} />
-      <Field label="Box shadow">
+      <Field label="Box shadow-sm">
         <select
           value={matchedPreset ? matchedPreset.value : style?.boxShadow ?? ''}
           disabled={disabled}
           onChange={(e) => onChange({ boxShadow: e.target.value || undefined })}
           className="w-full rounded-md border border-border bg-panel-2 px-2 py-1.5 text-[12.5px] text-text outline-none focus:border-accent-2 disabled:opacity-40"
         >
-          {SHADOW_PRESETS.map((p) => (
+          {presets.map((p) => (
             <option key={p.label} value={p.value}>
               {p.label}
             </option>
@@ -645,7 +664,7 @@ function SizeField({
             if (next === 'auto' || next === 'fill') onChange(next)
             else onChange(typeof value === 'number' ? value : 0)
           }}
-          className="rounded-md border border-border bg-panel-2 px-1.5 py-1.5 text-[11px] text-text outline-none focus:border-accent-2 disabled:opacity-40"
+          className="rounded-md border border-border bg-panel-2 px-1.5 py-1.5 text-[12px] text-text outline-none focus:border-accent-2 disabled:opacity-40"
         >
           <option value="fixed">Fixed</option>
           <option value="auto">Auto</option>
@@ -772,7 +791,7 @@ function Segmented<T extends string>({
           disabled={disabled}
           onClick={() => onChange(opt)}
           className={`flex-1 rounded-md border px-2 py-1.5 text-[11px] font-semibold capitalize disabled:opacity-40 ${
-            value === opt ? 'border-accent-2 bg-accent/15 text-accent-2' : 'border-border bg-panel-2 text-text-2'
+            value === opt ? 'border-accent-2 bg-selected text-accent-2' : 'border-border bg-panel-2 text-text-2'
           }`}
         >
           {labels?.[opt] ?? opt}
@@ -784,17 +803,17 @@ function Segmented<T extends string>({
 
 function EditabilityBadge({ editability }: { editability: DesignNode['editability'] }) {
   const styles = {
-    editable: 'text-success border-success/30 bg-success/10',
-    limited: 'text-warning border-warning/30 bg-warning/10',
-    locked: 'text-danger border-danger/30 bg-danger/10',
+    editable: 'text-success border-success/30 bg-panel',
+    limited: 'text-warning border-warning/30 bg-panel',
+    locked: 'text-danger border-danger/30 bg-panel',
   } as const
-  return <span className={`rounded px-1.5 py-px text-[9px] font-bold uppercase ${styles[editability]}`}>{editability}</span>
+  return <span className={`rounded px-1.5 py-px text-[11px] font-semibold ${styles[editability]}`}>{editability}</span>
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1 text-[10.5px] text-text-3">{label}</div>
+      <div className="mb-1 text-[11px] text-text-3">{label}</div>
       {children}
     </div>
   )

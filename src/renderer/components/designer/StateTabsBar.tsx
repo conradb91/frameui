@@ -1,3 +1,4 @@
+import { pendingWorkspaceSaves } from '../../state/pendingSaves'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
@@ -91,6 +92,7 @@ export function StateTabsBar(props: {
   async function handleDelete(stateId: string) {
     if (!window.confirm('Delete this state? Its design tree and any Alternatives built on it will be removed.')) return
     setMenuOpenId(null)
+    await pendingWorkspaceSaves.flush()
     await window.frameui.workspace.deleteDesignState(projectId, stateId)
     const remaining = await refresh()
     if (activeStateId === stateId) {
@@ -123,6 +125,7 @@ export function StateTabsBar(props: {
     const { sourceId, asOrigin, name } = duplicateTarget
     const finalName = name.trim() || 'Copy'
     setDuplicateTarget(null)
+    await pendingWorkspaceSaves.flush()
     const created = await window.frameui.workspace.duplicateDesignState(projectId, sourceId, finalName, asOrigin)
     await handleCreated(created)
   }
@@ -180,7 +183,7 @@ export function StateTabsBar(props: {
       </button>
 
       {activeState && (
-        <span className="ml-1 shrink-0 truncate text-[10.5px] text-text-3" title={ORIGIN_NOTE[activeState.origin]}>
+        <span className="ml-1 shrink-0 truncate text-[11px] text-text-3" title={ORIGIN_NOTE[activeState.origin]}>
           {ORIGIN_NOTE[activeState.origin]}
         </span>
       )}
@@ -264,7 +267,7 @@ function StateTab({
       {...attributes}
       {...listeners}
       className={`group relative flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11.5px] font-semibold ${
-        active ? 'bg-accent/20 text-accent-2' : 'text-text-2 hover:bg-white/5 hover:text-text'
+        active ? 'bg-selected text-accent-2' : 'text-text-2 hover:bg-hover hover:text-text'
       }`}
     >
       {renaming ? (
@@ -278,7 +281,7 @@ function StateTab({
             if (e.key === 'Escape') onRenameCancel()
           }}
           onClick={(e) => e.stopPropagation()}
-          className="w-28 rounded bg-black/20 px-1 py-0.5 text-[11.5px] text-text outline-none"
+          className="w-28 rounded bg-scrim px-1 py-0.5 text-[12px] text-text outline-none"
         />
       ) : (
         <button type="button" onClick={onSelect} onDoubleClick={onStartRename} className="whitespace-nowrap">
@@ -301,7 +304,7 @@ function StateTab({
           <MoreHorizontal size={12} />
         </button>
         {menuOpen && (
-          <div className="absolute right-0 top-6 z-20 flex w-48 flex-col overflow-hidden rounded-md border border-border bg-bg-raised py-1 shadow-lg">
+          <div className="absolute right-0 top-6 z-20 flex w-48 flex-col overflow-hidden rounded-md border border-border bg-bg-raised py-1 shadow-sm">
             <MenuItem label="Rename" onClick={onStartRename} icon={<Pencil size={11} />} />
             <MenuItem label="Duplicate" onClick={() => onDuplicate(state.origin)} />
             {state.origin === 'captured' && <MenuItem label="Duplicate as Design State" onClick={() => onDuplicate('design')} />}
@@ -318,7 +321,7 @@ function StateTab({
 function OriginTag({ origin }: { origin: DesignStateOrigin }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-0.5 rounded-[3px] px-1 py-px text-[9px] font-medium uppercase tracking-wide ${
+      className={`inline-flex shrink-0 items-center gap-0.5 rounded-[3px] px-1 py-px text-[11px] font-medium tracking-wide ${
         origin === 'captured' ? 'text-warning/80' : 'text-text-3'
       }`}
       title={ORIGIN_NOTE[origin]}
@@ -337,7 +340,7 @@ function MenuItem({ label, onClick, icon, danger }: { label: string; onClick: ()
         e.stopPropagation()
         onClick()
       }}
-      className={`flex items-center gap-1.5 px-3 py-1.5 text-left text-[11.5px] font-medium hover:bg-white/5 ${danger ? 'text-danger' : 'text-text-2 hover:text-text'}`}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-left text-[11.5px] font-medium hover:bg-hover ${danger ? 'text-danger' : 'text-text-2 hover:text-text'}`}
     >
       {icon}
       {label}
@@ -358,13 +361,13 @@ function DuplicatePrompt({
 }) {
   const [name, setName] = useState(initialName)
   return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40" onClick={onCancel}>
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-scrim" onClick={onCancel}>
       <div
-        className="w-80 rounded-lg border border-border bg-bg-raised p-4 shadow-xl"
+        className="w-80 rounded-lg border border-border bg-bg-raised p-4 shadow-sm"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 text-[12.5px] font-semibold text-text">Duplicate as {ORIGIN_LABEL[asOrigin]} State</div>
-        <p className="mb-3 text-[10.5px] leading-relaxed text-text-3">{ORIGIN_NOTE[asOrigin]}</p>
+        <p className="mb-3 text-[11px] leading-relaxed text-text-3">{ORIGIN_NOTE[asOrigin]}</p>
         <input
           autoFocus
           value={name}
@@ -380,7 +383,7 @@ function DuplicatePrompt({
           <button
             type="button"
             onClick={() => onConfirm(name)}
-            className="rounded-md border border-accent bg-accent px-2.5 py-1.5 text-[11.5px] font-semibold text-white hover:bg-accent-2"
+            className="rounded-md border border-accent bg-accent px-2.5 py-1.5 text-[11.5px] font-semibold text-on-accent hover:bg-accent-hover"
           >
             Duplicate
           </button>
@@ -454,11 +457,11 @@ function CreateStateForm({
   }
 
   return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="w-96 rounded-lg border border-border bg-bg-raised p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-scrim" onClick={onClose}>
+      <div className="w-96 rounded-lg border border-border bg-bg-raised p-4 shadow-sm" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 text-[12.5px] font-semibold text-text">New State</div>
 
-        <div className="mb-1 text-[10.5px] text-text-3">Name</div>
+        <div className="mb-1 text-[11px] text-text-3">Name</div>
         <input
           autoFocus
           value={name}
@@ -467,24 +470,24 @@ function CreateStateForm({
           className="mb-3 w-full rounded-md border border-border bg-panel-2 px-2.5 py-1.5 text-[12px] text-text outline-none"
         />
 
-        <div className="mb-1 text-[10.5px] text-text-3">Origin</div>
+        <div className="mb-1 text-[11px] text-text-3">Origin</div>
         <div className="mb-3 flex items-center gap-0.5 rounded-lg border border-border bg-panel-2 p-0.5">
           {(['design', 'captured'] as const).map((o) => (
             <button
               key={o}
               type="button"
               onClick={() => setOrigin(o)}
-              className={`flex-1 rounded-md px-2.5 py-1.5 text-[11.5px] font-semibold ${origin === o ? 'bg-accent/20 text-accent-2' : 'text-text-2'}`}
+              className={`flex-1 rounded-md px-2.5 py-1.5 text-[11.5px] font-semibold ${origin === o ? 'bg-selected text-accent-2' : 'text-text-2'}`}
             >
               {ORIGIN_LABEL[o]}
             </button>
           ))}
         </div>
-        <p className="mb-3 text-[10.5px] leading-relaxed text-text-3">{ORIGIN_NOTE[origin]}</p>
+        <p className="mb-3 text-[11px] leading-relaxed text-text-3">{ORIGIN_NOTE[origin]}</p>
 
         {origin === 'captured' && (
           <div className="mb-3">
-            <div className="mb-1 text-[10.5px] text-text-3">Captured page</div>
+            <div className="mb-1 text-[11px] text-text-3">Captured page</div>
             {!capturesLoaded ? (
               <div className="text-[11px] text-text-3">Loading captures…</div>
             ) : captures.length === 0 ? (
@@ -499,11 +502,11 @@ function CreateStateForm({
                     type="button"
                     onClick={() => setSelectedCaptureId(c.id)}
                     className={`flex w-full flex-col gap-0.5 border-b border-border px-2.5 py-2 text-left last:border-b-0 ${
-                      selectedCaptureId === c.id ? 'bg-accent/15' : 'bg-panel-2 hover:bg-white/5'
+                      selectedCaptureId === c.id ? 'bg-selected' : 'bg-panel-2 hover:bg-hover'
                     }`}
                   >
-                    <span className="truncate font-mono text-[10.5px] text-text-2">{c.url}</span>
-                    <span className="text-[9.5px] text-text-3">{new Date(c.capturedAt).toLocaleString()}</span>
+                    <span className="truncate font-mono text-[11px] text-text-2">{c.url}</span>
+                    <span className="text-[11px] text-text-3">{new Date(c.capturedAt).toLocaleString()}</span>
                   </button>
                 ))}
               </div>
@@ -519,7 +522,7 @@ function CreateStateForm({
             type="button"
             disabled={busy || (origin === 'captured' && !selectedCaptureId)}
             onClick={() => void handleSubmit()}
-            className="rounded-md border border-accent bg-accent px-2.5 py-1.5 text-[11.5px] font-semibold text-white hover:bg-accent-2 disabled:opacity-40"
+            className="rounded-md border border-accent bg-accent px-2.5 py-1.5 text-[11.5px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-40"
           >
             {busy ? 'Creating…' : 'Create'}
           </button>

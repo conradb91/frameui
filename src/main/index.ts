@@ -1,3 +1,6 @@
+import { closeActiveProject } from './state/activeProject'
+import { shutdownHosting } from './hosting/service'
+import { previewProcess } from './security/spawnPreview'
 // Named imports from 'electron' break the ESM cjs-module-lexer interop for
 // Electron's synthetic built-in module (a real, documented Electron/Node
 // gap) — default-import + destructure is the working pattern.
@@ -22,10 +25,10 @@ if (!gotSingleInstanceLock) {
   let mainWindow: BrowserWindow | null = null
 
   app.on('second-instance', () => {
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
-    }
+    } else { app.emit('activate') }
   })
 
   app.whenReady().then(() => {
@@ -36,7 +39,19 @@ if (!gotSingleInstanceLock) {
     installCaptureWebviewGuard(mainWindow)
   })
 
+  let hostingStopped = false
+  app.on('before-quit', (event) => {
+    previewProcess.stop()
+    if (hostingStopped) return
+    event.preventDefault()
+    hostingStopped = true
+    void shutdownHosting().finally(() => app.quit())
+  })
+
   app.on('window-all-closed', () => {
+    mainWindow = null
+    closeActiveProject()
+    previewProcess.stop()
     if (process.platform !== 'darwin') {
       app.quit()
     }

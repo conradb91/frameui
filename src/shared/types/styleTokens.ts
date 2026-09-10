@@ -16,7 +16,7 @@ export interface StyleToken {
   confidence: Confidence
 }
 
-export type StyleTokenSource = 'tailwind-v3' | 'tailwind-v4' | 'css-custom-properties' | 'none'
+export type StyleTokenSource = 'tailwind-v3' | 'tailwind-v4' | 'css-custom-properties' | 'stylesheets' | 'none'
 
 export interface StyleTokens {
   source: StyleTokenSource

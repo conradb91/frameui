@@ -25,6 +25,9 @@ const gridPlacementSchema = z
 const sizeSchema = z.union([z.number(), z.literal('auto'), z.literal('fill')])
 const nodeStyleSchema = z
   .object({
+    position: z.enum(['relative', 'absolute']).optional(),
+    left: z.number().optional(),
+    top: z.number().optional(),
     width: sizeSchema.optional(),
     height: sizeSchema.optional(),
     minWidth: z.number().optional(),

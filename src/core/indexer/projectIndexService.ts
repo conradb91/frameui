@@ -1,14 +1,15 @@
 import fs from 'node:fs'
+import { adapterNeedsReimport } from '@core/adapters/registry'
 import path from 'node:path'
 import type { FileChange, IndexedFile, IndexProgressStep, IndexUpdateSummary, ProjectIndex } from '@shared/types/projectIndex'
 import { readJsonFile, writeJsonFileAtomic } from '@core/workspace/atomicJson'
 import { getProjectIndexFile } from '@core/workspace/paths'
 import { listFeatures } from '@core/workspace/models/featureStore'
-import { indexApplicationModel, indexProject, SOURCE_EXTENSIONS } from './indexProject'
+import { indexApplicationModel, indexProject, sourceExtensions } from './indexProject'
 import { createIgnoreRules } from './ignore'
 import { walkFileMetadata } from './walkFiles'
 import { affectedFiles, buildDependencyGraph, updateDependencyGraph } from './dependencyGraph'
-import { isBuildOrRouteConfiguration, isStyleFile } from './projectCapabilities'
+import { isBuildOrRouteConfiguration, isStyleFile, applicationMetadata } from './projectCapabilities'
 import { refreshProjectPage, styleTokensToModel } from '@core/design-model/buildProjectModel'
 import { resolveStyleTokens } from '@core/adapters/tailwind/resolveStyleTokens'
 import { readPackageJson } from '@core/adapters/shared/packageJson'
@@ -25,7 +26,7 @@ import type { DesignNode } from '@shared/types/designNode'
 import type { DesignOperation, SourceConflict } from '@shared/types/model/featureModel'
 
 export const PROJECT_INDEX_CACHE_SCHEMA = 2
-const PARSER_VERSION = 'frameui-indexer-v3'
+const PARSER_VERSION = 'frameui-indexer-v5'
 const normalize = (value: string) => value.split(path.sep).join('/')
 
 function metadata(rootPath: string, absolutePath: string): IndexedFile | null {
@@ -135,7 +136,7 @@ export class ProjectIndexService {
     const application = this.index.applications!.find((item) => item.id === applicationId)!
     const projectModel = this.index.indexedApplicationId === applicationId ? this.index.projectModel : indexApplicationModel(this.projectId, this.rootPath, application)
     const dependencyGraph = buildDependencyGraph(this.rootPath, Object.keys(this.index.files ?? {}), { projectModel })
-    this.index = { ...this.index, activeApplicationId: applicationId, indexedApplicationId: applicationId, projectModel, dependencyGraph }
+    this.index = { ...this.index, activeApplicationId: applicationId, indexedApplicationId: applicationId, ...applicationMetadata(application), projectModel, dependencyGraph }
     writeJsonFileAtomic(getProjectIndexFile(this.userDataPath, this.projectId), this.index, PROJECT_INDEX_CACHE_SCHEMA)
     return this.index
   }
@@ -144,7 +145,7 @@ export class ProjectIndexService {
     onProgress?.('validating-cache')
     const persisted = readJsonFile<ProjectIndex | null>(getProjectIndexFile(this.userDataPath, this.projectId), null, PROJECT_INDEX_CACHE_SCHEMA)
     if (!persisted || persisted.parserVersion !== PARSER_VERSION || persisted.rootPath !== this.rootPath) return this.rebuild(onProgress, 'initial')
-    const walked = walkFileMetadata(this.rootPath, SOURCE_EXTENSIONS, createIgnoreRules())
+    const walked = walkFileMetadata(this.rootPath, sourceExtensions(), createIgnoreRules())
     const current = walked.files.map((file) => ({ path: file.relativePath, mtimeMs: file.mtimeMs, size: file.size }))
     const changes = changesSince(persisted, current)
     this.index = persisted
@@ -159,7 +160,14 @@ export class ProjectIndexService {
 
   rebuild(onProgress?: (step: IndexProgressStep) => void, mode: 'initial' | 'rebuild' = 'rebuild'): ProjectIndex {
     const started = Date.now()
+    const selectedId = this.index?.activeApplicationId
     const next = indexProject(this.projectId, this.rootPath, (step) => { if (step !== 'done') onProgress?.(step) })
+    const selected = next.applications?.find((application) => application.id === selectedId)
+    if (selected && next.indexedApplicationId !== selected.id) {
+      next.projectModel = indexApplicationModel(this.projectId, this.rootPath, selected)
+      Object.assign(next, applicationMetadata(selected), { activeApplicationId: selected.id, indexedApplicationId: selected.id })
+      next.dependencyGraph = buildDependencyGraph(this.rootPath, Object.keys(next.files ?? {}), next)
+    }
     next.lastUpdate = { mode, changedFiles: 0, updatedComponents: next.projectModel.components.length, affectedPages: next.projectModel.pages.length, affectedFeatureIds: [], invalidatedObjectIds: [], durationMs: Date.now() - started }
     this.index = next
     onProgress?.('persisting')
@@ -170,7 +178,7 @@ export class ProjectIndexService {
 
   update(rawChanges: FileChange[], onProgress?: (step: IndexProgressStep) => void): ProjectIndex {
     if (!this.index) return this.load(onProgress)
-    if (rawChanges.some((change) => isBuildOrRouteConfiguration(change.path))) return this.rebuild(onProgress)
+    if (rawChanges.some((change) => isBuildOrRouteConfiguration(change.path) || adapterNeedsReimport(this.index?.adapterIds ?? [], change.path))) return this.rebuild(onProgress)
     const started = Date.now()
     const changes = rawChanges.map((change) => ({ ...change, path: normalize(path.isAbsolute(change.path) ? path.relative(this.rootPath, change.path) : change.path), previousPath: change.previousPath ? normalize(path.isAbsolute(change.previousPath) ? path.relative(this.rootPath, change.previousPath) : change.previousPath) : undefined }))
     const changedPaths = changes.flatMap((change) => [change.path, ...(change.previousPath ? [change.previousPath] : [])])

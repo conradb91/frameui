@@ -4,3 +4,6 @@ dist-electron
 release
 .DS_Store
 *.log
+
+build/windows-crt/
+docs/designer-preparation-failure.png

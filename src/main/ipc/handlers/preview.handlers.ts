@@ -1,3 +1,4 @@
+import net from 'node:net'
 import electron from 'electron'
 import { z } from 'zod'
 import type { DevCommand } from '@shared/types/projectIndex'
@@ -5,6 +6,7 @@ import { previewProcess } from '../../security/spawnPreview'
 import { getActiveProject, getDevCommand, setDevCommandOverride } from '../../state/activeProject'
 import { broadcast } from '../rendererEvents'
 import path from 'node:path'
+import { hostingPreview, hostingAction } from '../../hosting/service'
 
 const { shell } = electron
 
@@ -25,7 +27,7 @@ export function registerPreviewHandlers(): void {
     return getDevCommand()
   })
 
-  ipcMain.handle('preview:getStatus', () => previewProcess.getSnapshot())
+  ipcMain.handle('preview:getStatus', () => hostingPreview() ?? previewProcess.getSnapshot())
 
   ipcMain.handle('preview:setCommand', (_event, raw): { ok: boolean } => {
     const parsed = setCommandSchema.safeParse(raw)
@@ -34,8 +36,12 @@ export function registerPreviewHandlers(): void {
     return { ok: true }
   })
 
-  ipcMain.handle('preview:start', (): { ok: boolean; message?: string } => {
+  ipcMain.handle('preview:start', async (): Promise<{ ok: boolean; message?: string }> => {
     const active = getActiveProject()
+    if (active && hostingPreview()) {
+      try { await hostingAction(active.projectId, 'start'); return { ok: true } }
+      catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error) } }
+    }
     const command = getDevCommand()
     if (!active || !command) {
       return { ok: false, message: 'No project or detected preview command.' }
@@ -46,14 +52,28 @@ export function registerPreviewHandlers(): void {
 
     const commandRoot = command.workingDirectory ? path.resolve(active.rootPath, command.workingDirectory) : active.rootPath
     if (commandRoot !== active.rootPath && !commandRoot.startsWith(`${active.rootPath}${path.sep}`)) return { ok: false, message: 'Invalid application working directory.' }
-    return previewProcess.start(command.command, command.args, commandRoot, {
+    const args = [...command.args]
+    if (path.basename(command.command).startsWith('php') && args[0] === '-S' && args[1] === '127.0.0.1:8080') {
+      const port = await new Promise<number>((resolve, reject) => {
+        const server = net.createServer()
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', () => {
+          const address = server.address() as net.AddressInfo
+          server.close((error) => error ? reject(error) : resolve(address.port))
+        })
+      })
+      args[1] = `127.0.0.1:${port}`
+    }
+    return previewProcess.start(command.command, args, commandRoot, {
       onOutput: (line, stream) => broadcast('preview:onOutput', { line, stream }),
       onStatus: (status, detail) => broadcast('preview:onStatus', { status, detail }),
       onUrlDetected: (url) => broadcast('preview:onUrlDetected', { url }),
     })
   })
 
-  ipcMain.handle('preview:stop', (): { ok: true } => {
+  ipcMain.handle('preview:stop', async (): Promise<{ ok: true }> => {
+    const active = getActiveProject()
+    if (active && hostingPreview()) await hostingAction(active.projectId, 'stop')
     previewProcess.stop()
     return { ok: true }
   })

@@ -1,3 +1,4 @@
+import { pendingWorkspaceSaves } from '../state/pendingSaves'
 import type { DesignNode } from '@shared/types/designNode'
 import type { HandoffInput } from '@shared/types/handoff'
 import type { Feature } from '@shared/types/model/featureModel'
@@ -8,6 +9,7 @@ import { applyDesignOperations } from '@core/design-model/operations'
  * from the persisted Feature graph. Both Handoff and export use this exact
  * projection so they cannot drift apart. */
 export async function loadFeatureDelivery(projectId: string, feature: Feature, projectModel: ProjectModel): Promise<HandoffInput> {
+  await pendingWorkspaceSaves.flush()
   const [featurePages, workingConceptComponents, workingJourneys, annotations, versions] = await Promise.all([
     window.frameui.workspace.listFeaturePages(projectId, feature.id),
     window.frameui.workspace.listConceptComponents(projectId, feature.id),

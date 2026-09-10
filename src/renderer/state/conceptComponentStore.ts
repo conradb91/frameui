@@ -1,3 +1,4 @@
+import { reportSaveError } from './pendingSaves'
 import { create } from 'zustand'
 import type { ConceptComponent } from '@shared/types/model/featureModel'
 
@@ -18,14 +19,21 @@ interface ConceptComponentState {
   remove: (projectId: string, componentId: string) => Promise<void>
 }
 
+let loadGeneration = 0
+
 export const useConceptComponentStore = create<ConceptComponentState>((set) => ({
   components: [],
   loading: false,
 
   loadForFeature: async (projectId, featureId) => {
+    const generation = ++loadGeneration
     set({ loading: true })
-    const components = await window.frameui.workspace.listConceptComponents(projectId, featureId)
-    set({ components, loading: false })
+    try {
+      const components = await window.frameui.workspace.listConceptComponents(projectId, featureId)
+      if (generation === loadGeneration) set({ components })
+    } catch (error) { reportSaveError(error) } finally {
+      if (generation === loadGeneration) set({ loading: false })
+    }
   },
 
   create: async (projectId, featureId, name, description) => {

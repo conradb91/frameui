@@ -202,7 +202,7 @@ function PagePicker({ pages, selectedId, onSelect }: { pages: Page[]; selectedId
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {results.length === 0 ? (
-          <div className="px-2 py-6 text-center text-[12px] text-text-3">No pages match "{query}".</div>
+          <div className="px-2 py-4 text-center text-[12px] text-text-3">No pages match "{query}".</div>
         ) : (
           <div className="flex flex-col gap-1.5">
             {results.map((page) => (
@@ -211,12 +211,12 @@ function PagePicker({ pages, selectedId, onSelect }: { pages: Page[]; selectedId
                 type="button"
                 onClick={() => onSelect(page)}
                 className={`rounded-md border px-2.5 py-2 text-left transition ${
-                  selectedId === page.id ? 'border-accent bg-accent/10' : 'border-border bg-panel-2 hover:border-border-strong'
+                  selectedId === page.id ? 'border-accent bg-selected' : 'border-border bg-panel-2 hover:border-border-strong'
                 }`}
               >
                 <div className="text-[12px] font-medium text-text">{page.name}</div>
-                <div className="mt-0.5 font-mono text-[10px] text-accent-2">{page.route ?? 'No route'}</div>
-                <div className="mt-0.5 truncate font-mono text-[9.5px] text-text-3">{page.source.filePath}</div>
+                <div className="mt-0.5 font-mono text-[11px] text-accent-2">{page.route ?? 'No route'}</div>
+                <div className="mt-0.5 truncate font-mono text-[11px] text-text-3">{page.source.filePath}</div>
               </button>
             ))}
           </div>
@@ -391,24 +391,24 @@ export function NewPageCreator(props: {
 
   return (
     <div className="absolute inset-0 z-30 flex justify-end">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative flex h-full w-[440px] shrink-0 flex-col border-l border-border bg-panel shadow-2xl">
+      <div className="absolute inset-0 bg-scrim" onClick={onClose} />
+      <div className="relative flex h-full w-[440px] shrink-0 flex-col border-l border-border bg-panel shadow-sm">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
           <div className="flex items-center gap-2 text-[13px] font-semibold text-text">
             {step !== 'source' && (
-              <button type="button" onClick={backToSource} className="flex h-6 w-6 items-center justify-center rounded-md text-text-3 hover:bg-white/5 hover:text-text">
+              <button type="button" onClick={backToSource} className="flex h-6 w-6 items-center justify-center rounded-md text-text-3 hover:bg-hover hover:text-text">
                 <ChevronLeft size={15} />
               </button>
             )}
             <LayoutTemplate size={15} className="text-accent-2" />
             New Page
           </div>
-          <button type="button" onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-md text-text-3 hover:bg-white/5 hover:text-text">
+          <button type="button" onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-md text-text-3 hover:bg-hover hover:text-text">
             <X size={15} />
           </button>
         </div>
 
-        <div className="border-b border-border px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-3">{stepLabel}</div>
+        <div className="border-b border-border px-4 py-2 text-[11px] font-semibold tracking-wide text-text-3">{stepLabel}</div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
           {step === 'source' && (
@@ -420,7 +420,7 @@ export function NewPageCreator(props: {
                     key={option.id}
                     type="button"
                     onClick={() => chooseSource(option.id)}
-                    className="flex items-start gap-3 rounded-lg border border-border bg-panel-2 p-3 text-left transition hover:border-accent/50 hover:bg-white/[0.03]"
+                    className="flex items-start gap-3 rounded-lg border border-border bg-panel-2 p-3 text-left transition hover:border-accent/50 hover:bg-hover"
                   >
                     <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-panel text-accent-2">
                       <Icon size={14} />
@@ -451,7 +451,7 @@ export function NewPageCreator(props: {
                   type="button"
                   onClick={() => setSelectedLayoutComponentId('none')}
                   className={`rounded-md border px-2.5 py-2 text-left text-[12px] transition ${
-                    selectedLayoutComponentId === 'none' ? 'border-accent bg-accent/10 text-text' : 'border-border bg-panel-2 text-text-2 hover:border-border-strong'
+                    selectedLayoutComponentId === 'none' ? 'border-accent bg-selected text-text' : 'border-border bg-panel-2 text-text-2 hover:border-border-strong'
                   }`}
                 >
                   No layout — start with a blank content area
@@ -459,7 +459,7 @@ export function NewPageCreator(props: {
 
                 {LAYOUT_ROLE_ORDER.filter((role) => (detectedLayoutGroups[role]?.length ?? 0) > 0).map((role) => (
                   <div key={role}>
-                    <div className="mb-1 mt-1 text-[9.5px] font-semibold uppercase tracking-wide text-text-3">{LAYOUT_ROLE_LABEL[role]}</div>
+                    <div className="mb-1 mt-1 text-[11px] font-semibold tracking-wide text-text-3">{LAYOUT_ROLE_LABEL[role]}</div>
                     <div className="flex flex-col gap-1.5">
                       {(detectedLayoutGroups[role] ?? []).map((component) => (
                         <button
@@ -467,11 +467,11 @@ export function NewPageCreator(props: {
                           type="button"
                           onClick={() => setSelectedLayoutComponentId(component.id)}
                           className={`rounded-md border px-2.5 py-2 text-left transition ${
-                            selectedLayoutComponentId === component.id ? 'border-accent bg-accent/10' : 'border-border bg-panel-2 hover:border-border-strong'
+                            selectedLayoutComponentId === component.id ? 'border-accent bg-selected' : 'border-border bg-panel-2 hover:border-border-strong'
                           }`}
                         >
                           <div className="text-[12px] font-medium text-text">{component.name}</div>
-                          <div className="mt-0.5 truncate font-mono text-[9.5px] text-text-3">{component.source.filePath}</div>
+                          <div className="mt-0.5 truncate font-mono text-[11px] text-text-3">{component.source.filePath}</div>
                         </button>
                       ))}
                     </div>
@@ -513,7 +513,7 @@ export function NewPageCreator(props: {
           {step === 'details' && (
             <div className="flex flex-col gap-3.5">
               <div>
-                <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Name *</label>
+                <label className="mb-1 block text-[11px] font-semibold tracking-wide text-text-3">Name *</label>
                 <input
                   autoFocus
                   value={name}
@@ -524,7 +524,7 @@ export function NewPageCreator(props: {
               </div>
 
               <div>
-                <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Description</label>
+                <label className="mb-1 block text-[11px] font-semibold tracking-wide text-text-3">Description</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -535,18 +535,18 @@ export function NewPageCreator(props: {
               </div>
 
               <div>
-                <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Suggested Route</label>
+                <label className="mb-1 block text-[11px] font-semibold tracking-wide text-text-3">Suggested Route</label>
                 <input
                   value={suggestedRoute}
                   onChange={(e) => setSuggestedRoute(e.target.value)}
                   placeholder="/payments/overview"
                   className="w-full rounded-md border border-border bg-panel-2 px-2.5 py-1.5 font-mono text-[12px] text-text outline-none placeholder:text-text-3 focus:border-accent"
                 />
-                <div className="mt-1 text-[10px] text-text-3">Not written to the app's routes — for reference only.</div>
+                <div className="mt-1 text-[11px] text-text-3">Not written to the app's routes — for reference only.</div>
               </div>
 
               <div>
-                <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Initial Viewport</label>
+                <label className="mb-1 block text-[11px] font-semibold tracking-wide text-text-3">Initial Viewport</label>
                 <div className="flex gap-1.5">
                   {VIEWPORTS.map(({ id, label, icon: Icon }) => (
                     <button
@@ -554,7 +554,7 @@ export function NewPageCreator(props: {
                       type="button"
                       onClick={() => setViewport(id)}
                       className={`flex flex-1 items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-[11.5px] font-medium transition ${
-                        viewport === id ? 'border-accent bg-accent/15 text-accent-2' : 'border-border bg-panel-2 text-text-2 hover:text-text'
+                        viewport === id ? 'border-accent bg-selected text-accent-2' : 'border-border bg-panel-2 text-text-2 hover:text-text'
                       }`}
                     >
                       <Icon size={13} />
@@ -565,7 +565,7 @@ export function NewPageCreator(props: {
               </div>
 
               {submitError && (
-                <div className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger/10 px-2.5 py-2 text-[11px] text-danger">
+                <div className="flex items-start gap-2 rounded-md border border-danger/30 bg-panel px-2.5 py-2 text-[11px] text-danger">
                   <AlertCircle size={13} className="mt-0.5 shrink-0" />
                   {submitError}
                 </div>
@@ -580,7 +580,7 @@ export function NewPageCreator(props: {
               type="button"
               disabled={!canContinueFromConfigure}
               onClick={() => setStep('details')}
-              className="rounded-md border border-accent bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-md border border-accent bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               Continue
             </button>
@@ -590,7 +590,7 @@ export function NewPageCreator(props: {
               type="button"
               disabled={!canSubmit}
               onClick={() => void handleSubmit()}
-              className="flex items-center gap-1.5 rounded-md border border-accent bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-md border border-accent bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               {submitting && <Loader2 size={13} className="animate-spin" />}
               Create Page

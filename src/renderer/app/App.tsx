@@ -1,3 +1,7 @@
+import { restoreSession } from '../state/restoreSession'
+import { useEffect } from 'react'
+import { usePreferencesStore, applyAppearance } from '../state/preferencesStore'
+import { WelcomeScreen } from '../components/shell/Appearance'
 import { useUiStore } from '../state/uiStore'
 import { WorkspaceShellView } from './workspace/WorkspaceShellView'
 import { FeatureWorkspaceView } from './views/FeatureWorkspaceView'
@@ -10,7 +14,19 @@ import { ExportPanelView } from './views/ExportPanelView'
 import { CaptureSessionView } from './views/CaptureSessionView'
 
 export function App() {
+  useEffect(() => { void restoreSession() }, [])
+  const appearance = usePreferencesStore((s) => s.appearance)
+  const welcomed = usePreferencesStore((s) => s.welcomed)
+  useEffect(() => {
+    applyAppearance(appearance)
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const update = () => applyAppearance(appearance)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [appearance])
   const view = useUiStore((s) => s.view)
+
+  if (!welcomed) return <WelcomeScreen />
 
   switch (view) {
     case 'capture-session':

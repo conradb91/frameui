@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import type { PageStructureItem } from '@shared/types/pageStructure'
 import type { Component, Page } from '@shared/types/model/projectModel'
@@ -45,14 +45,12 @@ export function ComponentLibraryPanel({
 }) {
   const [query, setQuery] = useState('')
   const [structureCache, setStructureCache] = useState<Record<string, PageStructureItem[]>>({})
-  const inFlightRef = useRef<Set<string>>(new Set())
 
   // A different project's file paths mean nothing to a cache keyed by path
   // alone — start clean whenever the active project changes.
   useEffect(() => {
     setStructureCache({})
-    inFlightRef.current = new Set()
-  }, [activeProjectId])
+  }, [activeProjectId, components])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -80,33 +78,14 @@ export function ComponentLibraryPanel({
     return [...groups.entries()]
   }, [filtered])
 
-  // Fetch structures for whatever is currently in the (filtered) result
-  // set. Cached by file path so scrolling/re-rendering/searching back to a
-  // previously-seen component never refetches it.
   useEffect(() => {
     let cancelled = false
-    for (const component of filtered) {
-      const key = component.source.filePath
-      if (structureCache[key] !== undefined || inFlightRef.current.has(key)) continue
-      inFlightRef.current.add(key)
-      void window.frameui.project
-        .getPageStructure(key)
-        .then((items) => {
-          if (cancelled) return
-          setStructureCache((prev) => (prev[key] !== undefined ? prev : { ...prev, [key]: items }))
-        })
-        .catch(() => {
-          if (cancelled) return
-          setStructureCache((prev) => (prev[key] !== undefined ? prev : { ...prev, [key]: [] }))
-        })
-        .finally(() => {
-          inFlightRef.current.delete(key)
-        })
-    }
-    return () => {
-      cancelled = true
-    }
-  }, [filtered, structureCache])
+    const missing = [...new Set(filtered.map((component) => component.source.filePath))].filter((key) => structureCache[key] === undefined).slice(0, 60)
+    if (!missing.length) return
+    void Promise.all(missing.map(async (key) => [key, await window.frameui.project.getPageStructure(key).catch(() => [])] as const))
+      .then((entries) => { if (!cancelled) setStructureCache((previous) => ({ ...previous, ...Object.fromEntries(entries) })) })
+    return () => { cancelled = true }
+  }, [activeProjectId, filtered, structureCache])
 
   function handleDragStart(event: React.DragEvent<HTMLButtonElement>, component: Component) {
     event.dataTransfer.effectAllowed = 'copy'
@@ -125,7 +104,7 @@ export function ComponentLibraryPanel({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search components…"
-            className="min-w-0 flex-1 bg-transparent text-[11px] text-text outline-none placeholder:text-text-3"
+            className="min-w-0 flex-1 bg-transparent text-[12px] text-text outline-none placeholder:text-text-3"
           />
         </div>
       </div>
@@ -137,7 +116,7 @@ export function ComponentLibraryPanel({
         ) : (
           grouped.map(([group, items]) => (
             <div key={group} className="mb-4">
-              <div className="mb-1.5 flex justify-between px-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-text-3">
+              <div className="mb-1.5 flex justify-between px-0.5 text-[11px] font-semibold tracking-wide text-text-3">
                 <span>{group}</span>
                 <span>{items.length}</span>
               </div>
@@ -150,12 +129,12 @@ export function ComponentLibraryPanel({
                     onDragStart={(event) => handleDragStart(event, component)}
                     onClick={() => onInsert(component)}
                     title={`Insert ${component.name}`}
-                    className="flex items-center gap-2 rounded-[5px] border border-border bg-panel p-1.5 text-left transition hover:border-blue-400/40 hover:bg-white/[0.03]"
+                    className="flex items-center gap-2 rounded-[5px] border border-border bg-panel p-1.5 text-left transition hover:border-accent-2 hover:bg-hover"
                   >
                     <ComponentThumbnail component={component} structure={structureCache[component.source.filePath] ?? null} size="sm" />
                     <span className="flex min-w-0 flex-col">
-                      <span className="truncate text-[10.5px] text-text-2">{component.name}</span>
-                      <span className="truncate font-mono text-[9px] text-text-3">{component.source.filePath}</span>
+                      <span className="truncate text-[11px] text-text-2">{component.name}</span>
+                      <span className="truncate font-mono text-[11px] text-text-3">{component.source.filePath}</span>
                     </span>
                   </button>
                 ))}

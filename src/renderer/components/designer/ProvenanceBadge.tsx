@@ -21,9 +21,9 @@ export function describeProvenance(provenance: Provenance | undefined): string {
 }
 
 const PROVENANCE_CLASS: Record<Provenance, string> = {
-  existing: 'border-border-strong bg-white/[0.04] text-text-3',
-  'existing-modified': 'border-warning/30 bg-warning/[0.08] text-warning',
-  new: 'border-accent-2/30 bg-accent-2/[0.08] text-accent-2',
+  existing: 'border-border-strong bg-hover text-text-3',
+  'existing-modified': 'border-warning/30 bg-panel text-warning',
+  new: 'border-accent-2/30 bg-selected text-accent-2',
   'reference-only': 'border-dashed border-text-3/40 bg-transparent text-text-3',
 }
 
@@ -31,7 +31,7 @@ export function ProvenanceBadge({ provenance }: { provenance: Provenance | undef
   if (!provenance) return null
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-[3px] border px-1.5 py-[1px] text-[9px] font-medium leading-[1.5] tracking-wide whitespace-nowrap ${PROVENANCE_CLASS[provenance]}`}
+      className={`inline-flex shrink-0 items-center rounded-[3px] border px-1.5 py-[1px] text-[11px] font-medium leading-[1.5] tracking-wide whitespace-nowrap ${PROVENANCE_CLASS[provenance]}`}
     >
       {PROVENANCE_LABEL[provenance]}
     </span>

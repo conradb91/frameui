@@ -1,3 +1,4 @@
+import { pendingWorkspaceSaves, reportSaveError } from './pendingSaves'
 import { create } from 'zustand'
 import type { Feature, FeatureStatus } from '@shared/types/model/featureModel'
 
@@ -12,14 +13,21 @@ interface FeatureState {
   setStatus: (feature: Feature, status: FeatureStatus) => Promise<void>
 }
 
+let loadGeneration = 0
+
 export const useFeatureStore = create<FeatureState>((set, get) => ({
   features: [],
   loading: false,
 
   loadFeatures: async (projectId) => {
+    const generation = ++loadGeneration
     set({ loading: true })
-    const features = await window.frameui.workspace.listFeatures(projectId)
-    set({ features, loading: false })
+    try {
+      const features = await window.frameui.workspace.listFeatures(projectId)
+      if (generation === loadGeneration) set({ features })
+    } catch (error) { reportSaveError(error) } finally {
+      if (generation === loadGeneration) set({ loading: false })
+    }
   },
 
   createFeature: async (projectId, name, description) => {
@@ -35,6 +43,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
   },
 
   deleteFeature: async (projectId, featureId) => {
+    await pendingWorkspaceSaves.flush()
     await window.frameui.workspace.deleteFeature(projectId, featureId)
     set((s) => ({ features: s.features.filter((item) => item.id !== featureId) }))
   },

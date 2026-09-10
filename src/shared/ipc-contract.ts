@@ -1,3 +1,5 @@
+import type { ProjectVisuals } from './types/projectVisuals'
+import type { HostingSnapshot, HostingOptions, HostingEvent, HostingAction, HostingEnvironment, HostingCreatePlan } from './types/hosting'
 import type { RecentProject, OpenProjectResult, OpenRecentResult, ProjectLibraryEntry } from './types/project'
 import type { ProjectIndex, FileChangeNotice, DevCommand, IndexProgressUpdate } from './types/projectIndex'
 import type { PreviewOutputLine, PreviewStatusUpdate, PreviewUrlDetected, PreviewStatusSnapshot } from './types/preview'
@@ -38,6 +40,17 @@ import type { ExportFile, ExportRecord } from './types/handoff'
  * its own input (see src/main/ipc/schemas) rather than trusting the renderer.
  */
 export interface FrameUiApi {
+  hosting: {
+    importGitHub(url: string): Promise<RecentProject | null>
+    planCreate(name: string, framework: string): Promise<HostingCreatePlan | null>
+    create(token: string): Promise<RecentProject>
+    readEnvironment(projectId: string): Promise<HostingEnvironment>
+    updateEnvironment(projectId: string, file: string, changes: { key: string; value: string }[]): Promise<HostingEnvironment>
+    inspect(projectId: string): Promise<HostingSnapshot>
+    prepare(projectId: string, options: HostingOptions): Promise<HostingSnapshot>
+    action(projectId: string, action: HostingAction, confirmation?: string): Promise<unknown>
+    onProgress(callback: (event: HostingEvent) => void): () => void
+  }
   app: {
     getVersion(): Promise<string>
     getPlatform(): Promise<FrameUiPlatform>
@@ -215,6 +228,7 @@ export interface FrameUiApi {
     /** Static read of a page's nested JSX, HTML or server-template
      * structure. Path-scoped to the active project root in main; source is
      * parsed as text and never executed. */
+    getVisuals(): Promise<ProjectVisuals>
     getPageStructure(relativeFilePath: string): Promise<PageStructureItem[]>
     /** Fires as `getIndex`/`reindex` pass through each real stage of
      * `indexProject` (detecting the framework, finding pages, etc.) so the

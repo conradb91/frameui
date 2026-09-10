@@ -1,3 +1,6 @@
+import { PanelControls } from '../../components/shell/PanelControls'
+import { ResizablePanel } from '../../components/shell/ResizablePanel'
+import { useLocalPreference } from '../../state/useLocalPreference'
 import { useEffect, useMemo, useState } from 'react'
 import { useDesignStore } from '../../state/designStore'
 import { useFlowStore } from '../../state/flowStore'
@@ -66,6 +69,9 @@ export function ScreenDesignerView() {
   const duplicateSelected = useDesignStore((s) => s.duplicateSelected)
   const conceptComponents = useConceptComponentStore((s) => s.components)
   const setView = useUiStore((s) => s.setView)
+  const layoutKey = `frameui:ScreenDesignerView:${activeProject?.id}:layout:v1`
+  const [leftOpen, setLeftOpen] = useLocalPreference(`${layoutKey}:left`, true)
+  const [rightOpen, setRightOpen] = useLocalPreference(`${layoutKey}:right`, true)
   const [leftTab, setLeftTab] = useState<'layers' | 'insert'>('layers')
   const breakpointWidths = useMemo(() => resolveProjectBreakpoints(activeIndex?.projectModel.tokens ?? []), [activeIndex])
 
@@ -151,16 +157,16 @@ export function ScreenDesignerView() {
 
   return (
     <div className="flex h-full w-full flex-col bg-bg">
-      <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-bg-raised px-4">
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-bg-raised px-4">
         <div className="flex items-center gap-2.5">
-          <button type="button" onClick={handleBack} className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/5">
+          <button type="button" onClick={handleBack} className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-hover">
             <ChevronRightIcon className="h-3.5 w-3.5 rotate-180 text-text-2" />
           </button>
-          <FrameMark className="h-[14px] w-[14px] text-accent-2" />
+          <PanelControls left={leftOpen} right={rightOpen} setLeft={setLeftOpen} setRight={setRightOpen}/><FrameMark className="h-[14px] w-[14px] text-accent-2" />
           <span className="font-mono text-[12px] text-text-3">{activeFlow.name}</span>
           <ChevronRightIcon className="h-3 w-3 text-text-3" />
-          <span className="text-[13.5px] font-semibold text-text">Screen</span>
-          <span className="ml-1 text-[11px] text-text-3">{saving ? 'Saving…' : 'Saved'}</span>
+          <span className="text-[13px] font-semibold text-text">Screen</span>
+          <span className="ml-1 text-[12px] text-text-3">{saving ? 'Saving…' : 'Saved'}</span>
         </div>
 
         <div className="flex items-center gap-0.5 rounded-lg border border-border bg-panel-2 p-0.5">
@@ -170,8 +176,8 @@ export function ScreenDesignerView() {
               type="button"
               onClick={() => setBreakpoint(bp)}
               title={breakpointWidths.source === 'fallback' ? 'Using default breakpoints — none detected in this project' : undefined}
-              className={`rounded-md px-3 py-1.5 text-[11.5px] font-semibold ${
-                breakpoint === bp ? 'bg-accent/20 text-accent-2' : 'text-text-2'
+              className={`rounded-md px-3 py-1.5 text-[12px] font-semibold ${
+                breakpoint === bp ? 'bg-selected text-accent-2' : 'text-text-2'
               }`}
             >
               {BREAKPOINT_LABEL[bp]}
@@ -185,7 +191,7 @@ export function ScreenDesignerView() {
             type="button"
             onClick={undo}
             disabled={past.length === 0}
-            className="rounded-md border border-border bg-panel-2 px-2.5 py-1.5 text-[11.5px] font-semibold text-text-2 disabled:opacity-40"
+            className="rounded-md border border-border bg-panel-2 px-2.5 py-1.5 text-[12px] font-semibold text-text-2 disabled:opacity-40"
           >
             Undo
           </button>
@@ -193,7 +199,7 @@ export function ScreenDesignerView() {
             type="button"
             onClick={redo}
             disabled={future.length === 0}
-            className="rounded-md border border-border bg-panel-2 px-2.5 py-1.5 text-[11.5px] font-semibold text-text-2 disabled:opacity-40"
+            className="rounded-md border border-border bg-panel-2 px-2.5 py-1.5 text-[12px] font-semibold text-text-2 disabled:opacity-40"
           >
             Redo
           </button>
@@ -202,7 +208,7 @@ export function ScreenDesignerView() {
 
       <div className="flex flex-1 min-h-0">
         {/* Left panel — Layers / Insert */}
-        <div className="flex w-64 shrink-0 flex-col border-r border-border bg-bg-raised">
+        {leftOpen && <ResizablePanel storageKey={`${layoutKey}:left-width`}><div className="flex w-full shrink-0 flex-col border-r border-border bg-bg-raised">
           <div className="flex border-b border-border">
             {(['layers', 'insert'] as const).map((tab) => (
               <button
@@ -230,16 +236,16 @@ export function ScreenDesignerView() {
               />
             )}
           </div>
-        </div>
+        </div></ResizablePanel>}
 
         {/* Canvas */}
-        <div className="flex-1 overflow-auto bg-bg p-10" onClick={() => select(null)}>
-          <div className="mb-3 text-center font-mono text-[11px] text-text-3">
+        <div className="flex-1 overflow-auto bg-bg p-4" onClick={() => select(null)}>
+          <div className="mb-3 text-center font-mono text-[12px] text-text-3">
             {breakpointWidths[breakpoint]}px · {BREAKPOINT_LABEL[breakpoint]}
             {breakpointWidths.source === 'fallback' && ' (default)'}
           </div>
           <div
-            className="mx-auto min-h-[600px] rounded-xl border border-border bg-panel p-8 transition-[width] duration-200"
+            className="mx-auto min-h-[600px] rounded-xl border border-border bg-panel p-4 transition-[width] duration-200"
             style={{ width: breakpointWidths[breakpoint] }}
           >
             <CanvasRoot node={tree} />
@@ -247,7 +253,7 @@ export function ScreenDesignerView() {
         </div>
 
         {/* Right panel — properties */}
-        <div className="w-64 shrink-0 border-l border-border bg-bg-raised p-3">
+        {rightOpen && <ResizablePanel side="right" storageKey={`${layoutKey}:right-width`}><div className="w-full overflow-y-auto shrink-0 border-l border-border bg-bg-raised p-3">
           {selectedNode ? (
             <LayoutInspector
               node={selectedNode}
@@ -260,9 +266,9 @@ export function ScreenDesignerView() {
               onSelect={select}
             />
           ) : (
-            <div className="text-[11.5px] text-text-3">Select an element to edit its properties.</div>
+            <div className="text-[12px] text-text-3">Select an element to edit its properties.</div>
           )}
-        </div>
+        </div></ResizablePanel>}
       </div>
     </div>
   )
@@ -294,7 +300,7 @@ function InsertTab({
   return (
     <div className="flex flex-col gap-3.5">
       <div>
-        <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Project Components</div>
+        <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-text-3">Project Components</div>
         <ComponentLibraryPanel components={components} pages={pages} activeProjectId={activeProjectId} onInsert={onInsertComponent} />
       </div>
 
@@ -310,7 +316,7 @@ function InsertTab({
 
       {filteredCategories.map((c) => (
         <div key={c.category}>
-          <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">{c.category}</div>
+          <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-text-3">{c.category}</div>
           <div className="flex flex-col gap-1.5">
             {c.items.map((item) => (
               <button

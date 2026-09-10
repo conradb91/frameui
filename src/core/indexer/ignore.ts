@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { isAdapterSourceFile } from '@core/adapters/structureReaders'
 
 /**
  * Directory names never descended into, and file patterns never indexed or
@@ -7,6 +8,8 @@ import path from 'node:path'
  */
 const IGNORED_DIR_NAMES = new Set([
   'node_modules',
+  'bin',
+  'obj',
   'vendor',
   '.git',
   'dist',
@@ -64,7 +67,7 @@ export function pathContainsIgnoredSegment(rootPath: string, fullPath: string): 
   return segments.some((seg) => IGNORED_DIR_NAMES.has(seg) || (seg.startsWith('.') && !ALLOWED_HIDDEN_DIRS.has(seg)))
 }
 
-const RELEVANT_FILE = /(?:\.(?:tsx?|jsx?|vue|svelte|astro|php|html?|css|scss|sass|less|styl|json|ya?ml|svg|png|jpe?g|gif|webp|avif|woff2?|ttf|otf)|(?:^|\/)(?:routes?|router|tailwind|vite|next|astro|svelte|webpack|turbo|nx)\.[^/]+)$/i
+const RELEVANT_FILE = /(?:\.(?:tsx?|jsx?|vue|svelte|astro|php|cshtml|razor|csproj|cs|html?|css|scss|sass|less|styl|json|ya?ml|svg|png|jpe?g|gif|webp|avif|woff2?|ttf|otf)|(?:^|\/)(?:routes?|router|tailwind|vite|next|astro|svelte|webpack|turbo|nx)\.[^/]+)$/i
 
 export function isRelevantProjectPath(rootPath: string, fullPath: string): boolean {
   if (pathContainsIgnoredSegment(rootPath, fullPath)) return false
@@ -72,5 +75,5 @@ export function isRelevantProjectPath(rootPath: string, fullPath: string): boole
   if (!relative) return true
   const name = path.basename(relative)
   if (IGNORED_FILE_PATTERNS.some((pattern) => pattern.test(name))) return false
-  return RELEVANT_FILE.test(relative)
+  return RELEVANT_FILE.test(relative) || isAdapterSourceFile(relative)
 }

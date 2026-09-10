@@ -1,0 +1,36 @@
+const { _electron: electron } = require('playwright-core');
+const fs=require('fs'), os=require('os'), path=require('path'), assert=require('assert/strict');
+let app;
+(async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'frameui-repositories-'));
+ app=await electron.launch({executablePath:process.env.FRAMEUI_EXECUTABLE || require('electron'),args:[path.resolve(__dirname,'..'),`--user-data-dir=${root}/profile`],env:{...process.env,ELECTRON_RUN_AS_NODE:'',FRAMEUI_ALLOW_MULTIPLE_INSTANCES:'1'}});
+ const page=await app.firstWindow(); await page.waitForLoadState('domcontentloaded');
+ const scan=async folder=>page.evaluate(async folder=>{const opened=await window.frameui.project.openPath(folder);if(!opened.ok)throw new Error('Open failed');const index=await window.frameui.project.getIndex();return {opened,index};},folder);
+ const started=Date.now();
+ const real=await scan(path.resolve(__dirname,'..'));
+ assert(real.index.projectModel.components.length>20);
+ console.log(`PASS: real FrameUI repository, ${real.index.projectModel.components.length} components, ${real.index.scannedFileCount} scanned files in ${Date.now()-started}ms`);
+ const empty=path.join(root,'empty'); fs.mkdirSync(empty);
+ const blank=await scan(empty); assert.equal(blank.index.projectModel.pages.length,0);
+ const missing=await page.evaluate(folder=>window.frameui.project.openPath(folder),path.join(root,'missing'));
+ assert.deepEqual(missing,{ok:false,reason:'missing'});
+ const nested=path.join(root,'unusual ü spaces');fs.mkdirSync(path.join(nested,'frontend','src','pages'),{recursive:true});
+ fs.writeFileSync(path.join(nested,'frontend','package.json'),JSON.stringify({dependencies:{react:'18.3.1'},scripts:{dev:'missing-audit-command'}}));
+ fs.writeFileSync(path.join(nested,'frontend','src','pages','App.tsx'),'export default function App(){return <main><h1>Before watcher edit</h1></main>}');
+ const project=await scan(nested); assert(project.index.applications.length>0);
+ await page.evaluate(()=>{window.auditNotices=[];window.frameui.project.onFileChanged(n=>window.auditNotices.push(n));});
+ await page.waitForTimeout(500);
+ fs.writeFileSync(path.join(nested,'frontend','src','pages','App.tsx'),'export default function App(){return <main><h1>After watcher edit</h1></main>}');
+ for(let i=0;i<100;i++){if(await page.evaluate(()=>window.auditNotices.some(n=>n.status==='up-to-date')))break;await page.waitForTimeout(100);}
+ const notices=await page.evaluate(()=>window.auditNotices);assert(notices.some(n=>n.status==='up-to-date'));assert(notices.every(n=>n.projectId===project.opened.project.id));
+ const fresh=await page.evaluate(()=>window.frameui.project.getIndex());assert(JSON.stringify(fresh.projectModel).includes('After watcher edit'));
+ await page.evaluate(async()=>{await window.frameui.preview.setCommand({command:'frameui-nonexistent-executable',args:[]}); const result=await window.frameui.preview.start();if(result.ok)throw new Error('Unexpected preview success');});
+ const library=await page.evaluate(()=>window.frameui.project.listLibrary());assert(library.length>=3);
+ await page.evaluate(id=>window.frameui.project.removeFromRecent(id),blank.opened.project.id);
+ assert((await page.evaluate(()=>window.frameui.project.listLibrary())).some(p=>p.id===blank.opened.project.id));
+ await page.evaluate(id=>window.frameui.project.removeFromFrameUi(id),blank.opened.project.id);assert(fs.existsSync(empty));
+ await page.evaluate(id=>window.frameui.project.deleteFromDisk(id,'unusual ü spaces'),project.opened.project.id);
+ assert(!fs.existsSync(nested));
+ console.log('PASS: empty repository, missing path, nested React app, watcher updates, failed preview, recent removal, unregister preserves files, confirmed disk deletion');
+ await app.close();app=null;
+})().catch(async error=>{console.error(error);if(app)await app.close();process.exitCode=1;});

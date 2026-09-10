@@ -19,6 +19,7 @@ export class ProjectWatcher {
   constructor(
     private readonly rootPath: string,
     private readonly onChange: (changes: FileChange[]) => void,
+    private readonly onError: (error: Error) => void = () => {},
   ) {}
 
   start(): void {
@@ -30,6 +31,7 @@ export class ProjectWatcher {
         return !isRelevantProjectPath(this.rootPath, filePath)
       },
       ignoreInitial: true,
+      followSymlinks: false,
       persistent: true,
       atomic: true,
       awaitWriteFinish: { stabilityThreshold: 120, pollInterval: 25 },
@@ -62,6 +64,7 @@ export class ProjectWatcher {
       }, DEBOUNCE_MS)
     }
 
+    this.watcher.on('error', this.onError)
     this.watcher.on('add', schedule('created')).on('change', schedule('modified')).on('unlink', schedule('deleted'))
   }
 
@@ -72,7 +75,7 @@ export class ProjectWatcher {
     }
     this.pending.clear()
     if (this.watcher) {
-      void this.watcher.close()
+      void this.watcher.close().catch(this.onError)
       this.watcher = null
     }
   }

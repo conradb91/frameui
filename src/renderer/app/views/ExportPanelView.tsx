@@ -170,40 +170,40 @@ function LegacyExportPanelView() {
   return (
     <div className="flex h-full w-full flex-col bg-bg">
       <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-bg-raised px-5">
-        <div className="text-[13.5px] font-semibold text-text">Export — {activeFlow.name}</div>
+        <div className="text-[13px] font-semibold text-text">Export — {activeFlow.name}</div>
         <button type="button" onClick={() => setView('flow-workspace')} className="text-[12.5px] text-text-2 hover:text-text">
           Close
         </button>
       </div>
 
-      <div className="flex flex-1 gap-6 overflow-hidden p-8">
+      <div className="flex flex-1 gap-3 overflow-hidden p-4">
         {/* Screens & devices */}
         <div className="flex w-[360px] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-panel">
-          <div className="border-b border-border px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-text-3">Screens</div>
+          <div className="border-b border-border px-4 py-3 text-[12px] font-semibold tracking-wide text-text-3">Screens</div>
           <div className="flex-1 overflow-y-auto p-2">
             {activeFlow.nodes.map((n) => (
-              <div key={n.id} className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 ${primaryId === n.id ? 'bg-accent/10' : ''}`}>
+              <div key={n.id} className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 ${primaryId === n.id ? 'bg-selected' : ''}`}>
                 <input type="checkbox" checked={checked.has(n.id)} onChange={() => toggle(n.id)} />
                 <button type="button" onClick={() => setPrimaryId(n.id)} className="flex-1 truncate text-left text-[12.5px] text-text-2 hover:text-text">
                   {n.name}
                 </button>
-                {primaryId === n.id && <span className="text-[9px] font-bold uppercase text-accent-2">Active</span>}
+                {primaryId === n.id && <span className="text-[12px] font-semibold text-accent-2">Active</span>}
               </div>
             ))}
           </div>
-          <div className="border-t border-border px-4 py-2.5 text-[11px] text-text-3">
+          <div className="border-t border-border px-4 py-2.5 text-[12px] text-text-3">
             Click a screen to make it "Active" for Copy/SVG/PNG. Checked screens go into the Review PDF.
           </div>
           <div className="border-t border-border p-3">
-            <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Device (EXP-04)</div>
+            <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-text-3">Device (EXP-04)</div>
             <div className="flex gap-1.5">
               {(Object.keys(BREAKPOINT_LABEL) as Breakpoint[]).map((bp) => (
                 <button
                   key={bp}
                   type="button"
                   onClick={() => setDevice(bp)}
-                  className={`flex-1 rounded-md border px-2 py-1.5 text-[11.5px] font-semibold ${
-                    device === bp ? 'border-accent-2 bg-accent/15 text-accent-2' : 'border-border bg-panel-2 text-text-2'
+                  className={`flex-1 rounded-md border px-2 py-1.5 text-[12px] font-semibold ${
+                    device === bp ? 'border-accent-2 bg-selected text-accent-2' : 'border-border bg-panel-2 text-text-2'
                   }`}
                 >
                   {BREAKPOINT_LABEL[bp]}
@@ -257,13 +257,13 @@ function LegacyExportPanelView() {
           />
 
           {pdfFailed && (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-warning/30 bg-warning/[0.06] p-3.5">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-warning/30 bg-panel p-3.5">
               <div className="text-[12px] text-warning">PDF generation isn't available right now.</div>
               <button
                 type="button"
                 onClick={() => void handlePdfFallbackPngs()}
                 disabled={busy === 'pdf-fallback'}
-                className="shrink-0 rounded-lg border border-warning/40 bg-warning/10 px-3 py-1.5 text-[12px] font-semibold text-warning disabled:opacity-50"
+                className="shrink-0 rounded-lg border border-warning/40 bg-panel px-3 py-1.5 text-[12px] font-semibold text-warning disabled:opacity-50"
               >
                 {busy === 'pdf-fallback' ? 'Working…' : 'Download PNGs instead'}
               </button>
@@ -296,13 +296,13 @@ function OutputRow({
     <div className="flex items-center gap-4 rounded-xl border border-border bg-panel p-3.5">
       <div className="flex-1">
         <div className="text-[13px] font-semibold text-text">{title}</div>
-        <div className="mt-0.5 text-[11.5px] text-text-3">{description}</div>
+        <div className="mt-0.5 text-[12px] text-text-3">{description}</div>
       </div>
       <button
         type="button"
         onClick={onAction}
         disabled={disabled || busy}
-        className="shrink-0 rounded-lg border border-accent bg-gradient-to-b from-[#8676F4] to-[#7461EE] px-3.5 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
+        className="shrink-0 rounded-lg border border-accent bg-accent   px-3.5 py-2 text-[12px] font-semibold text-on-accent disabled:opacity-50"
       >
         {busy ? 'Working…' : actionLabel}
       </button>

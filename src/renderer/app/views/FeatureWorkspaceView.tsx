@@ -1,3 +1,6 @@
+import { PanelControls } from '../../components/shell/PanelControls'
+import { ResizablePanel } from '../../components/shell/ResizablePanel'
+import { useLocalPreference } from '../../state/useLocalPreference'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Palette, FileStack, Component as ComponentIcon, Map as MapIcon, ShieldCheck, Download, Share2, Play, Plus, Search, History, ClipboardCheck } from 'lucide-react'
 import { useProjectStore } from '../../state/projectStore'
@@ -105,6 +108,9 @@ export function FeatureWorkspaceView() {
   const [compareMode, setCompareMode] = useState<'side-by-side' | 'overlay'>('side-by-side')
   const [browserOpen, setBrowserOpen] = useState(false)
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
+  const layoutKey = `frameui:FeatureWorkspaceView:${activeProject?.id}:layout:v1`
+  const [leftOpen, setLeftOpen] = useLocalPreference(`${layoutKey}:left`, true)
+  const [rightOpen, setRightOpen] = useLocalPreference(`${layoutKey}:right`, true)
   const [leftTab, setLeftTab] = useState<'layers' | 'insert'>('layers')
   const [sharePanelOpen, setSharePanelOpen] = useState(false)
   const [componentsTab, setComponentsTab] = useState<'library' | 'concept'>('library')
@@ -336,16 +342,16 @@ export function FeatureWorkspaceView() {
   return (
     <div className="flex h-full w-full flex-col bg-bg">
       {/* Top toolbar */}
-      <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-border bg-bg-raised px-4">
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-bg-raised px-4">
         <div className="flex min-w-0 items-center gap-2.5">
-          <button type="button" onClick={handleBack} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-white/5">
+          <button type="button" onClick={handleBack} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-hover">
             <ChevronRightIcon className="h-3.5 w-3.5 rotate-180 text-text-2" />
           </button>
-          <FrameMark className="h-[14px] w-[14px] shrink-0 text-accent-2" />
-          <span className="truncate font-mono text-[12px] text-text-3">{activeProject.name}</span>
+          <PanelControls left={leftOpen} right={rightOpen} setLeft={setLeftOpen} setRight={setRightOpen}/><FrameMark className="h-[14px] w-[14px] shrink-0 text-accent-2" />
+          <button className="text-xs text-text-3" onClick={() => { setSection('start'); setView('workspace') }}>Projects</button><ChevronRightIcon className="h-3 w-3 text-text-3"/><button className="truncate text-xs text-text-3" onClick={() => { setSection('project-home'); setView('workspace') }}>{activeProject.name}</button>
           <ChevronRightIcon className="h-3 w-3 shrink-0 text-text-3" />
-          <span className="truncate text-[13.5px] font-semibold text-text">{feature.name}</span>
-          <select value={feature.status} onChange={(event) => void handleSetStatus(event.target.value as FeatureStatus)} className="rounded border border-border bg-panel-2 px-2 py-1 text-[10px] font-semibold text-accent-2 outline-none">
+          <span className="truncate text-[13px] font-semibold text-text">{feature.name}</span>
+          <select value={feature.status} onChange={(event) => void handleSetStatus(event.target.value as FeatureStatus)} className="rounded border border-border bg-panel-2 px-2 py-1 text-[12px] font-semibold text-accent-2 outline-none">
             {STATUS_ORDER.map((status) => <option key={status} value={status} className="bg-panel text-text">{STATUS_LABEL[status]}</option>)}
           </select>
         </div>
@@ -357,7 +363,7 @@ export function FeatureWorkspaceView() {
                 key={mode}
                 type="button"
                 onClick={() => setViewMode(mode)}
-                className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold capitalize ${viewMode === mode ? 'bg-accent/20 text-accent-2' : 'text-text-2'}`}
+                className={`rounded-md px-2.5 py-1.5 text-[12px] font-semibold capitalize ${viewMode === mode ? 'bg-selected text-accent-2' : 'text-text-2'}`}
               >
                 {mode}
               </button>
@@ -372,7 +378,7 @@ export function FeatureWorkspaceView() {
                   type="button"
                   onClick={() => setBreakpoint(bp)}
                   title={breakpointWidths.source === 'fallback' ? 'Using default breakpoints — none detected in this project' : undefined}
-                  className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold ${breakpoint === bp ? 'bg-accent/20 text-accent-2' : 'text-text-2'}`}
+                  className={`rounded-md px-2.5 py-1.5 text-[12px] font-semibold ${breakpoint === bp ? 'bg-selected text-accent-2' : 'text-text-2'}`}
                 >
                   {BREAKPOINT_LABEL[bp]}
                   {breakpointWidths.source === 'fallback' && <span className="text-text-3"> (default)</span>}
@@ -405,7 +411,7 @@ export function FeatureWorkspaceView() {
           <button
             type="button"
             onClick={() => setView('export')}
-            className="flex items-center gap-1.5 rounded-lg border border-accent bg-gradient-to-b from-[#8676F4] to-[#7461EE] px-2.5 py-1.5 text-[12px] font-semibold text-white"
+            className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent   px-2.5 py-1.5 text-[12px] font-semibold text-on-accent"
           >
             <Download size={12} />
             Export
@@ -413,11 +419,11 @@ export function FeatureWorkspaceView() {
         </div>
       </div>
 
-      {sourceConflicts.some((item) => item.resolution === 'unresolved') && <div className="relative flex h-8 shrink-0 items-center border-b border-warning/25 bg-warning/[0.06] px-4 text-[10.5px]"><button type="button" onClick={() => setConflictsOpen((value) => !value)} className="font-semibold text-warning">Source changed · {sourceConflicts.filter((item) => item.resolution === 'unresolved').length} need review</button>{conflictsOpen && <div className="absolute left-4 top-9 z-50 w-[520px] border border-border-strong bg-panel shadow-2xl">{sourceConflicts.filter((item) => item.resolution === 'unresolved').map((conflict) => <div key={conflict.id} className="border-b border-border p-3 last:border-0"><div className="flex items-center justify-between"><span className="text-[11.5px] font-semibold text-text">{conflict.kind === 'source-deleted' ? 'Source object deleted' : 'Source and Feature both changed'}</span><span className="font-mono text-[9px] text-text-3">{conflict.sourcePath ?? conflict.targetNodeId}</span></div><div className="mt-2 grid grid-cols-3 gap-2 font-mono text-[9.5px] text-text-3"><span>Feature Base<br /><b className="text-text-2">{formatConflictValue(conflict.baseValue)}</b></span><span>Current Source<br /><b className="text-text-2">{formatConflictValue(conflict.currentValue)}</b></span><span>Proposed<br /><b className="text-text-2">{formatConflictValue(conflict.proposedValue)}</b></span></div><div className="mt-3 flex gap-2"><button onClick={() => void resolveConflict(conflict, 'keep-proposed')} className="rounded border border-border px-2 py-1 text-text-2 hover:text-text">Keep Proposed</button><button onClick={() => void resolveConflict(conflict, 'accept-current')} className="rounded border border-border px-2 py-1 text-text-2 hover:text-text">Accept Current</button><button onClick={() => void resolveConflict(conflict, 'manual')} className="rounded border border-border px-2 py-1 text-text-2 hover:text-text">Review Manually</button></div></div>)}</div>}</div>}
+      {sourceConflicts.some((item) => item.resolution === 'unresolved') && <div className="relative flex h-8 shrink-0 items-center border-b border-warning/25 bg-panel px-4 text-[12px]"><button type="button" onClick={() => setConflictsOpen((value) => !value)} className="font-semibold text-warning">Source changed · {sourceConflicts.filter((item) => item.resolution === 'unresolved').length} need review</button>{conflictsOpen && <div className="absolute left-4 top-9 z-50 w-[520px] border border-border-strong bg-panel shadow-sm">{sourceConflicts.filter((item) => item.resolution === 'unresolved').map((conflict) => <div key={conflict.id} className="border-b border-border p-3 last:border-0"><div className="flex items-center justify-between"><span className="text-[12px] font-semibold text-text">{conflict.kind === 'source-deleted' ? 'Source object deleted' : 'Source and Feature both changed'}</span><span className="font-mono text-[12px] text-text-3">{conflict.sourcePath ?? conflict.targetNodeId}</span></div><div className="mt-2 grid grid-cols-3 gap-2 font-mono text-[12px] text-text-3"><span>Feature Base<br /><b className="text-text-2">{formatConflictValue(conflict.baseValue)}</b></span><span>Current Source<br /><b className="text-text-2">{formatConflictValue(conflict.currentValue)}</b></span><span>Proposed<br /><b className="text-text-2">{formatConflictValue(conflict.proposedValue)}</b></span></div><div className="mt-3 flex gap-2"><button onClick={() => void resolveConflict(conflict, 'keep-proposed')} className="rounded border border-border px-2 py-1 text-text-2 hover:text-text">Keep Proposed</button><button onClick={() => void resolveConflict(conflict, 'accept-current')} className="rounded border border-border px-2 py-1 text-text-2 hover:text-text">Accept Current</button><button onClick={() => void resolveConflict(conflict, 'manual')} className="rounded border border-border px-2 py-1 text-text-2 hover:text-text">Review Manually</button></div></div>)}</div>}</div>}
 
       <div className="flex flex-1 min-h-0">
         {/* Activity rail */}
-        <nav aria-label="Feature activities" className="flex w-12 shrink-0 flex-col items-center gap-0.5 border-r border-border bg-bg-raised py-2">
+        {leftOpen && <nav aria-label="Feature activities" className="flex w-12 shrink-0 flex-col items-center gap-0.5 border-r border-border bg-bg-raised py-2">
           {ACTIVITIES.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -425,16 +431,16 @@ export function FeatureWorkspaceView() {
               title={label}
               onClick={() => setActivity(id)}
               className={`relative flex h-10 w-10 items-center justify-center rounded ${
-                activity === id ? 'bg-accent/12 text-accent-2 before:absolute before:-left-1 before:h-5 before:w-0.5 before:rounded-r before:bg-accent-2' : 'text-text-3 hover:bg-white/5 hover:text-text-2'
+                activity === id ? 'bg-selected text-accent-2 before:absolute before:-left-1 before:h-5 before:w-0.5 before:rounded-r before:bg-accent-2' : 'text-text-3 hover:bg-hover hover:text-text-2'
               }`}
             >
               <Icon size={18} strokeWidth={1.65} />
             </button>
           ))}
-        </nav>
+        </nav>}
 
         {/* Contextual left panel */}
-        {activity !== 'handoff' && <div className="flex w-64 shrink-0 flex-col border-r border-border bg-bg-raised overflow-hidden">
+        {leftOpen && activity !== 'handoff' && <ResizablePanel storageKey={`${layoutKey}:left-width`}><div className="flex w-full shrink-0 flex-col border-r border-border bg-bg-raised overflow-hidden">
           {activity === 'design' && (
             <>
               <div className="flex border-b border-border">
@@ -451,7 +457,7 @@ export function FeatureWorkspaceView() {
               </div>
               <div className="flex-1 overflow-y-auto p-2.5">
                 {!tree ? (
-                  <div className="p-2 text-[11.5px] text-text-3">No screen open. Pick a page from the Pages activity.</div>
+                  <div className="p-2 text-[12px] text-text-3">No screen open. Pick a page from the Pages activity.</div>
                 ) : leftTab === 'layers' ? (
                   <LayersPanel tree={tree} />
                 ) : (
@@ -463,7 +469,7 @@ export function FeatureWorkspaceView() {
 
           {activity === 'pages' && (
             <div className="flex-1 overflow-y-auto p-2.5">
-              <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">In This Feature</div>
+              <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-text-3">In This Feature</div>
               <div className="flex flex-col gap-1">
                 {designPages.map((p) => (
                   <PageRow key={p.id} page={p} selected={selectedPageId === p.id} onClick={() => setSelectedPageId(p.id)} />
@@ -471,7 +477,7 @@ export function FeatureWorkspaceView() {
                 {referencePages.map((p) => (
                   <PageRow key={p.id} page={p} selected={selectedPageId === p.id} onClick={() => setSelectedPageId(p.id)} reference />
                 ))}
-                {designPages.length === 0 && referencePages.length === 0 && <div className="px-1 py-3 text-[11.5px] text-text-3">No pages added yet.</div>}
+                {designPages.length === 0 && referencePages.length === 0 && <div className="px-1 py-3 text-[12px] text-text-3">No pages added yet.</div>}
               </div>
             </div>
           )}
@@ -494,21 +500,21 @@ export function FeatureWorkspaceView() {
               <button
                 type="button"
                 onClick={() => setComponentsTab('library')}
-                className={`rounded-md px-2.5 py-2 text-left text-[12px] font-medium ${componentsTab === 'library' ? 'bg-accent/12 text-accent-2' : 'text-text-2 hover:bg-white/5 hover:text-text'}`}
+                className={`rounded-md px-2.5 py-2 text-left text-[12px] font-medium ${componentsTab === 'library' ? 'bg-selected text-accent-2' : 'text-text-2 hover:bg-hover hover:text-text'}`}
               >
                 Project Components
-                <div className="font-mono text-[10px] font-normal text-text-3">{projectModel?.components.length ?? 0} detected</div>
+                <div className="font-mono text-[12px] font-normal text-text-3">{projectModel?.components.length ?? 0} detected</div>
               </button>
               <button
                 type="button"
                 onClick={() => setComponentsTab('concept')}
-                className={`rounded-md px-2.5 py-2 text-left text-[12px] font-medium ${componentsTab === 'concept' ? 'bg-accent/12 text-accent-2' : 'text-text-2 hover:bg-white/5 hover:text-text'}`}
+                className={`rounded-md px-2.5 py-2 text-left text-[12px] font-medium ${componentsTab === 'concept' ? 'bg-selected text-accent-2' : 'text-text-2 hover:bg-hover hover:text-text'}`}
               >
                 Concept Components
-                <div className="font-mono text-[10px] font-normal text-text-3">{conceptComponents.length} in this feature</div>
+                <div className="font-mono text-[12px] font-normal text-text-3">{conceptComponents.length} in this feature</div>
               </button>
               {!tree && (
-                <div className="mt-3 rounded-md border border-border bg-panel-2 px-2.5 py-2 text-[10.5px] leading-relaxed text-text-3">
+                <div className="mt-3 rounded-md border border-border bg-panel-2 px-2.5 py-2 text-[12px] leading-relaxed text-text-3">
                   Open a page in the Design activity to insert components into it.
                 </div>
               )}
@@ -518,8 +524,8 @@ export function FeatureWorkspaceView() {
           {activity === 'review' && (
             <FeatureReviewPanel projectId={activeProject.id} featureId={feature.id} pageRef={activePageRef} designStateId={activeDesignStateId} alternativeId={activeAlternativeId} breakpoint={breakpoint} selectedNode={selectedNode} tree={tree} onJump={(item) => void handleJumpToAnnotation(item)} />
           )}
-          {activity === 'history' && <div className="p-3 text-[11px] leading-relaxed text-text-3">Named versions preserve semantic Feature operations. Restore creates a new milestone and never deletes later history.</div>}
-        </div>}
+          {activity === 'history' && <div className="p-3 text-[12px] leading-relaxed text-text-3">Named versions preserve semantic Feature operations. Restore creates a new milestone and never deletes later history.</div>}
+        </div></ResizablePanel>}
 
         {/* Main canvas */}
         <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
@@ -562,7 +568,7 @@ export function FeatureWorkspaceView() {
                   onSelectAlternative={(alternativeId: string | null) => void loadDesignState(activeProject.id, activeDesignStateId, alternativeId)}
                 />
               )}
-              <div className="border-b border-border bg-bg-raised py-1.5 text-center text-[10.5px] font-semibold uppercase tracking-wide text-accent-2">
+              <div className="border-b border-border bg-bg-raised py-1.5 text-center text-[12px] font-semibold tracking-wide text-accent-2">
                 {viewMode === 'current' && 'Current — Real Page Source (Read-Only)'}
                 {viewMode === 'proposed' && 'Proposed — Editable Design Draft'}
                 {viewMode === 'compare' && 'Compare — Current vs Proposed'}
@@ -574,14 +580,14 @@ export function FeatureWorkspaceView() {
                       key={mode}
                       type="button"
                       onClick={() => setCompareMode(mode)}
-                      className={`rounded-md px-2.5 py-1 text-[10.5px] font-semibold ${compareMode === mode ? 'bg-accent/20 text-accent-2' : 'text-text-2'}`}
+                      className={`rounded-md px-2.5 py-1 text-[12px] font-semibold ${compareMode === mode ? 'bg-selected text-accent-2' : 'text-text-2'}`}
                     >
                       {mode === 'side-by-side' ? 'Side by Side' : 'Overlay'}
                     </button>
                   ))}
                 </div>
               )}
-              <div className="flex-1 overflow-auto bg-bg p-8" onClick={() => select(null)}>
+              <div className="flex-1 overflow-auto bg-bg p-4" onClick={() => select(null)}>
                 {!tree ? (
                   <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                     <div className="text-[13px] text-text-2">No screen open yet.</div>
@@ -592,7 +598,7 @@ export function FeatureWorkspaceView() {
                 ) : viewMode === 'compare' && compareMode === 'overlay' ? (
                   <div className="mx-auto flex flex-col items-center gap-2">
                     <div
-                      className="relative min-h-[500px] overflow-hidden rounded-xl border border-border bg-white"
+                      className="relative min-h-[500px] overflow-hidden rounded-xl border border-border bg-panel"
                       style={{ width: breakpointWidths[breakpoint] }}
                     >
                       <StructurePreview structure={currentPage?.structure ?? []} />
@@ -602,11 +608,11 @@ export function FeatureWorkspaceView() {
                           transparency (not mix-blend-difference) so the
                           Proposed layer's own text/colors stay legible while
                           comparing. */}
-                      <div className="pointer-events-none absolute inset-0 overflow-auto rounded-xl bg-panel/80 p-8 opacity-60">
+                      <div className="pointer-events-none absolute inset-0 overflow-auto rounded-xl bg-panel p-4 opacity-60">
                         <CanvasRoot node={tree} />
                       </div>
                     </div>
-                    <div className="max-w-md text-center text-[10.5px] leading-relaxed text-text-3">
+                    <div className="max-w-md text-center text-[12px] leading-relaxed text-text-3">
                       Proposed is stacked over Current at 60% opacity. Per-node difference highlighting (tinting exactly which
                       elements are new/modified) isn't wired up here — `RenderNode` doesn't expose per-node provenance as a DOM
                       hook to target from outside it, so a reliable, honest tint isn't cheaply achievable without editing that
@@ -614,12 +620,12 @@ export function FeatureWorkspaceView() {
                     </div>
                   </div>
                 ) : (
-                  <div className={viewMode === 'compare' ? 'flex justify-center gap-6' : ''}>
+                  <div className={viewMode === 'compare' ? 'flex justify-center gap-3' : ''}>
                     {(viewMode === 'current' || viewMode === 'compare') && (
                       <div className={viewMode === 'compare' ? 'flex flex-col items-center gap-2' : 'mx-auto flex flex-col items-center gap-2'}>
-                        {viewMode === 'compare' && <div className="text-[10px] font-semibold uppercase tracking-wide text-text-3">Current</div>}
+                        {viewMode === 'compare' && <div className="text-[12px] font-semibold tracking-wide text-text-3">Current</div>}
                         <div
-                          className="min-h-[500px] overflow-hidden rounded-xl border border-border bg-white"
+                          className="min-h-[500px] overflow-hidden rounded-xl border border-border bg-panel"
                           style={{ width: viewMode === 'compare' ? breakpointWidths[breakpoint] / 1.6 : breakpointWidths[breakpoint] }}
                         >
                           <StructurePreview structure={currentPage?.structure ?? []} />
@@ -628,9 +634,9 @@ export function FeatureWorkspaceView() {
                     )}
                     {(viewMode === 'proposed' || viewMode === 'compare') && (
                       <div className={viewMode === 'compare' ? 'flex flex-col items-center gap-2' : 'mx-auto flex flex-col items-center gap-2'}>
-                        {viewMode === 'compare' && <div className="text-[10px] font-semibold uppercase tracking-wide text-text-3">Proposed</div>}
+                        {viewMode === 'compare' && <div className="text-[12px] font-semibold tracking-wide text-text-3">Proposed</div>}
                         <div
-                          className="min-h-[500px] rounded-xl border border-border bg-panel p-8"
+                          className="min-h-[500px] rounded-xl border border-border bg-panel p-4"
                           style={{ width: viewMode === 'compare' ? breakpointWidths[breakpoint] / 1.6 : breakpointWidths[breakpoint] }}
                         >
                           <CanvasRoot node={tree} />
@@ -644,9 +650,9 @@ export function FeatureWorkspaceView() {
           )}
 
           {activity === 'pages' && (
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-[15px] font-semibold text-text">Pages in this Feature</h2>
+                <h2 className="text-[13px] font-semibold text-text">Pages in this Feature</h2>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
@@ -659,7 +665,7 @@ export function FeatureWorkspaceView() {
                   <button
                     type="button"
                     onClick={() => setBrowserOpen(true)}
-                    className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-accent-2"
+                    className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent px-3 py-1.5 text-[12px] font-semibold text-on-accent hover:bg-accent-hover"
                   >
                     <Search size={13} />
                     Add Existing Page
@@ -670,23 +676,23 @@ export function FeatureWorkspaceView() {
               {/* PHASE 16 (New Page Creation) — new pages the designer
                   invented (`FeaturePage`), separate from real indexed pages
                   above. */}
-              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">New Pages ({newPages.length})</div>
-              <div className="mb-6 flex flex-col gap-2">
+              <div className="mb-2 text-[12px] font-semibold tracking-wide text-text-3">New Pages ({newPages.length})</div>
+              <div className="mb-3 flex flex-col gap-2">
                 {newPages.map((p) => (
                   <NewPageCard key={p.id} page={p} onDesign={() => void handleDesignNewPage(p)} />
                 ))}
                 {newPages.length === 0 && <div className="text-[12px] text-text-3">No new pages yet — create one from a blank canvas, the project's own layout, or an existing page.</div>}
               </div>
 
-              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Editable ({designPages.length})</div>
-              <div className="mb-6 flex flex-col gap-2">
+              <div className="mb-2 text-[12px] font-semibold tracking-wide text-text-3">Editable ({designPages.length})</div>
+              <div className="mb-3 flex flex-col gap-2">
                 {designPages.map((p) => (
                   <PageCard key={p.id} page={p} onDesign={() => void handleDesignThisPage(p)} />
                 ))}
                 {designPages.length === 0 && <div className="text-[12px] text-text-3">No editable pages yet — add one from the application browser.</div>}
               </div>
 
-              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Reference Only ({referencePages.length})</div>
+              <div className="mb-2 text-[12px] font-semibold tracking-wide text-text-3">Reference Only ({referencePages.length})</div>
               <div className="flex flex-col gap-2">
                 {referencePages.map((p) => (
                   <PageCard key={p.id} page={p} reference />
@@ -715,10 +721,10 @@ export function FeatureWorkspaceView() {
           )}
 
           {activity === 'components' && componentsTab === 'library' && (
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4">
               <div className="mb-4 flex items-baseline justify-between">
-                <h2 className="text-[15px] font-semibold text-text">Project Component Library</h2>
-                <span className="font-mono text-[10px] text-text-3">
+                <h2 className="text-[13px] font-semibold text-text">Project Component Library</h2>
+                <span className="font-mono text-[12px] text-text-3">
                   {featureComponentList(projectModel, designPages, feature.componentIds).length} linked to this feature · {projectModel?.components.length ?? 0} total
                 </span>
               </div>
@@ -732,8 +738,8 @@ export function FeatureWorkspaceView() {
           )}
 
           {activity === 'components' && componentsTab === 'concept' && (
-            <div className="flex-1 overflow-y-auto p-6">
-              <h2 className="mb-4 text-[15px] font-semibold text-text">Concept Components</h2>
+            <div className="flex-1 overflow-y-auto p-4">
+              <h2 className="mb-4 text-[13px] font-semibold text-text">Concept Components</h2>
               <ConceptComponentPanel projectId={activeProject.id} featureId={feature.id} onInsert={handleInsertNode} />
             </div>
           )}
@@ -753,8 +759,8 @@ export function FeatureWorkspaceView() {
           )}
 
           {activity === 'review' && (
-            <div className="relative flex-1 overflow-auto bg-bg p-8" onClick={() => select(null)}>
-              {tree ? <div className="mx-auto min-h-[500px] rounded-xl border border-border bg-panel p-8" style={{ width: breakpointWidths[breakpoint] }}><CanvasRoot node={tree}/></div> : <div className="flex h-full items-center justify-center text-[12px] text-text-3">Open a page, then enter Review to annotate its page or elements.</div>}
+            <div className="relative flex-1 overflow-auto bg-bg p-4" onClick={() => select(null)}>
+              {tree ? <div className="mx-auto min-h-[500px] rounded-xl border border-border bg-panel p-4" style={{ width: breakpointWidths[breakpoint] }}><CanvasRoot node={tree}/></div> : <div className="flex h-full items-center justify-center text-[12px] text-text-3">Open a page, then enter Review to annotate its page or elements.</div>}
             </div>
           )}
 
@@ -762,7 +768,7 @@ export function FeatureWorkspaceView() {
         </div>
 
         {/* Right inspector */}
-        <div className="w-64 shrink-0 overflow-y-auto border-l border-border bg-bg-raised p-3">
+        {rightOpen && <ResizablePanel side="right" storageKey={`${layoutKey}:right-width`}><div className="w-full shrink-0 overflow-y-auto border-l border-border bg-bg-raised p-3">
           {activity === 'design' &&
             (selectedNode && tree ? (
               <LayoutInspector
@@ -776,7 +782,7 @@ export function FeatureWorkspaceView() {
                 onSelect={select}
               />
             ) : (
-              <div className="text-[11.5px] text-text-3">Select an element to edit its properties.</div>
+              <div className="text-[12px] text-text-3">Select an element to edit its properties.</div>
             ))}
 
           {activity === 'pages' && <PageInspector page={projectModel?.pages.find((p) => p.id === selectedPageId) ?? null} feature={feature} />}
@@ -787,14 +793,14 @@ export function FeatureWorkspaceView() {
               connection). */}
           {activity === 'journey' && <JourneyInspector projectId={activeProject.id} featureId={feature.id} journeyId={selectedJourneyId} />}
 
-          {activity === 'components' && <div className="text-[11.5px] text-text-3">Feature: {feature.name}</div>}
+          {activity === 'components' && <div className="text-[12px] text-text-3">Feature: {feature.name}</div>}
           {activity === 'review' && <FeatureMetadataEditor feature={feature} onSave={saveFeature}/>}
-          {activity === 'history' && <div className="text-[11px] leading-relaxed text-text-3">Versions retain page/state/alternative operations and restore into a new working milestone.</div>}
-        </div>
+          {activity === 'history' && <div className="text-[12px] leading-relaxed text-text-3">Versions retain page/state/alternative operations and restore into a new working milestone.</div>}
+        </div></ResizablePanel>}
       </div>
 
       {/* Bottom status bar */}
-      <footer className="flex h-[26px] shrink-0 items-center gap-4 border-t border-border bg-bg-raised px-3 font-mono text-[10px] text-text-3">
+      <footer className="flex h-[26px] shrink-0 items-center gap-4 border-t border-border bg-bg-raised px-3 font-mono text-[12px] text-text-3">
         <span className="text-text-2">{feature.name}</span>
         <span>{STATUS_LABEL[feature.status]}</span>
         {activity === 'design' && <span>{designSaving ? 'Saving…' : 'Saved'}</span>}
@@ -814,8 +820,8 @@ function FeatureMetadataEditor({ feature, onSave }: { feature: Feature; onSave: 
   async function commit() {
     await onSave({ ...feature, owner: owner.trim() || null, reviewers: reviewers.split(',').map((value) => value.trim()).filter(Boolean), dueDate: dueDate || null, externalTicketRef: ticket.trim() || null })
   }
-  const inputClass = 'mt-1 h-7 w-full rounded border border-border bg-panel-2 px-2 text-[10.5px] text-text outline-none focus:border-accent/60'
-  return <div className="space-y-3"><div className="text-[10px] font-semibold uppercase tracking-wide text-text-3">Feature handoff</div><label className="block text-[10px] text-text-3">Owner<input value={owner} onChange={(e) => setOwner(e.target.value)} onBlur={() => void commit()} className={inputClass}/></label><label className="block text-[10px] text-text-3">Reviewers<input value={reviewers} onChange={(e) => setReviewers(e.target.value)} onBlur={() => void commit()} placeholder="Comma separated" className={inputClass}/></label><label className="block text-[10px] text-text-3">Due date<input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} onBlur={() => void commit()} className={inputClass}/></label><label className="block text-[10px] text-text-3">External ticket<input value={ticket} onChange={(e) => setTicket(e.target.value)} onBlur={() => void commit()} placeholder="e.g. APP-142" className={inputClass}/></label><div className="border-t border-border pt-2 text-[9.5px] text-text-3">Created {new Date(feature.createdAt).toLocaleDateString()}<br/>Updated {new Date(feature.updatedAt).toLocaleString()}</div></div>
+  const inputClass = 'mt-1 h-7 w-full rounded border border-border bg-panel-2 px-2 text-[12px] text-text outline-none focus:border-accent/60'
+  return <div className="space-y-3"><div className="text-[12px] font-semibold tracking-wide text-text-3">Feature handoff</div><label className="block text-[12px] text-text-3">Owner<input value={owner} onChange={(e) => setOwner(e.target.value)} onBlur={() => void commit()} className={inputClass}/></label><label className="block text-[12px] text-text-3">Reviewers<input value={reviewers} onChange={(e) => setReviewers(e.target.value)} onBlur={() => void commit()} placeholder="Comma separated" className={inputClass}/></label><label className="block text-[12px] text-text-3">Due date<input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} onBlur={() => void commit()} className={inputClass}/></label><label className="block text-[12px] text-text-3">External ticket<input value={ticket} onChange={(e) => setTicket(e.target.value)} onBlur={() => void commit()} placeholder="e.g. APP-142" className={inputClass}/></label><div className="border-t border-border pt-2 text-[12px] text-text-3">Created {new Date(feature.createdAt).toLocaleDateString()}<br/>Updated {new Date(feature.updatedAt).toLocaleString()}</div></div>
 }
 
 function featureComponentList(projectModel: ProjectModel | null, pages: Page[], explicitlyAdded: string[] = []): Component[] {
@@ -836,13 +842,13 @@ function PageRow({ page, selected, onClick, reference }: { page: Page; selected:
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-md px-2.5 py-2 text-left text-[12px] ${selected ? 'bg-accent/12 text-accent-2' : 'text-text-2 hover:bg-white/5 hover:text-text'}`}
+      className={`rounded-md px-2.5 py-2 text-left text-[12px] ${selected ? 'bg-selected text-accent-2' : 'text-text-2 hover:bg-hover hover:text-text'}`}
     >
       <div className="flex items-center gap-1.5">
         <span className="truncate font-medium">{page.name}</span>
-        {reference && <span className="shrink-0 rounded bg-white/5 px-1 py-px text-[9px] font-bold uppercase text-text-3">Ref</span>}
+        {reference && <span className="shrink-0 rounded bg-hover px-1 py-px text-[12px] font-semibold text-text-3">Ref</span>}
       </div>
-      <div className="truncate font-mono text-[10px] text-text-3">{page.route ?? page.source.filePath}</div>
+      <div className="truncate font-mono text-[12px] text-text-3">{page.route ?? page.source.filePath}</div>
     </button>
   )
 }
@@ -852,31 +858,31 @@ function PageCard({ page, onDesign, reference }: { page: Page; onDesign?: () => 
     <div className="flex items-center justify-between rounded-lg border border-border bg-panel-2 px-3 py-2.5">
       <div className="min-w-0">
         <div className="truncate text-[12.5px] font-medium text-text">{page.name}</div>
-        <div className="font-mono text-[10.5px] text-accent-2">{page.route ?? 'No route'}</div>
-        <div className="truncate font-mono text-[10px] text-text-3">{page.source.filePath}</div>
+        <div className="font-mono text-[12px] text-accent-2">{page.route ?? 'No route'}</div>
+        <div className="truncate font-mono text-[12px] text-text-3">{page.source.filePath}</div>
       </div>
       {!reference && onDesign && (
-        <button type="button" onClick={onDesign} className="ml-3 shrink-0 rounded-md border border-border bg-panel px-2.5 py-1.5 text-[11.5px] font-semibold text-text-2 hover:text-text">
+        <button type="button" onClick={onDesign} className="ml-3 shrink-0 rounded-md border border-border bg-panel px-2.5 py-1.5 text-[12px] font-semibold text-text-2 hover:text-text">
           Design This Page
         </button>
       )}
-      {reference && <span className="ml-3 shrink-0 rounded bg-white/5 px-2 py-1 text-[10px] font-bold uppercase text-text-3">Reference Only</span>}
+      {reference && <span className="ml-3 shrink-0 rounded bg-hover px-2 py-1 text-[12px] font-semibold text-text-3">Reference Only</span>}
     </div>
   )
 }
 
 function NewPageCard({ page, onDesign }: { page: FeaturePage; onDesign: () => void }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-accent-2/25 bg-accent-2/[0.04] px-3 py-2.5">
+    <div className="flex items-center justify-between rounded-lg border border-accent-2/25 bg-selected px-3 py-2.5">
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[12.5px] font-medium text-text">{page.name}</span>
-          <span className="shrink-0 rounded bg-accent-2/15 px-1.5 py-px text-[9px] font-bold uppercase text-accent-2">New</span>
+          <span className="shrink-0 rounded bg-selected px-1.5 py-px text-[12px] font-semibold text-accent-2">New</span>
         </div>
-        <div className="font-mono text-[10.5px] text-accent-2">{page.suggestedRoute ?? 'No suggested route'}</div>
-        {page.basedOnPageId && <div className="truncate text-[10px] text-text-3">Created from: {page.basedOnPageId}</div>}
+        <div className="font-mono text-[12px] text-accent-2">{page.suggestedRoute ?? 'No suggested route'}</div>
+        {page.basedOnPageId && <div className="truncate text-[12px] text-text-3">Created from: {page.basedOnPageId}</div>}
       </div>
-      <button type="button" onClick={onDesign} className="ml-3 shrink-0 rounded-md border border-border bg-panel px-2.5 py-1.5 text-[11.5px] font-semibold text-text-2 hover:text-text">
+      <button type="button" onClick={onDesign} className="ml-3 shrink-0 rounded-md border border-border bg-panel px-2.5 py-1.5 text-[12px] font-semibold text-text-2 hover:text-text">
         Design This Page
       </button>
     </div>
@@ -884,26 +890,26 @@ function NewPageCard({ page, onDesign }: { page: FeaturePage; onDesign: () => vo
 }
 
 function PageInspector({ page, feature }: { page: Page | null; feature: { pageIds: string[]; referenceOnlyPageIds: string[] } }) {
-  if (!page) return <div className="text-[11.5px] text-text-3">Select a page to see its details.</div>
+  if (!page) return <div className="text-[12px] text-text-3">Select a page to see its details.</div>
   const isEditable = feature.pageIds.includes(page.id)
   const isReference = feature.referenceOnlyPageIds.includes(page.id)
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <div className="mb-1 text-[10.5px] text-text-3">Name</div>
+        <div className="mb-1 text-[12px] text-text-3">Name</div>
         <div className="text-[12.5px] font-medium text-text">{page.name}</div>
       </div>
       <div>
-        <div className="mb-1 text-[10.5px] text-text-3">Route</div>
-        <div className="font-mono text-[11.5px] text-text-2">{page.route ?? 'No route'}</div>
+        <div className="mb-1 text-[12px] text-text-3">Route</div>
+        <div className="font-mono text-[12px] text-text-2">{page.route ?? 'No route'}</div>
       </div>
       <div>
-        <div className="mb-1 text-[10.5px] text-text-3">Components</div>
-        <div className="text-[11.5px] text-text-2">{page.componentNames.length}</div>
+        <div className="mb-1 text-[12px] text-text-3">Components</div>
+        <div className="text-[12px] text-text-2">{page.componentNames.length}</div>
       </div>
       <div>
-        <div className="mb-1 text-[10.5px] text-text-3">Provenance</div>
-        <div className="text-[11.5px] text-text-2">{isEditable ? 'Editable in this feature' : isReference ? 'Reference only (never editable)' : 'Not in feature'}</div>
+        <div className="mb-1 text-[12px] text-text-3">Provenance</div>
+        <div className="text-[12px] text-text-2">{isEditable ? 'Editable in this feature' : isReference ? 'Reference only (never editable)' : 'Not in feature'}</div>
       </div>
     </div>
   )
@@ -946,7 +952,7 @@ function InsertTab({
 
       {filteredComponents.length > 0 && (
         <div>
-          <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">Project Components</div>
+          <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-text-3">Project Components</div>
           <div className="flex flex-col gap-1.5">
             {filteredComponents.map((c) => (
               <button
@@ -954,10 +960,10 @@ function InsertTab({
                 type="button"
                 onClick={() => onInsertComponent(c)}
                 title={c.source.filePath}
-                className="rounded-lg border border-warning/25 bg-warning/[0.04] px-3 py-2 text-left text-[12.5px] font-medium text-text-2 hover:text-text"
+                className="rounded-lg border border-warning/25 bg-panel px-3 py-2 text-left text-[12.5px] font-medium text-text-2 hover:text-text"
               >
                 <div>+ {c.name}</div>
-                <div className="truncate font-mono text-[10px] text-text-3">{c.source.filePath}</div>
+                <div className="truncate font-mono text-[12px] text-text-3">{c.source.filePath}</div>
               </button>
             ))}
           </div>
@@ -966,7 +972,7 @@ function InsertTab({
 
       {filteredCategories.map((c) => (
         <div key={c.category}>
-          <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-text-3">{c.category}</div>
+          <div className="mb-1.5 text-[12px] font-semibold tracking-wide text-text-3">{c.category}</div>
           <div className="flex flex-col gap-1.5">
             {c.items.map((item) => (
               <button

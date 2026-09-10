@@ -10,6 +10,8 @@ export interface CapturedElement {
   tag: string
   id?: string
   classes?: string
+  /** Safe visual attributes retained for local editable snapshots. */
+  attributes?: Record<string, string>
   /** Direct text-node content only, truncated — never descendant text, and
    * never a template expression's source (there is none here; this is
    * already-rendered output). */

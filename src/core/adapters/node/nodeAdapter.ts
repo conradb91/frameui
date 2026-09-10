@@ -10,6 +10,8 @@ import type { SourceAdapter } from '../types'
  * every framework-specific adapter, so reaching here means none matched. */
 export const nodeAdapter: SourceAdapter = {
   id: 'node',
+  ownsFile: (file) => /\.(?:ejs|hbs|handlebars|mustache|njk|nunjucks|pug|jade|twig|liquid|eta|tpl|latte|html?)$/i.test(file),
+  fallback: true,
 
   detect(ctx) {
     if (!ctx.pkg) return null

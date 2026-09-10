@@ -1,3 +1,4 @@
+import { pendingWorkspaceSaves, reportSaveError } from './pendingSaves'
 import { create } from 'zustand'
 import type { DesignNode, Breakpoint } from '@shared/types/designNode'
 import type { ScreenNodeSource } from '@shared/types/flow'
@@ -15,6 +16,7 @@ interface HistoryEntry {
 }
 
 const MAX_HISTORY = 100 // spec DRF-03: at least 100 in-session operations
+let loadGeneration = 0
 const SAVE_DEBOUNCE_MS = 500
 
 interface DesignState {
@@ -92,6 +94,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   saveTimer: null,
 
   loadScreen: async (projectId, flowId, screenId, source) => {
+    const generation = ++loadGeneration
+    await flushPendingDesignSaves()
     const existing = await window.frameui.workspace.getScreenDraft(projectId, screenId)
     let tree = existing?.tree ?? null
 
@@ -103,6 +107,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       tree = createDefaultTree(crypto.randomUUID())
     }
 
+    if (generation !== loadGeneration) return
     set({
       projectId,
       flowId,
@@ -124,6 +129,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   loadDesignState: async (projectId, designStateId, alternativeId = null) => {
+    const generation = ++loadGeneration
+    await flushPendingDesignSaves()
     const ownerId = alternativeId ?? designStateId
     const [existing, metadata] = await Promise.all([
       window.frameui.workspace.getDesignTree(projectId, ownerId),
@@ -132,6 +139,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     const baselineTree = existing?.tree ?? createDefaultTree(crypto.randomUUID())
     const operations = metadata ? await window.frameui.workspace.getDesignOperations(projectId, metadata.featureId, ownerId) : []
     const tree = applyDesignOperations(baselineTree, operations)
+    if (generation !== loadGeneration) return
 
     set({
       projectId,
@@ -154,8 +162,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   closeScreen: () => {
-    const timer = get().saveTimer
-    if (timer) clearTimeout(timer)
+    loadGeneration++
+    void flushPendingDesignSaves().catch(reportSaveError)
     set({
       projectId: null,
       flowId: null,
@@ -173,6 +181,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       past: [],
       future: [],
       saveTimer: null,
+      saving: false,
     })
   },
 
@@ -284,28 +293,21 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 }))
 
+export async function flushPendingDesignSaves() {
+  await pendingWorkspaceSaves.flush()
+}
 function scheduleSave(get: () => DesignState, set: (partial: Partial<DesignState>) => void) {
-  const existing = get().saveTimer
-  if (existing) clearTimeout(existing)
-  const timer = setTimeout(async () => {
-    const { projectId, flowId, screenId, designStateId, alternativeId, featureId, operations, tree } = get()
-    if (!projectId || !tree) return
-    set({ saving: true })
+  const { projectId, flowId, screenId, designStateId, alternativeId, featureId, operations, tree } = get()
+  if (!projectId || !tree) return
+  const ownerId = alternativeId ?? designStateId ?? screenId
+  if (!ownerId) return
+  set({ saving: true })
+  pendingWorkspaceSaves.schedule(`${projectId}:design:${ownerId}`, async () => {
     if (designStateId && featureId) {
-      await window.frameui.workspace.saveDesignOperations(projectId, featureId, alternativeId ?? designStateId, operations)
+      await window.frameui.workspace.saveDesignOperations(projectId, featureId, ownerId, operations)
     } else if (flowId && screenId) {
-      await window.frameui.workspace.saveScreenDraft({
-        id: screenId,
-        projectId,
-        flowId,
-        tree,
-        updatedAt: new Date().toISOString(),
-      })
-    } else {
-      set({ saving: false, saveTimer: null })
-      return
+      await window.frameui.workspace.saveScreenDraft({ id: screenId, projectId, flowId, tree, updatedAt: new Date().toISOString() })
     }
-    set({ saving: false, saveTimer: null })
+    if (get().tree === tree) set({ saving: false, saveTimer: null })
   }, SAVE_DEBOUNCE_MS)
-  set({ saveTimer: timer })
 }

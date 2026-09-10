@@ -211,7 +211,7 @@ export function CaptureSessionView() {
   return (
     <div className="flex h-full w-full flex-col bg-bg">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-bg-raised px-3.5">
-        <button type="button" onClick={leaveCaptureSession} className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/5">
+        <button type="button" onClick={leaveCaptureSession} className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-hover">
           <ChevronRightIcon className="h-3.5 w-3.5 rotate-180 text-text-2" />
         </button>
         <FrameMark className="h-3 w-3 text-accent-2" />
@@ -248,15 +248,15 @@ export function CaptureSessionView() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') navigateTo(addressDraft)
               }}
-              className="flex-1 rounded-md border border-border bg-panel-2 px-2.5 py-1.5 font-mono text-[11.5px] text-text-2 outline-none focus:border-accent-2"
+              className="flex-1 rounded-md border border-border bg-panel-2 px-2.5 py-1.5 font-mono text-[12px] text-text-2 outline-none focus:border-accent-2"
             />
           </div>
         )}
 
         {phase === 'ready' && recordingRequest.current && (
           <div className="ml-2 flex items-center gap-2">
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-red-400"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" /> Recording · {recordingCount} events</span>
-            <button type="button" onClick={() => void stopJourneyRecording()} disabled={stoppingRecording || !activeIndex} className="rounded-md bg-red-600 px-3 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-50">{stoppingRecording ? 'Saving…' : 'Stop Recording'}</button>
+            <span className="flex items-center gap-1.5 text-[12px] font-semibold text-danger"><span className="h-2 w-2 animate-pulse rounded-full bg-danger" /> Recording · {recordingCount} events</span>
+            <button type="button" onClick={() => void stopJourneyRecording()} disabled={stoppingRecording || !activeIndex} className="rounded-md bg-danger px-3 py-1.5 text-[12px] font-semibold text-on-accent disabled:opacity-50">{stoppingRecording ? 'Saving…' : 'Stop Recording'}</button>
           </div>
         )}
 
@@ -266,20 +266,20 @@ export function CaptureSessionView() {
               type="button"
               onClick={() => void captureThisPage()}
               disabled={captureStatus.kind === 'capturing'}
-              className="rounded-md border border-border bg-panel-2 px-2.5 py-1.5 text-[11.5px] font-medium text-text-2 hover:text-text disabled:opacity-50"
+              className="rounded-md border border-border bg-panel-2 px-2.5 py-1.5 text-[12px] font-medium text-text-2 hover:text-text disabled:opacity-50"
             >
               {captureStatus.kind === 'capturing' ? 'Capturing…' : 'Capture This Page'}
             </button>
             {captureStatus.kind === 'done' && (
-              <span className="text-[11px] text-success">
+              <span className="text-[12px] text-success">
                 Captured — {captureStatus.count} elements{captureStatus.screenshotSaved ? '' : ' (screenshot failed)'}
               </span>
             )}
-            {captureStatus.kind === 'error' && <span className="text-[11px] text-danger">{captureStatus.message}</span>}
+            {captureStatus.kind === 'error' && <span className="text-[12px] text-danger">{captureStatus.message}</span>}
           </div>
         )}
 
-        <div className="ml-auto text-[11px] text-text-3">FrameUI never sees or stores your password.</div>
+        <div className="ml-auto text-[12px] text-text-3">FrameUI never sees or stores your password.</div>
       </div>
 
       <div className="relative flex-1">
@@ -287,7 +287,7 @@ export function CaptureSessionView() {
           <div className="flex h-full items-center justify-center text-[12.5px] text-text-3">Starting your application…</div>
         )}
         {phase === 'error' && (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
             <AlertCircleIcon className="h-6 w-6 text-danger" />
             <div className="text-[13px] text-text">Couldn't start the application automatically.</div>
             <div className="max-w-md text-[12px] text-text-3">{errorMessage}</div>
@@ -305,7 +305,7 @@ export function CaptureSessionView() {
                   setCurrentUrl(addressDraft.trim())
                   setPhase('ready')
                 }}
-                className="rounded-md border border-accent bg-gradient-to-b from-[#8676F4] to-[#7461EE] px-3 py-1.5 text-[12px] font-semibold text-white"
+                className="rounded-md border border-accent bg-accent   px-3 py-1.5 text-[12px] font-semibold text-on-accent"
               >
                 Open
               </button>

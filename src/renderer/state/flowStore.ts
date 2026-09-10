@@ -1,3 +1,4 @@
+import { pendingWorkspaceSaves, reportSaveError } from './pendingSaves'
 import { create } from 'zustand'
 import type { Flow, FlowSummary, FlowScreenNode, FlowEdge } from '@shared/types/flow'
 
@@ -20,6 +21,8 @@ interface FlowState {
   scheduleSave: () => void
 }
 
+let loadGeneration = 0
+let summaryGeneration = 0
 const SAVE_DEBOUNCE_MS = 600
 
 export const useFlowStore = create<FlowState>((set, get) => ({
@@ -30,9 +33,14 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   saveTimer: null,
 
   loadSummaries: async (projectId) => {
+    const generation = ++summaryGeneration
     set({ loadingSummaries: true })
-    const summaries = await window.frameui.workspace.listFlows(projectId)
-    set({ summaries, loadingSummaries: false })
+    try {
+      const summaries = await window.frameui.workspace.listFlows(projectId)
+      if (generation === summaryGeneration) set({ summaries })
+    } catch (error) { reportSaveError(error) } finally {
+      if (generation === summaryGeneration) set({ loadingSummaries: false })
+    }
   },
 
   createFlow: async (projectId, name, featureId = null) => {
@@ -42,14 +50,16 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   openFlow: async (projectId, flowId) => {
+    const generation = ++loadGeneration
+    await pendingWorkspaceSaves.flush()
     const flow = await window.frameui.workspace.getFlow(projectId, flowId)
-    set({ activeFlow: flow })
+    if (generation === loadGeneration) set({ activeFlow: flow, saving: false })
   },
 
   closeFlow: () => {
-    const timer = get().saveTimer
-    if (timer) clearTimeout(timer)
-    set({ activeFlow: null, saveTimer: null })
+    loadGeneration++
+    void pendingWorkspaceSaves.flush().catch(reportSaveError)
+    set({ activeFlow: null, saving: false, saveTimer: null })
   },
 
   setNodes: (nodes) => {
@@ -74,15 +84,15 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   scheduleSave: () => {
-    const existing = get().saveTimer
-    if (existing) clearTimeout(existing)
-    const timer = setTimeout(async () => {
-      const flow = get().activeFlow
-      if (!flow) return
-      set({ saving: true })
+    const flow = get().activeFlow
+    if (!flow) return
+    set({ saving: true })
+    pendingWorkspaceSaves.schedule(`${flow.projectId}:flow:${flow.id}`, async () => {
       const saved = await window.frameui.workspace.saveFlow(flow)
-      set({ activeFlow: saved, saving: false, saveTimer: null })
+      set((state) => ({
+        ...(state.activeFlow === flow ? { activeFlow: saved, saving: false } : {}),
+        summaries: state.summaries.map((item) => item.id === saved.id ? { ...item, name: saved.name, screenCount: saved.nodes.length, updatedAt: saved.updatedAt } : item),
+      }))
     }, SAVE_DEBOUNCE_MS)
-    set({ saveTimer: timer })
   },
 }))

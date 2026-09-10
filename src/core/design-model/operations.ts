@@ -18,6 +18,7 @@ const revision = () => globalThis.crypto.randomUUID()
 function valueAt(tree: DesignNode, nodeId: string, property: string): unknown {
   const node = findNode(tree, nodeId) as unknown as Record<string, unknown> | null
   if (!node) return undefined
+  if (property === 'content' && node.kind === 'placeholder') return node.textPreview
   return property.split('.').reduce<unknown>((value, key) => (value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined), node)
 }
 
@@ -47,6 +48,7 @@ function descriptions(command: DesignCommand): Array<{ key: string; property: st
     case 'DuplicateNode': return [{ key: `${command.newNode.id}:create`, property: null, type: command.newNode.kind === 'concept' ? 'create-component-instance' : 'create', targetNodeId: command.newNode.id, proposed: null, node: command.newNode, summary: `Duplicate ${command.nodeId}` }]
     case 'DeleteNode': return [{ key: `${command.nodeId}:delete`, property: null, type: 'delete', targetNodeId: command.nodeId, proposed: true, summary: `Remove ${command.nodeId}` }]
     case 'MoveNode': return [{ key: `${command.nodeId}:move`, property: 'position', type: 'move', targetNodeId: command.nodeId, proposed: { parentId: command.newParentId, index: command.newIndex }, parentId: command.newParentId, index: command.newIndex, summary: `Move ${command.nodeId} inside ${command.newParentId}` }]
+    case 'SetAttribute': return [{ key: `${command.nodeId}:attributes.${command.name}`, property: `attributes.${command.name}`, type: 'change-content', targetNodeId: command.nodeId, proposed: command.value, summary: `Change ${command.name}` }]
     case 'SetText': return [{ key: `${command.nodeId}:content`, property: 'content', type: 'change-content', targetNodeId: command.nodeId, proposed: command.content, summary: `Change text on ${command.nodeId}` }]
     case 'SetLabel': return [{ key: `${command.nodeId}:label`, property: 'label', type: 'change-content', targetNodeId: command.nodeId, proposed: command.label, summary: `Change label on ${command.nodeId}` }]
     case 'SetAlt': return [{ key: `${command.nodeId}:alt`, property: 'alt', type: 'change-content', targetNodeId: command.nodeId, proposed: command.alt, summary: `Change image description on ${command.nodeId}` }]
@@ -123,6 +125,7 @@ export function composeDesignOperations(baseline: DesignNode, operations: Design
 function setPathCommand(operation: DesignOperation): DesignCommand | null {
   const property = operation.property
   if (!property) return null
+  if (property.startsWith('attributes.')) return { type: 'SetAttribute', nodeId: operation.targetNodeId, name: property.slice(11), value: operation.proposedValue === null ? null : String(operation.proposedValue) }
   if (property.startsWith('style.')) return { type: 'SetStyle', nodeId: operation.targetNodeId, style: { [property.slice(6)]: operation.proposedValue } as Partial<NodeStyle> }
   if (property.startsWith('propertyValues.')) return { type: 'SetConceptProperty', nodeId: operation.targetNodeId, propertyId: property.slice(15), value: String(operation.proposedValue ?? '') }
   const direct: Record<string, () => DesignCommand> = {

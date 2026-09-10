@@ -58,14 +58,14 @@ export function ApplicationBrowser({
 
   return (
     <div className="absolute inset-0 z-30 flex justify-end">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative flex h-full w-[420px] shrink-0 flex-col border-l border-border bg-panel shadow-2xl">
+      <div className="absolute inset-0 bg-scrim" onClick={onClose} />
+      <div className="relative flex h-full w-[420px] shrink-0 flex-col border-l border-border bg-panel shadow-sm">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
           <div className="flex items-center gap-2 text-[13px] font-semibold text-text">
             <FileStack size={15} className="text-accent-2" />
             Add Existing Page
           </div>
-          <button type="button" onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-md text-text-3 hover:bg-white/5 hover:text-text">
+          <button type="button" onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-md text-text-3 hover:bg-hover hover:text-text">
             <X size={15} />
           </button>
         </div>
@@ -85,7 +85,7 @@ export function ApplicationBrowser({
 
         <div className="flex-1 overflow-y-auto p-3">
           {results.length === 0 ? (
-            <div className="px-2 py-6 text-center text-[12px] text-text-3">No pages match "{query}".</div>
+            <div className="px-2 py-4 text-center text-[12px] text-text-3">No pages match "{query}".</div>
           ) : (
             <div className="flex flex-col gap-2">
               {results.map((page) => (
@@ -111,13 +111,13 @@ function PageResultRow({
   return (
     <div className="rounded-lg border border-border bg-panel-2 p-3">
       <div className="text-[13px] font-medium text-text">{page.name}</div>
-      <div className="mt-0.5 font-mono text-[10.5px] text-accent-2">{page.route ?? 'No route'}</div>
-      <div className="mt-0.5 truncate font-mono text-[10px] text-text-3" title={page.source.filePath}>
+      <div className="mt-0.5 font-mono text-[11px] text-accent-2">{page.route ?? 'No route'}</div>
+      <div className="mt-0.5 truncate font-mono text-[11px] text-text-3" title={page.source.filePath}>
         {page.source.filePath}
       </div>
 
       {added ? (
-        <div className="mt-2.5 rounded-md border border-success/30 bg-success/10 px-2.5 py-1.5 text-[11px] font-semibold text-success">
+        <div className="mt-2.5 rounded-md border border-success/30 bg-panel px-2.5 py-1.5 text-[11px] font-semibold text-success">
           Already added {added === 'reference' ? '· Reference only' : '· Editable'}
         </div>
       ) : (
@@ -125,7 +125,7 @@ function PageResultRow({
           <button
             type="button"
             onClick={() => onAddPage(page.id, 'design')}
-            className="flex-1 rounded-md border border-accent bg-accent/90 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-accent"
+            className="flex-1 rounded-md border border-accent bg-accent px-2 py-1.5 text-[11px] font-semibold text-on-accent hover:bg-accent-hover"
           >
             Add to Feature
           </button>

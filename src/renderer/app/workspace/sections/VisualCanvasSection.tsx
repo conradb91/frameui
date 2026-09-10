@@ -1,25 +1,44 @@
+import { startingPage } from '../../../lib/startingPage'
+import { RouteExampleDialog } from '../../../components/project/RouteExampleDialog'
+import { ContextMenu } from '../../../components/shell/ContextMenu'
+import { wheelCamera, zoomAt } from '../../../lib/canvasCamera'
+import { useLocalApplicationStore } from '../../../state/localApplicationStore'
+import { createPrimitiveNode } from '@core/design-model/createPrimitiveNode'
+import { useLocalPreference } from '../../../state/useLocalPreference'
+import { ResizablePanel } from '../../../components/shell/ResizablePanel'
+import { DesignFilesSidebar } from '../../../components/project/DesignFilesSidebar'
+import { useDesignFilesStore } from '../../../state/designFilesStore'
+import { projectAssets } from '../../../lib/projectAssets'
+import { ProjectAssetPreview } from '../../../components/designer/ProjectAssetPreview'
+import { applyDesignOperations } from '@core/design-model/operations'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlignHorizontalSpaceAround, ChevronDown, ChevronRight, CircleAlert, Copy, Frame,
-  Hand, Image as ImageIcon, Maximize, Monitor, MousePointer2, Play, Plus, Redo2,
+  File, Layers3, Component as ComponentIcon, Image, Lock, Unlock, Group, Ungroup, Grid3X3, Hand, Maximize, Monitor, MousePointer2, Play, Plus, Redo2,
   PanelLeft, PanelRight, Search, Smartphone, Tablet, Trash2, Undo2, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import type { Component, Page, Viewport } from '@shared/types/model/projectModel'
 import type { PageStructureItem } from '@shared/types/pageStructure'
 import type { Feature } from '@shared/types/model/featureModel'
-import type { DesignNode } from '@shared/types/designNode'
+import type { DesignNode, PrimitiveKind } from '@shared/types/designNode'
 import type { FrameUiWebviewElement } from '../../../types/webview'
 import { findNode, findParent } from '@core/design-model/tree'
 import { useProjectStore } from '../../../state/projectStore'
 import { useFeatureStore } from '../../../state/featureStore'
-import { useDesignStore } from '../../../state/designStore'
+import { flushPendingDesignSaves, useDesignStore } from '../../../state/designStore'
 import { ComponentThumbnail } from '../../../components/designer/ComponentThumbnail'
-import { CanvasRoot } from '../../../components/designer/RenderNode'
+import { ProjectDesignSurface } from '../../../components/designer/ProjectDesignSurface'
+import type { ProjectVisuals } from '@shared/types/projectVisuals'
+import { useUiStore } from '../../../state/uiStore'
+import { buildExistingPageDraftTree } from '@core/design-model/existingPageDraft'
+import { capturedDesignTree } from '../../../lib/projectSurface'
+import { WAIT_FOR_CAPTURE_SCRIPT, CAPTURE_SCRIPT } from '../../../lib/captureScript'
+import type { CapturedElement } from '@shared/types/runtimeCapture'
 import { LayoutInspector } from '../../../components/designer/LayoutInspector'
 import { LayersPanel } from '../../../components/designer/LayersPanel'
 import { openDesignThisPage } from '../../../lib/designThisPage'
 
-type CanvasTab = 'pages' | 'components' | 'assets' | 'layers'
+type CanvasTab = 'designs' | 'pages' | 'components' | 'assets' | 'layers'
 type InspectorTab = 'design' | 'prototype' | 'inspect' | 'code'
 type Tool = 'select' | 'hand'
 type FrameKind = 'live-page' | 'design-frame'
@@ -31,6 +50,7 @@ interface CanvasFrameModel {
   name: string
   pageId: string
   route: string | null
+  routeTemplate?: string
   designStateId?: string
   featureId?: string
   viewport: Viewport
@@ -38,6 +58,11 @@ interface CanvasFrameModel {
   y: number
   width: number
   height: number
+  locked?: boolean
+  groupId?: string
+  flowNextId?: string
+  overflowContainer?: boolean
+  grid?: { visible: boolean; columns: number; gutter: number; margin: number; opacity: number }
 }
 
 interface Camera { x: number; y: number; zoom: number }
@@ -61,6 +86,7 @@ const VIEWPORTS: Record<Viewport, { width: number; height: number; label: string
   mobile: { width: 390, height: 844, label: 'Mobile' },
 }
 const SNAP = 8
+const EMPTY_VISUALS: ProjectVisuals = { css: '', assets: {}, breakpoints: [], containerWidths: [], spacing: [], fonts: [], colors: [], visibilityRules: [] }
 
 function storageKey(projectId: string, designFileId: string) { return `frameui:visual-canvas:${projectId}:${designFileId}:v2` }
 function snap(value: number) { return Math.round(value / SNAP) * SNAP }
@@ -71,21 +97,6 @@ function routeNeedsParameters(route: string | null): boolean {
   return !!route && /(?:\{[^}]+\}|:[^/]+|\[[^\]]+\]|\(:[^)]+\))/.test(route)
 }
 function sourceLabel(source?: { filePath: string; line?: number }) { return source ? `${source.filePath}${source.line ? `:${source.line}` : ''}` : 'Unavailable' }
-function initialFrames(pages: Page[]): CanvasFrameModel[] {
-  const page = pages[0]
-  if (!page) return []
-  let x = 80
-  return (['desktop', 'tablet', 'mobile'] as Viewport[]).map((viewport) => {
-    const preset = VIEWPORTS[viewport]
-    const frame: CanvasFrameModel = {
-      id: crypto.randomUUID(), kind: 'live-page', name: `${page.name} · ${preset.label}`,
-      pageId: page.id, route: page.route, viewport, x, y: 100,
-      width: preset.width, height: preset.height,
-    }
-    x += preset.width + 96
-    return frame
-  })
-}
 
 export function VisualCanvasSection({ designFileId = 'current-application', designFileName = 'Current Application', sourceLinked = true }: { designFileId?: string; designFileName?: string; sourceLinked?: boolean }) {
   const project = useProjectStore((s) => s.activeProject)
@@ -106,22 +117,36 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
   const designFuture = useDesignStore((s) => s.future)
   const pages = useMemo(() => index?.projectModel.pages ?? [], [index])
   const components = useMemo(() => index?.projectModel.components ?? [], [index])
+  const reusableAssets = useMemo(() => projectAssets(pages), [pages])
   const tokens = useMemo(() => index?.projectModel.tokens ?? [], [index])
+  const [visualsLoaded, setVisualsLoaded] = useState(false)
+  const [visuals, setVisuals] = useState<ProjectVisuals>(EMPTY_VISUALS)
+  const [trees, setTrees] = useState<Record<string, DesignNode>>({})
+  const activeStateId = useDesignStore((s) => s.designStateId)
+  const viewports = useMemo(() => {
+    const widths = [...new Set([...visuals.breakpoints, ...tokens.filter((t) => t.category === 'breakpoint').map((t) => { const m = t.value.match(/^(\d+(?:\.\d+)?)(px|rem|em)$/); return m ? Number(m[1]) * (m[2] === 'px' ? 1 : 16) : 0 })])].filter((n) => n >= 320).sort((a, b) => a - b)
+    return { desktop: { ...VIEWPORTS.desktop, width: widths.find((n) => n >= 1000) ?? VIEWPORTS.desktop.width }, tablet: { ...VIEWPORTS.tablet, width: widths.find((n) => n >= 600) ?? VIEWPORTS.tablet.width }, mobile: { ...VIEWPORTS.mobile, width: widths.length ? Math.min(390, widths[0] - 1) : 390 } }
+  }, [visuals.breakpoints, tokens])
+  const containerWidth = visuals.containerWidths.filter((n) => n >= 600).at(-1)
   const [frames, setFrames] = useState<CanvasFrameModel[]>([])
   const [past, setPast] = useState<CanvasFrameModel[][]>([])
   const [future, setFuture] = useState<CanvasFrameModel[][]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [tab, setTab] = useState<CanvasTab>('pages')
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('design')
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true)
-  const [rightPanelOpen, setRightPanelOpen] = useState(true)
+  const layoutKey = `frameui:layout:${project?.id}:${designFileId}:v1`
+  const [tab, setTab] = useLocalPreference<CanvasTab>(`${layoutKey}:tab`, 'pages')
+  const [inspectorTab, setInspectorTab] = useLocalPreference<InspectorTab>(`${layoutKey}:inspector`, 'design')
+  const [leftPanelOpen, setLeftPanelOpen] = useLocalPreference(`${layoutKey}:left`, true)
+  const [rightPanelOpen, setRightPanelOpen] = useLocalPreference(`${layoutKey}:right`, true)
+  const [routeExample, setRouteExample] = useState<{ page: Page; viewport: Viewport; responsive?: boolean } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [tool, setTool] = useState<Tool>('select')
   const [camera, setCamera] = useState<Camera>({ x: 90, y: 70, zoom: 0.42 })
-  const [runtimeUrl, setRuntimeUrl] = useState<string | null>(null)
-  const [runtimeStatus, setRuntimeStatus] = useState<'idle' | 'running' | 'stopped' | 'error'>('idle')
+  const localApp = useLocalApplicationStore()
+  const runtimeUrl = localApp.snapshot?.running ? localApp.snapshot.localUrl : null
+  const runtimeStatus = localApp.phase === 'Ready' ? 'running' : localApp.phase === 'Needs attention' ? 'error' : 'stopped'
   const [runtimeDetail, setRuntimeDetail] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
-  const [mode, setMode] = useState<CanvasMode>('design')
+  const [mode, setMode] = useState<CanvasMode>(() => localStorage.getItem(`frameui:canvas-mode:${project?.id}`) === 'preview' ? 'preview' : 'design')
   const [inspected, setInspected] = useState<InspectedElement | null>(null)
   const [query, setQuery] = useState('')
   const [componentStructures, setComponentStructures] = useState<Record<string, PageStructureItem[]>>({})
@@ -131,6 +156,7 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
   const canvasRef = useRef<HTMLDivElement>(null)
   const frameRefs = useRef<Map<string, HTMLElement>>(new Map())
   const hydratedFile = useRef<string | null>(null)
+  const fittedInitialCanvas = useRef(false)
 
   const selectedFrame = frames.find((frame) => selectedIds.includes(frame.id)) ?? null
   const selectedNode = tree && selectedNodeId ? findNode(tree, selectedNodeId) : null
@@ -141,14 +167,34 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
   }) : undefined
 
   useEffect(() => {
-    if (!project || !index) return
+    if (!project) return
+    let cancelled = false
+    void window.frameui.project.getVisuals().then((value) => { if (!cancelled) { setVisuals(value); setVisualsLoaded(true) } }).catch(() => { if (!cancelled) { setVisualsLoaded(true); setRuntimeDetail('Project styles could not be loaded.') } })
+    return () => { cancelled = true }
+  }, [project, index])
+
+  useEffect(() => {
+    if (!project || !index || !visualsLoaded) return
     const identity = `${project.id}:${designFileId}`
     if (hydratedFile.current === identity) return
     hydratedFile.current = identity
-    let next = sourceLinked ? initialFrames(index.projectModel.pages) : []
+    let next: CanvasFrameModel[] = []
+    const seedKey = `frameui:canvas-seed:${project.id}:${designFileId}`
+    try {
+      const seed = JSON.parse(localStorage.getItem(seedKey) ?? 'null') as { pageIds: string[]; blank: boolean } | null
+      if (seed) {
+        next = seed.pageIds.flatMap((id, position) => { const page = index.projectModel.pages.find((p) => p.id === id); return page ? [{ id: crypto.randomUUID(), kind: 'live-page' as const, name: page.name, pageId: page.id, route: page.route, viewport: 'desktop' as const, x: 80 + position * (viewports.desktop.width + 96), y: 100, width: viewports.desktop.width, height: 800 }] : [] })
+        if (next.length > 1) next = next.map((frame, i) => ({ ...frame, flowNextId: next[i + 1]?.id }))
+        if (seed.blank) void createBlankFrame()
+        localStorage.removeItem(seedKey)
+      }
+    } catch { /* Invalid seed has no effect. */ }
     try {
       const saved = localStorage.getItem(storageKey(project.id, designFileId))
-      if (saved) next = JSON.parse(saved) as CanvasFrameModel[]
+      if (saved) {
+        const parsed: unknown = JSON.parse(saved)
+        if (Array.isArray(parsed)) next = parsed.filter((frame): frame is CanvasFrameModel => !!frame && typeof frame.id === 'string' && ['live-page', 'design-frame'].includes(frame.kind) && [frame.x, frame.y, frame.width, frame.height].every(Number.isFinite) && frame.width > 0 && frame.height > 0)
+      }
     } catch { /* replace invalid canvas UI state */ }
     // Routes are snapshots on frames for offline persistence, but the
     // source index is authoritative. Reconcile on every file open so a
@@ -157,13 +203,17 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
     next = next.map((frame) => {
       if (frame.kind !== 'live-page') return frame
       const currentPage = index.projectModel.pages.find((page) => page.id === frame.pageId)
-      return currentPage ? { ...frame, route: currentPage.route } : frame
+      return currentPage ? { ...frame, route: frame.routeTemplate === currentPage.route ? frame.route : currentPage.route, routeTemplate: currentPage.route ?? undefined } : frame
     })
+    const cameraSaved = localStorage.getItem(`${storageKey(project.id, designFileId)}:camera`)
+    if (cameraSaved) { try { const value = JSON.parse(cameraSaved) as Camera; if ([value.x, value.y, value.zoom].every(Number.isFinite) && value.zoom >= .1 && value.zoom <= 8) { setCamera(value); fittedInitialCanvas.current = true } } catch { /* Default camera. */ } }
     setFrames(next)
     setSelectedIds(next[0] ? [next[0].id] : [])
     void loadFeatures(project.id)
     setPast([]); setFuture([]); setInspected(null)
-  }, [designFileId, index, loadFeatures, project, sourceLinked])
+    // Hydrate once per file; frame mutations must not reseed the document.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [designFileId, index, loadFeatures, project, sourceLinked, visualsLoaded])
 
   useEffect(() => {
     if (!project || hydratedFile.current !== `${project.id}:${designFileId}`) return
@@ -171,40 +221,52 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
   }, [designFileId, frames, project])
 
   useEffect(() => {
-    let cancelled = false
-    void window.frameui.preview.getStatus().then(async (status) => {
-      if (cancelled) return
-      setRuntimeStatus(status.status); setRuntimeUrl(status.url)
-      if (project && status.status !== 'running') {
-        setStarting(true)
-        try {
-          const result = await window.frameui.preview.start()
-          if (!cancelled && !result.ok) setRuntimeDetail(result.message ?? 'The application could not be started automatically.')
-        } finally { if (!cancelled) setStarting(false) }
-      }
-    })
-    const stopStatus = window.frameui.preview.onStatus(({ status, detail }) => { setRuntimeStatus(status); setRuntimeDetail(detail ?? null) })
-    const stopUrl = window.frameui.preview.onUrlDetected(({ url }) => { setRuntimeUrl(url); setRuntimeDetail(null) })
-    return () => { cancelled = true; stopStatus(); stopUrl() }
-  }, [project])
+    if (project && hydratedFile.current === `${project.id}:${designFileId}`) localStorage.setItem(`${storageKey(project.id, designFileId)}:camera`, JSON.stringify(camera))
+  }, [camera, project, designFileId])
 
   useEffect(() => {
-    const visible = components.filter((component) => !query || `${component.name} ${component.source.filePath}`.toLowerCase().includes(query.toLowerCase())).slice(0, 40)
+    if (tree && activeStateId) setTrees((current) => current[activeStateId] === tree ? current : { ...current, [activeStateId]: tree })
+  }, [tree, activeStateId])
+
+  useEffect(() => {
+    if (!project) return
     let cancelled = false
-    for (const component of visible) {
-      if (componentStructures[component.source.filePath] !== undefined) continue
-      void window.frameui.project.getPageStructure(component.source.filePath).then((structure) => {
-        if (!cancelled) setComponentStructures((value) => value[component.source.filePath] ? value : { ...value, [component.source.filePath]: structure })
-      }).catch(() => { if (!cancelled) setComponentStructures((value) => ({ ...value, [component.source.filePath]: [] })) })
+    for (const frame of frames) {
+      if (!frame.designStateId || trees[frame.designStateId]) continue
+      const id = frame.designStateId
+      void Promise.all([window.frameui.workspace.getDesignTree(project.id, id), frame.featureId ? window.frameui.workspace.getDesignOperations(project.id, frame.featureId, id) : Promise.resolve([])]).then(([record, operations]) => {
+        if (record && !cancelled) setTrees((current) => current[id] ? current : { ...current, [id]: applyDesignOperations(record.tree, operations) })
+      }).catch(() => setRuntimeDetail('A design frame could not be loaded.'))
     }
     return () => { cancelled = true }
-  }, [componentStructures, components, query])
+  }, [frames, project, trees])
+
+
+  useEffect(() => { setComponentStructures({}) }, [index])
+
+  useEffect(() => {
+    if (tab !== 'components') return
+    const visible = components.filter((component) => !query || `${component.name} ${component.source.filePath}`.toLowerCase().includes(query.toLowerCase()))
+    const missing = visible.filter((component) => componentStructures[component.source.filePath] === undefined).slice(0, 40)
+    if (!missing.length) return
+    let cancelled = false
+    void Promise.all(missing.map(async (component) => {
+      const structure = await window.frameui.project.getPageStructure(component.source.filePath).catch(() => [])
+      return [component.source.filePath, structure] as const
+    })).then((entries) => { if (!cancelled) setComponentStructures((value) => ({ ...value, ...Object.fromEntries(entries) })) })
+    return () => { cancelled = true }
+  }, [componentStructures, components, query, tab])
 
   useEffect(() => {
     if (!project || selectedFrame?.kind !== 'design-frame' || !selectedFrame.designStateId) return
+    if (useDesignStore.getState().designStateId === selectedFrame.designStateId) { useDesignStore.getState().setBreakpoint(selectedFrame.viewport); return }
+    const pendingSelection = useDesignStore.getState().selectedId
     void useDesignStore.getState().loadDesignState(project.id, selectedFrame.designStateId).then(() => {
-      useDesignStore.getState().setBreakpoint(selectedFrame.viewport)
-    })
+      const state = useDesignStore.getState()
+      if (state.designStateId !== selectedFrame.designStateId) return
+      state.setBreakpoint(selectedFrame.viewport)
+      if (pendingSelection && state.tree && findNode(state.tree, pendingSelection)) state.select(pendingSelection)
+    }).catch(() => setRuntimeDetail('The selected design could not be loaded.'))
   }, [project, selectedFrame?.designStateId, selectedFrame?.id, selectedFrame?.kind, selectedFrame?.viewport])
 
   const commit = useCallback((update: (current: CanvasFrameModel[]) => CanvasFrameModel[]) => {
@@ -239,12 +301,31 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement
+      if (event.defaultPrevented || (event.target instanceof Element && event.target.closest('[role=dialog]'))) return
+      const typing = event.target instanceof HTMLElement && (event.target.matches('input,textarea,select') || event.target.isContentEditable)
+      if (typing) return
+      if (event.key.toLowerCase() === 't' && !event.metaKey && !event.ctrlKey) { event.preventDefault(); void insertPrimitive('text') }
+      if (event.key.toLowerCase() === 'v' && !event.metaKey && !event.ctrlKey) setTool('select')
+      if (event.key.toLowerCase() === 'f' && !event.metaKey && !event.ctrlKey) { event.preventDefault(); void createBlankFrame() }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'g') { event.preventDefault(); groupSelected(event.shiftKey) }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'l') { event.preventDefault(); toggleLock() }
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.key)) {
+        event.preventDefault(); const step = event.shiftKey ? 10 : 1
+        if (selectedFrame?.kind === 'design-frame' && !selectedFrame.locked && selectedNode && selectedNode.id !== tree?.id) {
+          dispatch({ type: 'SetStyle', nodeId: selectedNode.id, style: { position: 'relative', left: (selectedNode.style?.left ?? 0) + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), top: (selectedNode.style?.top ?? 0) + (event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0) } })
+          return
+        }
+        commit((items) => items.map((f) => selectedIds.includes(f.id) && !f.locked ? { ...f, x: f.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: f.y + (event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0) } : f)) }
+      if ((event.metaKey || event.ctrlKey) && ['+', '=', '-', '0', '1'].includes(event.key)) {
+        event.preventDefault()
+        if (event.key === '1') fitAll(selectedIds.length > 0)
+        else zoomCenter(event.key === '0' ? 1 : camera.zoom * (event.key === '-' ? 1 / 1.25 : 1.25))
+      }
       if (event.code === 'Space' && !typing) { event.preventDefault(); setTool('hand') }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) redo(); else undo() }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); if (selectedFrame?.kind === 'design-frame' && selectedNodeId) duplicateNode(); else duplicateFrames() }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c' && selectedFrame?.kind === 'design-frame' && selectedNodeId) { event.preventDefault(); copyNode(selectedNodeId) }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'v' && selectedFrame?.kind === 'design-frame' && tree) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); if (selectedFrame?.kind === 'design-frame' && !selectedFrame.locked && selectedNodeId) duplicateNode(); else duplicateFrames() }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c' && selectedFrame?.kind === 'design-frame' && !selectedFrame.locked && selectedNodeId) { event.preventDefault(); copyNode(selectedNodeId) }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'v' && selectedFrame?.kind === 'design-frame' && !selectedFrame.locked && tree) {
         event.preventDefault(); const parent = selectedNodeId ? findParent(tree, selectedNodeId) : null; pasteNode(parent?.parent.id ?? tree.id, parent ? parent.index + 1 : tree.children.length)
       }
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
@@ -254,10 +335,10 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
         event.preventDefault(); setLeftPanelOpen(true); setTab('components')
       }
       if ((event.key === 'Backspace' || event.key === 'Delete') && !typing) {
-        if (selectedFrame?.kind === 'design-frame' && selectedNodeId && tree?.id !== selectedNodeId) { event.preventDefault(); dispatch({ type: 'DeleteNode', nodeId: selectedNodeId }); selectNode(null) }
+        if (selectedFrame?.kind === 'design-frame' && !selectedFrame.locked && selectedNodeId && tree?.id !== selectedNodeId) { event.preventDefault(); dispatch({ type: 'DeleteNode', nodeId: selectedNodeId }); selectNode(null) }
         else if (selectedIds.length) { event.preventDefault(); removeSelected() }
       }
-      if (event.key === 'Escape') { setSelectedIds([]); selectNode(null); setInspected(null) }
+      if (event.key === 'Escape') { setTool('select'); setSelectedIds([]); selectNode(null); setInspected(null) }
     }
     function onKeyUp(event: KeyboardEvent) { if (event.code === 'Space') setTool('select') }
     window.addEventListener('keydown', onKeyDown)
@@ -265,21 +346,46 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
     return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp) }
   })
 
+  async function insertPrimitive(kind: PrimitiveKind) {
+    if (!project || !selectedFrame?.designStateId || selectedFrame.locked) {
+      setRuntimeDetail('Select an unlocked design frame to add an element.')
+      return
+    }
+    try {
+      const state = useDesignStore.getState()
+      if (state.designStateId !== selectedFrame.designStateId) await state.loadDesignState(project.id, selectedFrame.designStateId)
+      const current = useDesignStore.getState()
+      if (!current.tree) return
+      const node = createPrimitiveNode(kind)
+      node.style = { ...node.style, fontFamily: visuals.fonts[0] }
+      current.dispatch({ type: 'InsertComponent', parentId: current.tree.id, index: current.tree.children.length, node })
+      current.select(node.id)
+    } catch (error) { setRuntimeDetail(error instanceof Error ? error.message : 'The element could not be added.') }
+  }
+
   function addLiveFrame(page: Page, viewport: Viewport = 'desktop') {
-    const preset = VIEWPORTS[viewport]
+    const originalRoute = pages.find(item => item.id === page.id)?.route
+    if (routeNeedsParameters(page.route)) {
+      let saved: { template: string; route: string } | null = null
+      try { saved = JSON.parse(localStorage.getItem(`frameui:route-example:${project?.id}:${page.id}`) ?? 'null') } catch { /* Ask again for an invalid saved example. */ }
+      if (saved?.template === page.route && saved?.route?.startsWith('/') && !saved.route.startsWith('//')) page = { ...page, route: saved.route }
+      else { setRouteExample({ page, viewport }); return }
+    }
+    const preset = viewports[viewport]
     const x = frames.length ? Math.max(...frames.map((item) => item.x + item.width)) + 96 : 100
-    const frame: CanvasFrameModel = { id: crypto.randomUUID(), kind: 'live-page', name: `${page.name} · ${preset.label}`, pageId: page.id, route: page.route, viewport, x, y: 100, width: preset.width, height: preset.height }
+    const frame: CanvasFrameModel = { id: crypto.randomUUID(), kind: 'live-page', name: `${page.name} · ${preset.label}`, pageId: page.id, route: page.route, routeTemplate: originalRoute ?? undefined, viewport, x, y: 100, width: preset.width, height: preset.height }
     commit((items) => [...items, frame]); setSelectedIds([frame.id])
   }
 
   function addResponsiveSet(page: Page) {
+    if (routeNeedsParameters(page.route)) { setRouteExample({ page, viewport: 'desktop', responsive: true }); return }
     const bottom = frames.length ? Math.max(...frames.map((item) => item.y + item.height)) + 120 : 100
     let x = frames.length ? Math.min(...frames.map((item) => item.x)) : 80
     const additions = (['desktop', 'tablet', 'mobile'] as Viewport[]).map((viewport) => {
-      const preset = VIEWPORTS[viewport]
+      const preset = viewports[viewport]
       const frame: CanvasFrameModel = {
         id: crypto.randomUUID(), kind: 'live-page', name: `${page.name} · ${preset.label}`,
-        pageId: page.id, route: page.route, viewport, x, y: bottom,
+        pageId: page.id, route: page.route, routeTemplate: pages.find(item => item.id === page.id)?.route ?? undefined, viewport, x, y: bottom,
         width: preset.width, height: preset.height,
       }
       x += preset.width + 96
@@ -291,20 +397,24 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
 
   async function ensureCanvasFeature(page: Page): Promise<Feature> {
     if (!project) throw new Error('No project')
-    let feature = features.find((item) => item.name === 'Canvas explorations')
+    let feature = features.find((item) => item.name === 'Canvas explorations' && item.projectId === project.id)
     if (!feature) feature = await useFeatureStore.getState().createFeature(project.id, 'Canvas explorations', 'Non-destructive visual design work created from the application canvas.')
     if (!feature.pageIds.includes(page.id)) feature = await saveFeature({ ...feature, pageIds: [...feature.pageIds, page.id] })
     return feature
   }
 
-  async function createDesignFrame(page: Page, sourceFrame?: CanvasFrameModel) {
+  async function createDesignFrame(page: Page, sourceFrame?: CanvasFrameModel, captured?: DesignNode) {
     if (!project) return
     setBusyDesign(page.id)
     try {
       const feature = await ensureCanvasFeature(page)
       await openDesignThisPage(project.id, feature, page)
-      const designStateId = useDesignStore.getState().designStateId
-      if (!designStateId) return
+      const originalId = useDesignStore.getState().designStateId
+      if (!originalId) return
+      const state = await window.frameui.workspace.duplicateDesignState(project.id, originalId, `${page.name} design`, 'design')
+      const designStateId = state.id
+      if (captured) await window.frameui.workspace.saveDesignTree({ ownerId: designStateId, projectId: project.id, tree: captured, updatedAt: new Date().toISOString() })
+      await useDesignStore.getState().loadDesignState(project.id, designStateId)
       const origin = sourceFrame ?? frames.find((item) => item.pageId === page.id)
       const frame: CanvasFrameModel = {
         id: crypto.randomUUID(), kind: 'design-frame', name: `${page.name} — Design`, pageId: page.id, route: page.route,
@@ -313,23 +423,64 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
         width: origin?.width ?? 640, height: origin?.height ?? 520,
       }
       commit((items) => [...items, frame]); setSelectedIds([frame.id]); setMode('design'); setTab('layers')
-    } finally { setBusyDesign(null) }
+    } catch (error) { setRuntimeDetail(error instanceof Error ? error.message : 'Could not create design.') } finally { setBusyDesign(null) }
   }
 
-  function duplicateFrames() {
+  async function duplicateFrames() {
     if (!selectedIds.length) return
-    const clones = frames.filter((item) => selectedIds.includes(item.id)).map((item) => ({ ...item, id: crypto.randomUUID(), name: `${item.name} copy`, x: item.x + 40, y: item.y + 40 }))
-    commit((items) => [...items, ...clones]); setSelectedIds(clones.map((item) => item.id))
+    try {
+      await flushPendingDesignSaves()
+      const clones = await Promise.all(frames.filter((item) => selectedIds.includes(item.id)).map(async (item) => {
+        const state = item.designStateId && project ? await window.frameui.workspace.duplicateDesignState(project.id, item.designStateId, `${item.name} copy`, 'design') : null
+        return { ...item, id: crypto.randomUUID(), designStateId: state?.id, groupId: undefined, name: `${item.name} copy`, x: item.x + item.width + 80, y: item.y }
+      }))
+      commit((items) => [...items, ...clones]); setSelectedIds(clones.map((item) => item.id))
+    } catch { setRuntimeDetail('The selected frames could not be duplicated.') }
   }
-  function removeSelected() { commit((items) => items.filter((item) => !selectedIds.includes(item.id))); setSelectedIds([]); selectNode(null) }
+  function groupSelected(ungroup = false) { const groupId = ungroup ? undefined : crypto.randomUUID(); commit((items) => items.map((f) => selectedIds.includes(f.id) && !f.locked ? { ...f, groupId } : f)) }
+  function toggleLock() { const locked = !selectedFrame?.locked; commit((items) => items.map((f) => selectedIds.includes(f.id) ? { ...f, locked } : f)) }
+  function removeSelected() { commit((items) => items.filter((item) => !selectedIds.includes(item.id) || item.locked)); setSelectedIds([]); selectNode(null) }
+
+  async function responsiveCopies() {
+    if (!selectedFrame || !project) return
+    try {
+      await flushPendingDesignSaves()
+      let x = Math.max(...frames.map((f) => f.x + f.width)) + 96
+      const copies: CanvasFrameModel[] = []
+      for (const viewport of ['desktop', 'tablet', 'mobile'] as Viewport[]) {
+        if (viewport === selectedFrame.viewport) continue
+        const preset = viewports[viewport]
+        const state = selectedFrame.designStateId ? await window.frameui.workspace.duplicateDesignState(project.id, selectedFrame.designStateId, `${selectedFrame.name} ${preset.label}`, 'design') : null
+        copies.push({ ...selectedFrame, id: crypto.randomUUID(), name: `${selectedFrame.name} · ${preset.label}`, viewport, width: preset.width, height: preset.height, x, designStateId: state?.id, groupId: undefined, flowNextId: undefined })
+        x += preset.width + 96
+      }
+      commit((items) => [...items, ...copies]); setSelectedIds(copies.map((f) => f.id))
+    } catch { setRuntimeDetail('Responsive copies could not be created.') }
+  }
+
+  async function createBlankFrame() {
+    if (!project) return
+    try {
+      let feature = useFeatureStore.getState().features.find((f) => f.name === 'Canvas explorations' && f.projectId === project.id)
+      if (!feature) feature = await useFeatureStore.getState().createFeature(project.id, 'Canvas explorations', '')
+      const page = await window.frameui.workspace.createFeaturePage(project.id, { featureId: feature.id, name: 'New screen', layoutSource: 'blank' })
+      const state = await window.frameui.workspace.createDesignState(project.id, { featureId: feature.id, pageRef: { kind: 'new', pageId: page.id }, pageSlugHint: 'new-screen', name: 'Default', origin: 'design', provenance: 'new' })
+      const blank: DesignNode = { id: crypto.randomUUID(), kind: 'stack', editability: 'editable', provenance: 'new', direction: 'column', gap: visuals.spacing[0] ?? 0, align: 'start', children: [], style: { fontFamily: visuals.fonts[0] } }
+      await window.frameui.workspace.saveDesignTree({ ownerId: state.id, projectId: project.id, tree: blank, updatedAt: new Date().toISOString() })
+      const frame: CanvasFrameModel = { id: crypto.randomUUID(), kind: 'design-frame', name: 'New screen', pageId: page.id, route: null, designStateId: state.id, featureId: feature.id, viewport: 'desktop', x: frames.length ? Math.max(...frames.map((f) => f.x + f.width)) + 96 : 80, y: 100, width: viewports.desktop.width, height: 800 }
+      commit((items) => [...items, frame]); setSelectedIds([frame.id]); setTab('components')
+    } catch (error) { setRuntimeDetail(error instanceof Error ? error.message : 'Could not create a frame.') }
+  }
+
   function updateFrame(id: string, patch: Partial<CanvasFrameModel>, record = true, historyBase?: CanvasFrameModel) {
     const moving = frames.find((item) => item.id === id)
+    if (moving?.locked && patch.locked === undefined) return
     let alignedPatch = patch
     if (moving && (patch.x !== undefined || patch.y !== undefined) && !record) {
       let x = patch.x ?? moving.x; let y = patch.y ?? moving.y; let guideX: number | undefined; let guideY: number | undefined
       const tolerance = 7 / camera.zoom
       for (const other of frames) {
-        if (other.id === id) continue
+        if (other.id === id || selectedIds.includes(other.id) || (moving.groupId && moving.groupId === other.groupId)) continue
         const xPairs = [[x, other.x], [x + moving.width / 2, other.x + other.width / 2], [x + moving.width, other.x + other.width]]
         const yPairs = [[y, other.y], [y + moving.height / 2, other.y + other.height / 2], [y + moving.height, other.y + other.height]]
         for (const [candidate, target] of xPairs) if (Math.abs(candidate - target) <= tolerance) { x += target - candidate; guideX = target; break }
@@ -338,10 +489,12 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
       setGuides({ x: guideX, y: guideY }); alignedPatch = { ...patch, x, y }
     }
     if (record) setGuides({})
-    const updater = (items: CanvasFrameModel[]) => items.map((item) => item.id === id ? { ...item, ...alignedPatch } : item)
+    const movingIds = new Set(moving && (patch.x !== undefined || patch.y !== undefined) ? frames.filter((f) => f.id === id || (moving.groupId && f.groupId === moving.groupId) || (selectedIds.includes(id) && selectedIds.includes(f.id))).map((f) => f.id) : [id])
+    const dx = (alignedPatch.x ?? moving?.x ?? 0) - (moving?.x ?? 0); const dy = (alignedPatch.y ?? moving?.y ?? 0) - (moving?.y ?? 0)
+    const updater = (items: CanvasFrameModel[]) => items.map((item) => item.id === id ? { ...item, ...alignedPatch } : movingIds.has(item.id) && !item.locked ? { ...item, x: (frames.find((f) => f.id === item.id)?.x ?? item.x) + dx, y: (frames.find((f) => f.id === item.id)?.y ?? item.y) + dy } : item)
     if (record && historyBase) {
       setFrames((current) => {
-        setPast((history) => [...history, current.map((item) => item.id === id ? historyBase : item)].slice(-100))
+        setPast((history) => [...history, current.map((item) => item.id === id ? historyBase : movingIds.has(item.id) && !item.locked ? frames.find((f) => f.id === item.id) ?? item : item)].slice(-100))
         setFuture([])
         return updater(current)
       })
@@ -375,145 +528,187 @@ export function VisualCanvasSection({ designFileId = 'current-application', desi
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up)
   }
 
-  function onWheel(event: React.WheelEvent) {
-    event.preventDefault()
-    const bounds = canvasRef.current?.getBoundingClientRect(); if (!bounds) return
-    if (event.ctrlKey || event.metaKey || Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
-      const nextZoom = Math.max(0.1, Math.min(8, camera.zoom * Math.exp(-event.deltaY * 0.0015)))
-      const px = event.clientX - bounds.left; const py = event.clientY - bounds.top
-      const worldX = (px - camera.x) / camera.zoom; const worldY = (py - camera.y) / camera.zoom
-      setCamera({ zoom: nextZoom, x: px - worldX * nextZoom, y: py - worldY * nextZoom })
-    } else setCamera((value) => ({ ...value, x: value.x - event.deltaX, y: value.y - event.deltaY }))
+  function zoomCenter(zoom: number) {
+    const bounds = canvasRef.current?.getBoundingClientRect()
+    if (bounds) setCamera(value => zoomAt(value, zoom, bounds.width / 2, bounds.height / 2))
   }
+  const canvasAvailable = !!project && !!index
+  useEffect(() => {
+    const element = canvasRef.current
+    if (!element) return
+    let scheduled = 0
+    let inputs: Parameters<typeof wheelCamera>[1][] = []
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault()
+      const bounds = element.getBoundingClientRect()
+      inputs.push({ deltaX: event.deltaX, deltaY: event.deltaY, deltaMode: event.deltaMode, zoom: event.ctrlKey || event.metaKey, x: event.clientX - bounds.left, y: event.clientY - bounds.top, height: bounds.height })
+      if (!scheduled) scheduled = requestAnimationFrame(() => {
+        const batch = inputs; inputs = []; scheduled = 0
+        setCamera(value => batch.reduce(wheelCamera, value))
+      })
+    }
+    element.addEventListener('wheel', wheel, { passive: false })
+    return () => { element.removeEventListener('wheel', wheel); cancelAnimationFrame(scheduled) }
+  }, [canvasAvailable])
 
-  function fitAll() {
-    if (!frames.length || !canvasRef.current) return
-    const minX = Math.min(...frames.map((item) => item.x)); const minY = Math.min(...frames.map((item) => item.y))
-    const maxX = Math.max(...frames.map((item) => item.x + item.width)); const maxY = Math.max(...frames.map((item) => item.y + item.height))
+  function fitAll(selection = false) {
+    const visible = selection ? frames.filter(frame => selectedIds.includes(frame.id)) : frames
+    if (!visible.length || !canvasRef.current) return
+    const minX = Math.min(...visible.map((item) => item.x)); const minY = Math.min(...visible.map((item) => item.y))
+    const maxX = Math.max(...visible.map((item) => item.x + item.width)); const maxY = Math.max(...visible.map((item) => item.y + item.height))
     const box = canvasRef.current.getBoundingClientRect(); const zoom = Math.max(.1, Math.min(1, Math.min((box.width - 100) / (maxX - minX), (box.height - 100) / (maxY - minY))))
     setCamera({ zoom, x: (box.width - (maxX - minX) * zoom) / 2 - minX * zoom, y: (box.height - (maxY - minY) * zoom) / 2 - minY * zoom })
   }
 
+  useEffect(() => {
+    if (frames.length && !fittedInitialCanvas.current) { fittedInitialCanvas.current = true; fitAll() }
+  })
+
   function alignSelected() {
-    const selected = frames.filter((item) => selectedIds.includes(item.id)); if (selected.length < 2) return
-    const top = Math.min(...selected.map((item) => item.y)); commit((items) => items.map((item) => selectedIds.includes(item.id) ? { ...item, y: top } : item))
+    const selected = frames.filter((item) => selectedIds.includes(item.id) && !item.locked); if (selected.length < 2) return
+    const top = Math.min(...selected.map((item) => item.y)); commit((items) => items.map((item) => selectedIds.includes(item.id) && !item.locked ? { ...item, y: top } : item))
   }
 
   async function runApplication() {
     setStarting(true)
     setRuntimeDetail(null)
     try {
-      const result = await window.frameui.preview.start()
-      if (!result.ok) setRuntimeDetail(result.message ?? 'The application could not be started.')
+      await localApp.prepare()
+      const failure = useLocalApplicationStore.getState().failure
+      if (failure) setRuntimeDetail(failure.message)
     } finally { setStarting(false) }
   }
 
   if (!project || !index) {
     const stages = [
-      { label: 'Starting application', done: runtimeStatus === 'running' },
+      { label: 'Reading project', done: indexProgress.includes('detecting') },
       { label: 'Discovering routes', done: indexProgress.includes('pages') || indexProgress.includes('model') || indexProgress.includes('done') },
       { label: 'Building design model', done: indexProgress.includes('model') || indexProgress.includes('persisting') || indexProgress.includes('done') },
       { label: 'Linking components', done: indexProgress.includes('dependencies') || indexProgress.includes('model') || indexProgress.includes('done') },
     ]
     const percentage = Math.max(8, Math.min(96, Math.round((indexProgress.length / 9) * 100)))
-    return <div className="flex flex-1 items-center justify-center bg-[#1c1e23]"><div className="w-[360px] rounded-lg border border-white/10 bg-[#13151a] p-5 shadow-2xl"><div className="text-[13px] font-semibold text-text">Opening {project?.name ?? 'project'}</div><div className="mt-4 h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percentage}%` }}/></div><div className="mt-2 text-right font-mono text-[8px] text-text-3">{percentage}%</div><div className="mt-4 space-y-2">{stages.map((stage) => <div key={stage.label} className={`flex items-center gap-2 text-[10px] ${stage.done ? 'text-text-2' : 'text-text-3'}`}><span className={`h-1.5 w-1.5 rounded-full ${stage.done ? 'bg-success' : 'bg-white/15'}`}/>{stage.label}</div>)}</div></div></div>
+    return <div className="flex flex-1 items-center justify-center bg-panel"><div className="w-[360px] rounded-lg border border-border bg-panel p-5 shadow-sm"><div className="text-[13px] font-semibold text-text">Opening {project?.name ?? 'project'}</div><div className="mt-4 h-1 overflow-hidden rounded-full bg-hover"><div className="h-full rounded-full bg-accent transition-colors" style={{ width: `${percentage}%` }}/></div><div className="mt-2 text-right font-mono text-[11px] text-text-3">{percentage}%</div><div className="mt-4 space-y-2">{stages.map((stage) => <div key={stage.label} className={`flex items-center gap-2 text-[12px] ${stage.done ? 'text-text-2' : 'text-text-3'}`}><span className={`h-1.5 w-1.5 rounded-full ${stage.done ? 'bg-success' : 'bg-hover'}`}/>{stage.label}</div>)}</div></div></div>
   }
 
   const filteredPages = pages.filter((page) => !query || `${page.name} ${page.route ?? ''} ${page.source.filePath}`.toLowerCase().includes(query.toLowerCase()))
   const filteredComponents = components.filter((component) => !query || `${component.name} ${component.source.filePath}`.toLowerCase().includes(query.toLowerCase()))
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 bg-[#17191e]">
-      {leftPanelOpen && <aside className="flex w-[252px] shrink-0 flex-col border-r border-border bg-bg-raised">
-        <div className="grid h-10 grid-cols-4 border-b border-border px-1">
-          {([['pages', 'Pages'], ['components', 'Components'], ['assets', 'Assets'], ['layers', 'Layers']] as [CanvasTab, string][]).map(([id, label]) => <button key={id} type="button" onClick={() => setTab(id)} className={`border-b-2 text-[9px] ${tab === id ? 'border-accent-2 text-text' : 'border-transparent text-text-3 hover:text-text-2'}`}>{label}</button>)}
+    <div className="canvas-workspace flex min-h-0 min-w-0 flex-1 bg-bg">
+      {routeExample && <RouteExampleDialog name={routeExample.page.name} route={routeExample.page.route!} onClose={() => setRouteExample(null)} onChoose={route => { localStorage.setItem(`frameui:route-example:${project.id}:${routeExample.page.id}`, JSON.stringify({ template: routeExample.page.route, route })); if (routeExample.responsive) addResponsiveSet({ ...routeExample.page, route }); else addLiveFrame({ ...routeExample.page, route }, routeExample.viewport); setRouteExample(null) }}/>}
+      {leftPanelOpen && <nav className="context-rail" aria-label="Design tools">{([['designs', 'Designs', File], ['pages', 'Pages and layers', Layers3], ['components', 'Components', ComponentIcon], ['assets', 'Assets', Image]] as const).map(([id, label, Icon]) => <button key={id} title={label} aria-label={label} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={17}/></button>)}</nav>}
+      {leftPanelOpen && tab === 'designs' && <div className="canvas-design-files"><DesignFilesSidebar section="project-home" onSection={(section) => useUiStore.getState().setSection(section)}/></div>}
+      {leftPanelOpen && tab !== 'designs' && <ResizablePanel storageKey={`${layoutKey}:left-width`}><aside className="flex h-full w-full shrink-0 flex-col border-r border-border bg-bg-raised">
+        <div className="grid h-9 grid-flow-col auto-cols-fr border-b border-border px-1">
+          {(tab === 'pages' || tab === 'layers' ? [['pages', 'Pages'], ['layers', 'Layers']] : [[tab, tab === 'assets' ? 'Assets' : 'Components']] as [CanvasTab, string][]).map(([id, label]) => <button key={id} type="button" onClick={() => setTab(id as CanvasTab)} className={`border-b-2 text-[12px] ${tab === id ? 'border-accent-2 text-text' : 'border-transparent text-text-3 hover:text-text-2'}`}>{label}</button>)}
         </div>
-        {tab !== 'layers' && <div className="border-b border-border p-2"><div className="flex h-7 items-center gap-1.5 rounded border border-border bg-panel px-2"><Search size={11} className="text-text-3"/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${tab}…`} className="min-w-0 flex-1 bg-transparent text-[10.5px] text-text outline-none"/></div></div>}
+        {tab !== 'layers' && <div className="border-b border-border p-2"><div className="flex h-7 items-center gap-1.5 rounded border border-border bg-panel px-2"><Search size={11} className="text-text-3"/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${tab}…`} className="min-w-0 flex-1 bg-transparent text-[12px] text-text outline-none"/></div></div>}
         <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+          {tab === 'pages' && !filteredPages.length && <div className="p-3 text-xs leading-relaxed text-text-3">{query ? 'No screens match your search.' : 'No screens found yet. Recheck your pages after the local application is ready.'}{!query && <button className="mt-2 block text-accent" onClick={() => void useProjectStore.getState().reindex()}>Recheck pages</button>}</div>}
           {tab === 'pages' && filteredPages.map((page) => <PageLibraryItem key={page.id} page={page} busy={busyDesign === page.id} onAdd={(viewport) => addLiveFrame(page, viewport)} onAddSet={() => addResponsiveSet(page)} onDesign={() => void createDesignFrame(page)} />)}
-          {tab === 'components' && filteredComponents.map((component) => <ComponentLibraryItem key={component.id} component={component} structure={componentStructures[component.source.filePath] ?? null} />)}
-          {tab === 'assets' && <AssetLibrary paths={Object.keys(index.files ?? {})} />}
+          {tab === 'components' && <div className="mb-3 border-b border-border pb-3"><div className="mb-2 text-[12px] font-semibold text-text-2">Basic elements</div><div className="grid grid-cols-2 gap-1">{(['text', 'heading', 'button', 'container', 'stack', 'grid', 'divider', 'image'] as PrimitiveKind[]).filter((kind) => kind.includes(query.toLowerCase())).map((kind) => <button key={kind} type="button" disabled={!selectedFrame?.designStateId || selectedFrame.locked} onClick={() => void insertPrimitive(kind)} className="rounded border border-border px-2 py-1.5 text-left text-[12px] capitalize text-text-2 hover:bg-hover disabled:opacity-40" aria-label={`Add ${kind}`}>{kind}</button>)}</div></div>}
+          {tab === 'components' && reusableAssets.filter((asset) => `${asset.name} ${asset.category}`.toLowerCase().includes(query.toLowerCase())).map((asset) => <div key={asset.id} draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-frameui-component', asset.id); e.dataTransfer.effectAllowed = 'copy' }} className="mb-3 cursor-grab rounded p-1 hover:bg-hover"><ProjectAssetPreview structure={asset.structure} visuals={visuals} name={asset.name}/><div className="mt-2 truncate text-[12px] text-text-2">{asset.name}</div><div className="text-[12px] text-text-3">{asset.category}</div></div>)}
+          {tab === 'components' && filteredComponents.map((component) => <ComponentLibraryItem key={component.id} component={component} visuals={visuals} structure={componentStructures[component.source.filePath] ?? null} />)}
+          {tab === 'assets' && <><div className="p-2 text-xs text-text-2">Colours</div><div className="grid grid-cols-6 gap-1 p-2">{visuals.colors.slice(0, 60).map((color) => <button key={color} title={color} aria-label={`Apply ${color}`} onClick={() => { if (selectedNodeId) dispatch({ type: 'SetStyle', nodeId: selectedNodeId, style: { backgroundColor: color } }) }} className="h-6 rounded border border-border" style={{ background: color }}/>)}</div><div className="p-2 text-xs text-text-2">Typography</div>{visuals.fonts.map((font) => <button key={font} className="block w-full truncate p-2 text-left text-xs text-text-2" onClick={() => { if (selectedNodeId) dispatch({ type: 'SetStyle', nodeId: selectedNodeId, style: { fontFamily: font } }) }}>{font}</button>)}<AssetLibrary paths={Object.keys(visuals.assets)} assets={visuals.assets} /></>}
           {tab === 'layers' && (selectedFrame?.kind === 'design-frame' && tree ? <LayersPanel tree={tree} /> : <FrameLayers frames={frames} selectedIds={selectedIds} onSelect={(id, additive) => setSelectedIds((current) => additive ? current.includes(id) ? current.filter((value) => value !== id) : [...current, id] : [id])} />)}
         </div>
-      </aside>}
+      </aside></ResizablePanel>}
 
       <main className="relative flex min-w-0 flex-1 flex-col">
+        <OpenDesignTabs/>
+        {mode !== 'preview' && <div className="border-b border-border bg-panel px-4 py-2 text-xs text-text-2">Double-click a screen to make an editable design copy. Your original application stays unchanged.</div>}
         <div className="z-20 flex h-10 shrink-0 items-center justify-between border-b border-border bg-bg-raised px-2">
-          <div className="flex items-center gap-1"><ToolButton active={leftPanelOpen} title="Toggle pages and layers" onClick={() => setLeftPanelOpen((value) => !value)}><PanelLeft size={13}/></ToolButton><span className="px-1 text-[10px] font-medium text-text-2">{designFileName}</span><span className={`ml-1 rounded px-1.5 py-0.5 text-[7px] font-semibold uppercase tracking-[.08em] ${sourceLinked ? 'bg-green-500/12 text-green-300' : 'bg-white/[.05] text-text-3'}`}>{sourceLinked ? 'Source linked' : 'Design only'}</span>{selectedIds.length > 1 && <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[8px] text-accent-2">{selectedIds.length} selected</span>}</div>
+          <div className="flex items-center gap-1"><ToolButton active={leftPanelOpen} title="Toggle pages and layers" onClick={() => setLeftPanelOpen((value) => !value)}><PanelLeft size={13}/></ToolButton><span className="px-1 text-[12px] font-medium text-text-2">{designFileName}</span><ToolButton title="Undo" disabled={!past.length && !designPast.length} onClick={undo}><Undo2 size={13}/></ToolButton><ToolButton title="Redo" disabled={!future.length && !designFuture.length} onClick={redo}><Redo2 size={13}/></ToolButton><span className={`ml-1 rounded px-1.5 py-0.5 text-[11px] font-semibold tracking-normal ${sourceLinked ? 'bg-selected text-text' : 'bg-hover text-text-3'}`}>{'Project design'}</span>{selectedIds.length > 1 && <span className="rounded bg-selected px-1.5 py-0.5 text-[11px] text-accent-2">{selectedIds.length} selected</span>}</div>
           <div className="flex items-center gap-1">
-            <div className="mr-2 flex rounded border border-border bg-panel p-0.5 text-[9.5px]">{([['design', 'Design'], ['preview', 'Preview'], ['code', 'Code']] as [CanvasMode, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => { setMode(value); if (value === 'code') { setInspectorTab('code'); setRightPanelOpen(true) } }} className={`rounded px-2 py-1 ${mode === value ? value === 'preview' ? 'bg-green-500/25 text-green-300' : 'bg-accent text-white' : 'text-text-3'}`}>{label}</button>)}</div>
-            <ToolButton title="Zoom out" onClick={() => setCamera((value) => ({ ...value, zoom: Math.max(.1, value.zoom / 1.25) }))}><ZoomOut size={13}/></ToolButton>
-            <button type="button" onClick={() => setCamera((value) => ({ ...value, zoom: 1 }))} className="w-11 text-[9.5px] text-text-2">{Math.round(camera.zoom * 100)}%</button>
-            <ToolButton title="Zoom in" onClick={() => setCamera((value) => ({ ...value, zoom: Math.min(8, value.zoom * 1.25) }))}><ZoomIn size={13}/></ToolButton>
-            <ToolButton title="Fit all" onClick={fitAll}><Maximize size={13}/></ToolButton>
+            <div className="mr-2 flex rounded border border-border bg-panel p-0.5 text-[12px]">{([['design', 'Design'], ['preview', 'Preview'], ['code', 'Code']] as [CanvasMode, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => { setMode(value); if (value === 'code') { setInspectorTab('code'); setRightPanelOpen(true) } }} className={`rounded px-2 py-1 ${mode === value ? value === 'preview' ? 'bg-selected text-text' : 'bg-accent text-on-accent' : 'text-text-3'}`}>{label}</button>)}</div>
+            <ToolButton title="Zoom out" onClick={() => zoomCenter(camera.zoom / 1.25)}><ZoomOut size={13}/></ToolButton>
+            <details className="relative"><summary className="w-12 cursor-pointer list-none text-center text-xs text-text-2" aria-label="Zoom options">{Math.round(camera.zoom * 100)}%</summary><div className="absolute right-0 top-6 z-50 w-36 rounded border border-border bg-panel p-1 shadow-sm">{[['Zoom in', () => zoomCenter(camera.zoom * 1.25)], ['Zoom out', () => zoomCenter(camera.zoom / 1.25)], ['100%', () => zoomCenter(1)], ['Fit canvas', () => fitAll()], ['Fit selection', () => fitAll(true)]].map(([label, action]) => <button key={String(label)} className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-hover" onClick={event => { (action as () => void)(); event.currentTarget.closest('details')?.removeAttribute('open') }}>{String(label)}</button>)}</div></details>
+            <ToolButton title="Zoom in" onClick={() => zoomCenter(camera.zoom * 1.25)}><ZoomIn size={13}/></ToolButton>
+            <ToolButton title="Focus canvas" active={!leftPanelOpen && !rightPanelOpen} onClick={() => { const restore = !leftPanelOpen && !rightPanelOpen; setLeftPanelOpen(restore); setRightPanelOpen(restore) }}><Maximize size={13}/></ToolButton><ToolButton title="Fit all" onClick={() => fitAll()}><Maximize size={13}/></ToolButton>
             <ToolButton active={rightPanelOpen} title="Toggle inspector" onClick={() => setRightPanelOpen((value) => !value)}><PanelRight size={13}/></ToolButton>
             <span className="mx-1 h-4 w-px bg-border"/>
-            <button type="button" onClick={() => void runApplication()} disabled={starting || runtimeStatus === 'running'} className="flex h-7 items-center gap-1.5 rounded px-2 text-[10px] text-text-2 hover:bg-white/5 disabled:opacity-60"><Play size={11} className={runtimeStatus === 'running' ? 'fill-green-400 text-green-400' : ''}/>{runtimeStatus === 'running' ? 'Application running' : starting ? 'Starting…' : 'Run application'}</button>
+            {mode === 'preview' && <button type="button" onClick={() => void runApplication()} disabled={starting || runtimeStatus === 'running'} className="flex h-7 items-center gap-1.5 rounded px-2 text-[12px] text-text-2 hover:bg-hover disabled:opacity-60"><Play size={11} className={runtimeStatus === 'running' ? 'fill-success text-success' : ''}/>{runtimeStatus === 'running' ? 'Application running' : starting ? 'Starting…' : 'Run application'}</button>}
           </div>
         </div>
-        <div ref={canvasRef} onPointerDown={beginCanvasPan} onWheel={onWheel} className={`relative min-h-0 flex-1 overflow-hidden ${tool === 'hand' ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`} style={{ backgroundColor: '#1c1e23', backgroundImage: 'radial-gradient(circle, rgba(255,255,255,.105) 1px, transparent 1px)', backgroundPosition: `${camera.x}px ${camera.y}px`, backgroundSize: `${24 * camera.zoom}px ${24 * camera.zoom}px` }}>
-          {runtimeDetail && <div className="absolute left-1/2 top-3 z-40 flex max-w-[560px] -translate-x-1/2 items-center gap-3 rounded border border-danger/40 bg-[#341f24] px-3 py-2 text-[10px] text-red-200 shadow-xl"><span className="min-w-0 flex-1">{runtimeDetail}</span><button type="button" onClick={() => setRuntimeDetail(null)} className="text-red-300 hover:text-white">Dismiss</button></div>}
-          {!frames.length && <EmptyCanvas pages={pages} onAdd={addLiveFrame} onBrowseComponents={() => { setLeftPanelOpen(true); setTab('components') }}/>} 
+        <div ref={canvasRef} onPointerDown={beginCanvasPan} onPointerDownCapture={event => { if (tool === 'hand' || event.button === 1) { event.stopPropagation(); beginCanvasPan(event) } }} className={`relative min-h-0 flex-1 overflow-hidden ${tool === 'hand' ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`} style={{ touchAction: 'none', overscrollBehavior: 'none', backgroundColor: 'var(--color-canvas)', backgroundImage: 'radial-gradient(circle, var(--color-grid) 1px, transparent 1px)', backgroundPosition: `${camera.x}px ${camera.y}px`, backgroundSize: `${24 * camera.zoom}px ${24 * camera.zoom}px` }}>
+          {runtimeDetail && <div className="absolute left-1/2 top-3 z-40 flex max-w-[560px] -translate-x-1/2 items-center gap-3 rounded border border-danger/40 bg-panel px-3 py-2 text-[12px] text-danger shadow-sm"><span className="min-w-0 flex-1">{runtimeDetail}</span><button type="button" onClick={() => setRuntimeDetail(null)} className="text-danger hover:text-text">Dismiss</button></div>}
+          {!frames.length && <EmptyCanvas pages={pages} onAdd={addLiveFrame} onBrowseComponents={() => { setLeftPanelOpen(true); setTab('components') }}/>}
           <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})` }}>
-            {guides.x !== undefined && <div className="pointer-events-none absolute -top-[10000px] h-[20000px] w-px bg-pink-500" style={{ left: guides.x }}/>}
-            {guides.y !== undefined && <div className="pointer-events-none absolute -left-[10000px] h-px w-[20000px] bg-pink-500" style={{ top: guides.y }}/>}
-            {selectionBox && <div className="pointer-events-none absolute border border-blue-400 bg-blue-400/10" style={{ left: selectionBox.x, top: selectionBox.y, width: selectionBox.width, height: selectionBox.height }}/>}
-            {frames.map((frame) => <CanvasFrame key={frame.id} frame={frame} page={pages.find((page) => page.id === frame.pageId)} components={components} selected={selectedIds.includes(frame.id)} inspected={selectedFrame?.id === frame.id ? inspected : null} runtimeUrl={runtimeUrl} mode={mode} zoom={camera.zoom} tree={selectedFrame?.id === frame.id ? tree : null} onSelect={(additive) => { setSelectedIds((current) => additive ? current.includes(frame.id) ? current.filter((id) => id !== frame.id) : [...current, frame.id] : [frame.id]); setInspected(null) }} onMove={(patch, final, historyBase) => updateFrame(frame.id, patch, final, historyBase)} onInspect={setInspected} onCreateDesign={() => { const page = pages.find((item) => item.id === frame.pageId); if (page) void createDesignFrame(page, frame) }} setRef={(element) => { if (element) frameRefs.current.set(frame.id, element); else frameRefs.current.delete(frame.id) }} />)}
+            {guides.x !== undefined && <div className="pointer-events-none absolute -top-[10000px] h-[20000px] w-px bg-accent" style={{ left: guides.x }}/>}
+            {guides.y !== undefined && <div className="pointer-events-none absolute -left-[10000px] h-px w-[20000px] bg-accent" style={{ top: guides.y }}/>}
+            {selectionBox && <div className="pointer-events-none absolute border border-accent-2 bg-selected/20" style={{ left: selectionBox.x, top: selectionBox.y, width: selectionBox.width, height: selectionBox.height }}/>}
+            <svg className="pointer-events-none absolute overflow-visible" width="1" height="1" aria-hidden="true"><defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--color-accent-2)"/></marker></defs>{frames.map((frame) => { const next = frames.find((f) => f.id === frame.flowNextId); if (!next) return null; const start = frame.x + frame.width + 10; const end = next.x - 10; const y1 = frame.y + 28 + frame.height / 2; const y2 = next.y + 28 + next.height / 2; return <path key={frame.id} d={`M${start},${y1} C${start + 48},${y1} ${end - 48},${y2} ${end},${y2}`} fill="none" stroke="var(--color-accent-2)" strokeWidth="2" markerEnd="url(#flow-arrow)"/> })}</svg>
+            {frames.map((frame) => <CanvasFrame key={frame.id} frame={frame} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); setSelectedIds([frame.id]); setContextMenu({ x: event.clientX, y: event.clientY }) }} onClose={() => { commit(items => items.filter(item => item.id !== frame.id)); setSelectedIds(ids => ids.filter(id => id !== frame.id)) }} page={pages.find((page) => page.id === frame.pageId)} components={components} selected={selectedIds.includes(frame.id)} inspected={selectedFrame?.id === frame.id ? inspected : null} runtimeUrl={runtimeUrl} mode={mode} zoom={camera.zoom} visuals={visuals} containerWidth={containerWidth} tree={frame.designStateId === activeStateId ? tree : frame.designStateId ? trees[frame.designStateId] ?? null : null} onSelect={(additive) => { setSelectedIds((current) => additive ? current.includes(frame.id) ? current.filter((id) => id !== frame.id) : [...current, frame.id] : current.includes(frame.id) ? current : frame.groupId ? frames.filter((f) => f.groupId === frame.groupId).map((f) => f.id) : [frame.id]); setInspected(null) }} onMove={(patch, final, historyBase) => updateFrame(frame.id, patch, final, historyBase)} onInspect={setInspected} onCreateDesign={(captured) => { const page = pages.find((item) => item.id === frame.pageId); if (page) void createDesignFrame(page, frame, captured) }} setRef={(element) => { if (element) frameRefs.current.set(frame.id, element); else frameRefs.current.delete(frame.id) }} />)}
           </div>
-          <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-white/10 bg-[#111318]/95 p-1 shadow-2xl backdrop-blur">
+          {tool === 'hand' && <div className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing"/>}
+          <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-border bg-panel p-1 shadow-sm ">
             <ToolButton active={tool === 'select'} title="Select (V)" onClick={() => setTool('select')}><MousePointer2 size={13}/></ToolButton>
+            <ToolButton title="New frame (F)" onClick={() => void createBlankFrame()}><Frame size={13}/></ToolButton>
             <ToolButton active={tool === 'hand'} title="Hand (Space)" onClick={() => setTool('hand')}><Hand size={13}/></ToolButton>
-            {selectedIds.length > 0 && <><span className="mx-1 h-4 w-px bg-border"/><ToolButton disabled={!past.length && !designPast.length} title="Undo" onClick={undo}><Undo2 size={13}/></ToolButton><ToolButton disabled={!future.length && !designFuture.length} title="Redo" onClick={redo}><Redo2 size={13}/></ToolButton><ToolButton title="Duplicate" onClick={duplicateFrames}><Copy size={13}/></ToolButton><ToolButton title="Delete" onClick={removeSelected}><Trash2 size={13}/></ToolButton>{selectedIds.length > 1 && <ToolButton title="Align top" onClick={alignSelected}><AlignHorizontalSpaceAround size={13}/></ToolButton>}</>}
+            {selectedIds.length > 0 && <><span className="mx-1 h-4 w-px bg-border"/><ToolButton disabled={!past.length && !designPast.length} title="Undo" onClick={undo}><Undo2 size={13}/></ToolButton><ToolButton disabled={!future.length && !designFuture.length} title="Redo" onClick={redo}><Redo2 size={13}/></ToolButton><ToolButton title="Duplicate" onClick={duplicateFrames}><Copy size={13}/></ToolButton><ToolButton title={selectedFrame?.locked ? "Unlock frames" : "Lock frames"} onClick={toggleLock}>{selectedFrame?.locked ? <Unlock size={13}/> : <Lock size={13}/>}</ToolButton><ToolButton title="Group frames" onClick={() => groupSelected()}><Group size={13}/></ToolButton><ToolButton title="Ungroup frames" onClick={() => groupSelected(true)}><Ungroup size={13}/></ToolButton><ToolButton title="Delete" onClick={removeSelected}><Trash2 size={13}/></ToolButton>{selectedIds.length > 1 && <ToolButton title="Align top" onClick={alignSelected}><AlignHorizontalSpaceAround size={13}/></ToolButton>}</>}
           </div>
         </div>
+        {contextMenu && <ContextMenu {...contextMenu} onClose={() => setContextMenu(null)} items={[
+          { label: 'Fit screen', action: () => fitAll(true) },
+          { label: 'Duplicate', action: duplicateFrames },
+          { label: selectedFrame?.locked ? 'Unlock' : 'Lock', action: toggleLock },
+          { label: 'Close screen', action: () => { commit(items => items.filter(item => !selectedIds.includes(item.id))); setSelectedIds([]) } },
+          { label: 'Remove from design', action: removeSelected, disabled: selectedFrame?.locked },
+        ]}/>}
+        <footer className="workspace-status"><span>{Math.round(camera.zoom * 100)}%</span><span>{selectedFrame ? `${selectedFrame.viewport} · ${selectedFrame.width} × ${selectedFrame.height}` : `${frames.length} frames`}</span><span>Grid {selectedFrame?.grid?.visible ? 'on' : 'off'}</span><span className="ml-auto">Local workspace</span></footer>
       </main>
 
-      {rightPanelOpen && <aside className="flex w-[286px] shrink-0 flex-col border-l border-border bg-bg-raised">
-        <div className="grid h-10 grid-cols-4 border-b border-border px-1">
-          {(['design', 'prototype', 'inspect', 'code'] as InspectorTab[]).map((id) => <button key={id} type="button" onClick={() => setInspectorTab(id)} className={`border-b-2 text-[9px] capitalize ${inspectorTab === id ? 'border-accent-2 text-text' : 'border-transparent text-text-3'}`}>{id}</button>)}
+      {rightPanelOpen && <ResizablePanel side="right" defaultWidth={280} storageKey={`${layoutKey}:right-width`}><aside className="flex h-full w-full shrink-0 flex-col border-l border-border bg-bg-raised">
+        <div className="grid h-9 grid-flow-col auto-cols-fr border-b border-border px-1">
+          {(['design', 'prototype', 'inspect', 'code'] as InspectorTab[]).map((id) => <button key={id} type="button" onClick={() => setInspectorTab(id)} className={`border-b-2 text-[12px] capitalize ${inspectorTab === id ? 'border-accent-2 text-text' : 'border-transparent text-text-3'}`}>{id}</button>)}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {inspectorTab === 'design' && selectedFrame && <FrameInspector frame={selectedFrame} inspected={inspected} onChange={(patch) => updateFrame(selectedFrame.id, patch)} onPreset={(viewport) => { const preset = VIEWPORTS[viewport]; updateFrame(selectedFrame.id, { viewport, width: preset.width, height: preset.height }); if (selectedFrame.kind === 'design-frame') useDesignStore.getState().setBreakpoint(viewport) }} />}
-          {inspectorTab === 'design' && selectedFrame?.kind === 'design-frame' && tree && selectedNode && <div className="border-t border-border"><LayoutInspector node={selectedNode} tree={tree} breakpoint={breakpoint} components={components} conceptComponents={[]} tokens={tokens} dispatch={dispatch} onSelect={selectNode}/></div>}
+          {inspectorTab === 'design' && selectedFrame && <FrameInspector frame={selectedFrame} inspected={inspected} onChange={(patch) => updateFrame(selectedFrame.id, patch)} onPreset={(viewport) => { const preset = viewports[viewport]; updateFrame(selectedFrame.id, { viewport, width: preset.width, height: preset.height }); if (selectedFrame.kind === 'design-frame') useDesignStore.getState().setBreakpoint(viewport) }} />}
+          {inspectorTab === 'design' && selectedFrame && <InspectorSection title="Layout guides"><button className="mb-3 w-full rounded border border-border p-2 text-xs text-text-2 hover:bg-hover" onClick={() => void responsiveCopies()}>Add responsive versions</button><label className="flex gap-2 text-xs text-text-2"><input type="checkbox" checked={!!selectedFrame.overflowContainer} onChange={(e) => updateFrame(selectedFrame.id, { overflowContainer: e.target.checked })}/>Overflow Container</label><p className="my-2 text-[12px] text-text-3">{containerWidth ? `Project content width: ${containerWidth}px` : 'No fixed container width detected'}</p><label className="flex gap-2 text-xs text-text-2"><input type="checkbox" checked={!!selectedFrame.grid?.visible} onChange={(e) => updateFrame(selectedFrame.id, { grid: { columns: 12, gutter: 24, margin: 32, opacity: .12, ...selectedFrame.grid, visible: e.target.checked } })}/><Grid3X3 size={12}/>Show grid</label>{selectedFrame.grid && <div className="mt-3 grid grid-cols-2 gap-2">{(['columns', 'gutter', 'margin', 'opacity'] as const).map((key) => <label key={key} className="text-[12px] text-text-3">{key}<input aria-label={key} type="number" min={key === 'columns' ? 1 : 0} max={key === 'opacity' ? 1 : key === 'columns' ? 64 : 200} step={key === 'opacity' ? .05 : 1} value={selectedFrame.grid![key]} onChange={(e) => { const value = Math.max(key === 'columns' ? 1 : 0, Math.min(key === 'opacity' ? 1 : key === 'columns' ? 64 : 200, Number(e.target.value))); updateFrame(selectedFrame.id, { grid: { ...selectedFrame.grid!, [key]: value } }) }} className="mt-1 w-full rounded border border-border bg-panel p-1 text-text"/></label>)}</div>}<p className="mt-3 text-[12px] text-text-3">Guides stay on the canvas and are excluded from output.</p></InspectorSection>}
+          {inspectorTab === 'design' && selectedFrame?.kind === 'design-frame' && !selectedFrame.locked && tree && selectedNode && <div className="border-t border-border"><LayoutInspector projectFonts={visuals.fonts} projectShadows={[{ label: 'None', value: '' }, ...(index.projectModel.designSystem?.observations.filter((o) => o.category === 'shadow').map((o) => ({ label: o.name, value: o.value })) ?? [])]} node={selectedNode} tree={tree} breakpoint={breakpoint} components={components} conceptComponents={[]} tokens={tokens} dispatch={dispatch} onSelect={selectNode}/></div>}
           {inspectorTab === 'inspect' && <InspectPanel frame={selectedFrame} inspected={inspected} component={inspectedComponent} page={pages.find((item) => item.id === selectedFrame?.pageId)} />}
           {inspectorTab === 'code' && <CodePanel frame={selectedFrame} inspected={inspected} component={inspectedComponent} page={pages.find((item) => item.id === selectedFrame?.pageId)} />}
-          {inspectorTab === 'prototype' && <PrototypePanel frame={selectedFrame}/>}
-          {!selectedFrame && <div className="p-4 text-[10.5px] leading-relaxed text-text-3">Select a live page or design frame to inspect its dimensions, source relationship and responsive preset.</div>}
+          {inspectorTab === 'prototype' && <><PrototypePanel frame={selectedFrame}/>{selectedFrame && <InspectorSection title="Next screen"><select aria-label="Next screen" value={selectedFrame.flowNextId ?? ''} onChange={(e) => updateFrame(selectedFrame.id, { flowNextId: e.target.value || undefined })} className="w-full rounded border border-border bg-panel p-2 text-xs"><option value="">End of flow</option>{frames.filter((f) => f.id !== selectedFrame.id).map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select></InspectorSection>}</>}
+          {!selectedFrame && <div className="p-4 text-[12px] leading-relaxed text-text-3">Select a source page or design frame to inspect its dimensions, source relationship and responsive preset.</div>}
         </div>
-      </aside>}
+      </aside></ResizablePanel>}
     </div>
   )
 }
 
-function ToolButton({ children, title, active, disabled, onClick }: { children: React.ReactNode; title: string; active?: boolean; disabled?: boolean; onClick: () => void }) { return <button type="button" title={title} disabled={disabled} onClick={onClick} className={`flex h-7 w-7 items-center justify-center rounded ${active ? 'bg-accent text-white' : 'text-text-3 hover:bg-white/5 hover:text-text'} disabled:opacity-25`}>{children}</button> }
+function ToolButton({ children, title, active, disabled, onClick }: { children: React.ReactNode; title: string; active?: boolean; disabled?: boolean; onClick: () => void }) { return <button type="button" title={title} disabled={disabled} onClick={onClick} className={`flex h-7 w-7 items-center justify-center rounded ${active ? 'bg-accent text-on-accent' : 'text-text-3 hover:bg-hover hover:text-text'} disabled:opacity-25`}>{children}</button> }
 
 function PageLibraryItem({ page, busy, onAdd, onAddSet, onDesign }: { page: Page; busy: boolean; onAdd: (viewport: Viewport) => void; onAddSet: () => void; onDesign: () => void }) {
   const [open, setOpen] = useState(false)
   return <div className="mb-0.5">
-    <button type="button" onClick={() => setOpen((value) => !value)} className={`flex h-7 w-full items-center gap-1.5 rounded px-1.5 text-left ${open ? 'bg-white/[.045] text-text' : 'text-text-2 hover:bg-white/[.035]'}`}>
-      {open ? <ChevronDown size={11}/> : <ChevronRight size={11}/>}<Monitor size={11} className="text-text-3"/><span className="min-w-0 flex-1 truncate text-[10.5px]">{page.name}</span><span className="font-mono text-[8px] text-text-3">{page.route ?? ''}</span>
+    <button type="button" onClick={() => setOpen((value) => !value)} className={`flex h-7 w-full items-center gap-1.5 rounded px-1.5 text-left ${open ? 'bg-hover text-text' : 'text-text-2 hover:bg-hover'}`}>
+      {open ? <ChevronDown size={11}/> : <ChevronRight size={11}/>}<Monitor size={11} className="text-text-3"/><span className="min-w-0 flex-1 truncate text-[12px]">{page.name}</span><span className="font-mono text-[11px] text-text-3">{page.route ?? ''}</span>
     </button>
     {open && <div className="ml-3 border-l border-border py-1 pl-2">
-      {(['desktop', 'tablet', 'mobile'] as Viewport[]).map((viewport) => { const Icon = viewport === 'desktop' ? Monitor : viewport === 'tablet' ? Tablet : Smartphone; return <button key={viewport} type="button" onClick={() => onAdd(viewport)} className="flex h-7 w-full items-center gap-2 rounded px-2 text-[9.5px] text-text-3 hover:bg-white/[.04] hover:text-text-2"><Icon size={11}/><span>{VIEWPORTS[viewport].label}</span><Plus size={10} className="ml-auto"/></button> })}
-      <button type="button" onClick={onAddSet} className="mt-1 flex h-7 w-full items-center gap-2 rounded bg-accent/10 px-2 text-[9.5px] text-accent-2 hover:bg-accent/15"><Frame size={11}/>Add responsive set</button>
-      <button type="button" disabled={busy} onClick={onDesign} className="flex h-7 w-full items-center gap-2 rounded px-2 text-[9.5px] text-text-3 hover:bg-white/[.04] hover:text-text-2 disabled:opacity-50"><Copy size={11}/>{busy ? 'Preparing design…' : 'New design alternative'}</button>
-      <div className="truncate px-2 py-1 font-mono text-[8px] text-text-3" title={page.source.filePath}>{page.source.filePath}</div>
+      {(['desktop', 'tablet', 'mobile'] as Viewport[]).map((viewport) => { const Icon = viewport === 'desktop' ? Monitor : viewport === 'tablet' ? Tablet : Smartphone; return <button key={viewport} type="button" onClick={() => onAdd(viewport)} className="flex h-7 w-full items-center gap-2 rounded px-2 text-[12px] text-text-3 hover:bg-hover hover:text-text-2"><Icon size={11}/><span>{VIEWPORTS[viewport].label}</span><Plus size={10} className="ml-auto"/></button> })}
+      <button type="button" onClick={onAddSet} className="mt-1 flex h-7 w-full items-center gap-2 rounded bg-selected px-2 text-[12px] text-accent-2 hover:bg-selected"><Frame size={11}/>Add responsive set</button>
+      <button type="button" disabled={busy} onClick={onDesign} className="flex h-7 w-full items-center gap-2 rounded px-2 text-[12px] text-text-3 hover:bg-hover hover:text-text-2 disabled:opacity-50"><Copy size={11}/>{busy ? 'Preparing design…' : 'New design alternative'}</button>
+      <div className="truncate px-2 py-1 font-mono text-[11px] text-text-3" title={page.source.filePath}>{page.source.filePath}</div>
     </div>}
   </div>
 }
 
-function ComponentLibraryItem({ component, structure }: { component: Component; structure: PageStructureItem[] | null }) { return <div draggable onDragStart={(event) => { event.dataTransfer.setData('application/x-frameui-component', component.id); event.dataTransfer.effectAllowed = 'copy' }} className="mb-1 flex cursor-grab items-center gap-2 rounded px-1.5 py-1.5 hover:bg-white/[.04]"><ComponentThumbnail component={component} structure={structure} size="sm"/><div className="min-w-0"><div className="truncate text-[10.5px] text-text-2">{component.name}</div><div className="truncate font-mono text-[8px] text-text-3">{component.source.filePath}</div></div></div> }
+function ComponentLibraryItem({ component, structure, visuals }: { component: Component; structure: PageStructureItem[] | null; visuals: ProjectVisuals }) { return <div draggable onDragStart={(event) => { event.dataTransfer.setData('application/x-frameui-component', component.id); event.dataTransfer.effectAllowed = 'copy' }} className="mb-1 flex cursor-grab items-center gap-2 rounded px-1.5 py-1.5 hover:bg-hover"><div className="w-20 shrink-0">{structure?.length ? <ProjectAssetPreview name={component.name} structure={structure} visuals={visuals}/> : <ComponentThumbnail component={component} structure={structure} size="sm"/>}</div><div className="min-w-0"><div className="truncate text-[12px] text-text-2">{component.name}</div><div className="truncate font-mono text-[11px] text-text-3">{component.source.filePath}</div></div></div> }
 
-function AssetLibrary({ paths }: { paths: string[] }) { const assets = paths.filter((path) => /\.(png|jpe?g|gif|webp|svg|ico|woff2?|ttf|otf)$/i.test(path)); return assets.length ? <div className="grid grid-cols-2 gap-1.5">{assets.map((path) => <div key={path} className="rounded border border-border bg-panel p-2"><div className="flex aspect-square items-center justify-center rounded bg-white/[.035]"><ImageIcon size={18} className="text-text-3"/></div><div className="mt-1 truncate text-[8.5px] text-text-3">{path.split('/').at(-1)}</div></div>)}</div> : <div className="p-3 text-[10px] text-text-3">No image, icon, or font assets were found in the active application index.</div> }
+function AssetLibrary({ paths, assets }: { paths: string[]; assets: Record<string, string> }) { const assetPaths = paths.filter((path) => /\.(png|jpe?g|gif|webp|svg|ico|woff2?|ttf|otf)$/i.test(path)); return assetPaths.length ? <div className="grid grid-cols-2 gap-1.5">{assetPaths.map((path) => <div key={path} draggable onDragStart={(e) => { e.dataTransfer.setData('application/x-frameui-component', `asset:${path}`); e.dataTransfer.effectAllowed = 'copy' }} className="rounded border border-border bg-panel p-2"><div className="flex aspect-square items-center justify-center rounded bg-hover">{/\.(woff2?|ttf|otf)$/i.test(path) ? <span className="text-xl">Aa</span> : <img src={assets[path]} alt={path.split('/').at(-1)} className="max-h-full max-w-full object-contain"/>}</div><div className="mt-1 truncate text-[11px] text-text-3">{path.split('/').at(-1)}</div></div>)}</div> : <div className="p-3 text-[12px] text-text-3">No image, icon, or font assets were found in the active application index.</div> }
 
-function FrameLayers({ frames, selectedIds, onSelect }: { frames: CanvasFrameModel[]; selectedIds: string[]; onSelect: (id: string, additive: boolean) => void }) { return <div>{frames.map((frame) => <button key={frame.id} type="button" onClick={(event) => onSelect(frame.id, event.shiftKey || event.metaKey || event.ctrlKey)} className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left ${selectedIds.includes(frame.id) ? 'bg-accent/15 text-text' : 'text-text-2 hover:bg-white/[.04]'}`}>{frame.kind === 'live-page' ? <Monitor size={12}/> : <Frame size={12}/>}<span className="min-w-0 flex-1 truncate text-[10px]">{frame.name}</span><span className="text-[7px] text-text-3">{frame.kind === 'live-page' ? 'LIVE' : 'DESIGN'}</span></button>)}</div> }
+function FrameLayers({ frames, selectedIds, onSelect }: { frames: CanvasFrameModel[]; selectedIds: string[]; onSelect: (id: string, additive: boolean) => void }) { return <div>{frames.map((frame) => <button key={frame.id} type="button" onClick={(event) => onSelect(frame.id, event.shiftKey || event.metaKey || event.ctrlKey)} className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left ${selectedIds.includes(frame.id) ? 'bg-selected text-text' : 'text-text-2 hover:bg-hover'}`}>{frame.kind === 'live-page' ? <Monitor size={12}/> : <Frame size={12}/>}<span className="min-w-0 flex-1 truncate text-[12px]">{frame.name}</span><span className="text-[11px] text-text-3">{frame.kind === 'live-page' ? 'SOURCE' : 'DESIGN'}</span></button>)}</div> }
 
-function CanvasFrame({ frame, page, components, selected, inspected, runtimeUrl, mode, zoom, tree, onSelect, onMove, onInspect, onCreateDesign, setRef }: { frame: CanvasFrameModel; page?: Page; components: Component[]; selected: boolean; inspected: InspectedElement | null; runtimeUrl: string | null; mode: CanvasMode; zoom: number; tree: DesignNode | null; onSelect: (additive: boolean) => void; onMove: (patch: Partial<CanvasFrameModel>, final: boolean, historyBase?: CanvasFrameModel) => void; onInspect: (element: InspectedElement | null) => void; onCreateDesign: () => void; setRef: (element: HTMLElement | null) => void }) {
+function CanvasFrame({ visuals, containerWidth, frame, page, components, selected, inspected, runtimeUrl, mode, zoom, tree, onSelect, onMove, onInspect, onCreateDesign, setRef, onClose, onContextMenu }: { onContextMenu: (event: React.MouseEvent) => void; onClose: () => void; visuals: ProjectVisuals; containerWidth?: number; frame: CanvasFrameModel; page?: Page; components: Component[]; selected: boolean; inspected: InspectedElement | null; runtimeUrl: string | null; mode: CanvasMode; zoom: number; tree: DesignNode | null; onSelect: (additive: boolean) => void; onMove: (patch: Partial<CanvasFrameModel>, final: boolean, historyBase?: CanvasFrameModel) => void; onInspect: (element: InspectedElement | null) => void; onCreateDesign: (captured?: DesignNode) => void; setRef: (element: HTMLElement | null) => void }) {
+  const [renaming, setRenaming] = useState(false)
+  const [capturing, setCapturing] = useState(false)
+  const [captureError, setCaptureError] = useState('')
   const webviewRef = useRef<FrameUiWebviewElement>(null)
+  const sourceTree = useMemo(() => page?.structure.length ? buildExistingPageDraftTree(`source-${page.id}`, page.structure, page.source.filePath) : null, [page])
   const [renderFailure, setRenderFailure] = useState<{ title: string; detail: string } | null>(null)
   const insertIntoDesign = useDesignStore((state) => state.dispatch)
   function beginMove(event: React.PointerEvent) {
-    if (event.button !== 0) return
+    if (event.button !== 0 || frame.locked) return
     event.preventDefault(); event.stopPropagation(); onSelect(event.shiftKey || event.metaKey || event.ctrlKey)
     const start = { cx: event.clientX, cy: event.clientY, x: frame.x, y: frame.y }
     const move = (e: PointerEvent) => onMove({ x: snap(start.x + (e.clientX - start.cx) / zoom), y: snap(start.y + (e.clientY - start.cy) / zoom) }, false)
@@ -521,6 +716,7 @@ function CanvasFrame({ frame, page, components, selected, inspected, runtimeUrl,
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up)
   }
   function beginResize(event: React.PointerEvent) {
+    if (frame.locked) return
     event.preventDefault(); event.stopPropagation(); const start = { cx: event.clientX, cy: event.clientY, width: frame.width, height: frame.height }
     const move = (e: PointerEvent) => onMove({ width: Math.max(240, snap(start.width + (e.clientX - start.cx) / zoom)), height: Math.max(180, snap(start.height + (e.clientY - start.cy) / zoom)) }, false)
     const up = (e: PointerEvent) => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); onMove({ width: Math.max(240, snap(start.width + (e.clientX - start.cx) / zoom)), height: Math.max(180, snap(start.height + (e.clientY - start.cy) / zoom)) }, true, frame) }
@@ -550,8 +746,8 @@ function CanvasFrame({ frame, page, components, selected, inspected, runtimeUrl,
         const text = result.text ?? ''
         const codeIgniter404 = /404\s*(?:page not found)?/i.test(`${title} ${text}`) && /(?:can't find a route|page not found|not found)/i.test(text)
         const runtimeError = /CodeIgniter\\(?:Database|Debug|Exceptions)|DatabaseException|Whoops!/i.test(`${title} ${text}`) || /"code"\s*:\s*5\d\d/.test(text)
-        if (codeIgniter404) setRenderFailure({ title: 'This PHP route does not exist', detail: 'FrameUI will render the source view instead of leaving a router error on the canvas.' })
-        else if (runtimeError) setRenderFailure({ title: 'The PHP view is blocked by a runtime dependency', detail: 'The route exists, but the application returned an error. Check services such as the database, or continue from the source view.' })
+        if (codeIgniter404) setRenderFailure({ title: 'This screen could not be found', detail: 'FrameUI will render the source view instead of leaving a router error on the canvas.' })
+        else if (runtimeError) setRenderFailure({ title: 'This screen needs more project information', detail: 'The application could not open this screen. Check local application settings, then retry.' })
         else setRenderFailure(null)
       } catch { /* a did-fail-load event provides the useful message */ }
     }
@@ -563,34 +759,79 @@ function CanvasFrame({ frame, page, components, selected, inspected, runtimeUrl,
     }
   }, [src])
   function dropComponent(event: React.DragEvent) {
-    if (frame.kind !== 'design-frame' || !tree) return
-    const componentId = event.dataTransfer.getData('application/x-frameui-component')
-    const component = components.find((item) => item.id === componentId)
-    if (!component) return
+    if (frame.kind !== 'design-frame' || !tree || frame.locked) return
     event.preventDefault(); event.stopPropagation()
-    insertIntoDesign({ type: 'InsertComponent', parentId: tree.id, index: tree.children.length, node: { id: crypto.randomUUID(), kind: 'placeholder', editability: 'limited', provenance: 'existing', children: [], label: component.name, componentDefinitionId: component.id, sourceReference: component.source } })
+    void insertComponent(event.dataTransfer.getData('application/x-frameui-component'))
   }
-  return <section ref={setRef} onDragOver={(event) => { if (frame.kind === 'design-frame') event.preventDefault() }} onDrop={dropComponent} onPointerDown={(event) => { event.stopPropagation(); onSelect(event.shiftKey || event.metaKey || event.ctrlKey) }} className={`absolute ${selected ? 'z-10' : ''}`} style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height + 28 }}>
-    <div onPointerDown={beginMove} className="flex h-7 cursor-move items-center justify-between px-0.5 text-[11px] text-[#c8cbd2]"><div className="flex min-w-0 items-center gap-2"><span className={`rounded px-1.5 py-0.5 text-[7px] font-bold tracking-[.1em] ${frame.kind === 'live-page' ? 'bg-green-500/18 text-green-300' : 'bg-violet-500/20 text-violet-300'}`}>{frame.kind === 'live-page' ? 'LIVE PAGE' : 'DESIGN FRAME'}</span><span className="truncate">{frame.name}</span></div><span className="font-mono text-[8px] text-[#777d88]">{Math.round(frame.width)} × {Math.round(frame.height)}</span></div>
-    <div className={`relative overflow-hidden bg-white shadow-[0_4px_24px_rgba(0,0,0,.35)] ${selected ? 'outline outline-2 outline-accent-2 outline-offset-2' : 'outline outline-1 outline-white/10'}`} style={{ width: frame.width, height: frame.height }}>
-      {frame.kind === 'live-page' ? src ? <><webview ref={webviewRef} src={src} partition="persist:frameui-preview" className="h-full w-full"/><div onClick={inspectAt} className={`absolute inset-0 ${mode === 'preview' ? 'pointer-events-none' : 'cursor-crosshair'}`}/>{inspected && <div className="pointer-events-none absolute border-2 border-blue-500 bg-blue-500/10" style={{ left: inspected.rect.x, top: inspected.rect.y, width: inspected.rect.width, height: inspected.rect.height }}><span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-blue-600 px-1.5 py-0.5 font-mono text-[8px] text-white">{inspected.tag} · {inspected.rect.width} × {inspected.rect.height}</span></div>}{renderFailure && <RuntimeRenderFailure title={renderFailure.title} detail={renderFailure.detail} onRetry={() => { setRenderFailure(null); webviewRef.current?.reload() }} onCreateDesign={onCreateDesign}/>}</> : runtimeUrl && !routeRenderable ? <SourceOnlyView page={page} route={frame.route} onCreateDesign={onCreateDesign}/> : <RuntimeUnavailable onRun={() => void window.frameui.preview.start()}/> : tree ? <div className="h-full overflow-auto bg-white p-4 text-black"><CanvasRoot node={tree}/></div> : page ? <DesignLoading page={page}/> : null}
-      {frame.kind === 'live-page' && mode === 'design' && <button type="button" onClick={(event) => { event.stopPropagation(); onCreateDesign() }} className="absolute bottom-3 right-3 rounded bg-accent px-2.5 py-1.5 text-[9px] font-semibold text-white shadow-lg">Duplicate to design</button>}
-      {selected && <button type="button" aria-label="Resize frame" onPointerDown={beginResize} className="absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize border border-white bg-accent"/>}
+  async function insertComponent(componentId: string) {
+    if (!tree || frame.locked || !frame.designStateId) return
+    const projectId = useProjectStore.getState().activeProject?.id
+    if (!projectId) return
+    if (useDesignStore.getState().designStateId !== frame.designStateId) await useDesignStore.getState().loadDesignState(projectId, frame.designStateId)
+    if (componentId.startsWith('asset:')) {
+      const path = componentId.slice(6); const src = visuals.assets[path]
+      if (src && !/\.(woff2?|ttf|otf)$/i.test(path)) insertIntoDesign({ type: 'InsertComponent', parentId: tree.id, index: tree.children.length, node: { id: crypto.randomUUID(), kind: 'image', editability: 'editable', provenance: 'existing', src, alt: path.split('/').at(-1) ?? '', children: [], style: { maxWidth: containerWidth } } })
+      return
+    }
+    const pattern = projectAssets(useProjectStore.getState().activeIndex?.projectModel.pages ?? []).find((asset) => asset.id === componentId)
+    const component = components.find((item) => item.id === componentId)
+    if (!component && !pattern) return
+    try {
+      if (useDesignStore.getState().designStateId !== frame.designStateId) {
+        const projectId = useProjectStore.getState().activeProject?.id
+        if (!projectId) return
+        await useDesignStore.getState().loadDesignState(projectId, frame.designStateId)
+      }
+      const sourceFilePath = pattern?.sourceFilePath ?? component!.source.filePath
+      const structure = pattern?.structure ?? await window.frameui.project.getPageStructure(sourceFilePath)
+      if (!structure.length) return
+      const root = buildExistingPageDraftTree(crypto.randomUUID(), structure, sourceFilePath)
+      const node = root.children.length === 1 ? root.children[0] : root
+      const fresh = (n: DesignNode): DesignNode => ({ ...n, id: crypto.randomUUID(), children: n.children.map(fresh) })
+      insertIntoDesign({ type: 'InsertComponent', parentId: tree.id, index: tree.children.length, node: { ...fresh(node), componentDefinitionId: component?.id } })
+    } catch { setRenderFailure({ title: 'Component unavailable', detail: 'The project component could not be read.' }) }
+  }
+  async function captureDesign() {
+    if (capturing) return
+    if (!webviewRef.current || renderFailure) { onCreateDesign(); return }
+    try {
+      setCapturing(true); setCaptureError('')
+      await webviewRef.current.executeJavaScript(WAIT_FOR_CAPTURE_SCRIPT)
+      const root = await webviewRef.current.executeJavaScript(CAPTURE_SCRIPT) as CapturedElement
+      onCreateDesign(capturedDesignTree(root))
+    } catch { setCaptureError('This screen is still loading. Wait for its content, then try again.') } finally { setCapturing(false) }
+  }
+
+  return <section ref={setRef} onContextMenu={onContextMenu} onDragOver={(event) => { if (frame.kind === 'design-frame') event.preventDefault() }} onDrop={dropComponent} onPointerDown={(event) => { event.stopPropagation(); onSelect(event.shiftKey || event.metaKey || event.ctrlKey) }} className={`absolute ${selected ? 'z-10' : ''}`} style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height + 28 }}>
+    <div onPointerDown={beginMove} className="flex h-7 cursor-move items-center justify-between px-0.5 text-[12px] text-text-2"><div className="flex min-w-0 items-center gap-2"><span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold tracking-normal ${frame.kind === 'live-page' ? 'bg-selected text-text' : 'bg-selected text-accent-2'}`}>{frame.kind === 'live-page' ? 'Screen' : 'Design'}</span><span className="truncate" onDoubleClick={event => { event.stopPropagation(); setRenaming(true) }}>{renaming ? <input autoFocus aria-label="Screen name" defaultValue={frame.name} onPointerDown={event => event.stopPropagation()} onBlur={event => { if (event.target.value.trim()) onMove({ name: event.target.value.trim() }, true); setRenaming(false) }} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') setRenaming(false) }} className="h-6 rounded border border-accent bg-panel px-1 text-xs"/> : frame.name}</span></div><div className="flex items-center gap-2"><span className="text-[11px] text-text-3">{Math.round(frame.width)} × {Math.round(frame.height)}</span><button type="button" aria-label={`Close screen ${frame.name}`} title="Close screen · Undo to reopen" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onClose() }} className="flex h-6 w-6 items-center justify-center rounded hover:bg-hover">×</button></div></div>
+    {captureError && <p role="alert" className="bg-panel p-2 text-xs text-text-2">{captureError}</p>}
+    <div className={`relative overflow-hidden bg-artboard shadow-none ${selected ? 'outline outline-2 outline-accent-2 outline-offset-2' : 'outline outline-1 outline-border'}`} style={{ width: frame.width, height: frame.height }}>
+      {frame.kind === 'live-page' ? ((!src || renderFailure) && sourceTree) ? <ProjectDesignSurface tree={sourceTree} visuals={visuals} breakpoint={frame.viewport} active={false} onActivate={() => onSelect(false)} onInsert={() => {}}/> : src ? <><webview ref={webviewRef} src={src} partition={`persist:project-${useProjectStore.getState().activeProject?.id}`} className="h-full w-full"/><div onClick={inspectAt} onDoubleClick={() => void captureDesign()} className={`absolute inset-0 ${mode === 'preview' ? 'pointer-events-none' : 'cursor-crosshair'}`}/>{inspected && <div className="pointer-events-none absolute border-2 border-accent-2 bg-selected/20" style={{ left: inspected.rect.x, top: inspected.rect.y, width: inspected.rect.width, height: inspected.rect.height }}><span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-accent px-1.5 py-0.5 font-mono text-[11px] text-on-accent">{inspected.tag} · {inspected.rect.width} × {inspected.rect.height}</span></div>}{renderFailure && <RuntimeRenderFailure title={renderFailure.title} detail={renderFailure.detail} onRetry={() => { setRenderFailure(null); webviewRef.current?.reload() }} onCreateDesign={onCreateDesign}/>}</> : mode !== 'preview' || !routeRenderable ? <SourceOnlyView page={page} route={frame.route} onCreateDesign={onCreateDesign}/> : <RuntimeUnavailable onRun={() => void window.frameui.preview.start()}/> : tree ? <ProjectDesignSurface tree={tree} visuals={visuals} breakpoint={frame.viewport} maxWidth={frame.overflowContainer ? undefined : containerWidth} active={selected && !frame.locked} onActivate={() => onSelect(false)} onInsert={(id) => void insertComponent(id)}/> : page ? <DesignLoading page={page}/> : null}
+      {frame.kind === 'live-page' && mode === 'design' && <button type="button" onClick={(event) => { event.stopPropagation(); void captureDesign() }} className="absolute bottom-3 right-3 rounded bg-accent px-2.5 py-1.5 text-[12px] font-semibold text-on-accent shadow-sm">Edit a design copy</button>}
+      {frame.grid?.visible && <div className="pointer-events-none absolute inset-0 flex" style={{ paddingInline: frame.grid.margin, gap: frame.grid.gutter, opacity: frame.grid.opacity }}>{Array.from({ length: frame.grid.columns }, (_, i) => <div key={i} className="h-full flex-1 bg-success"/>)}</div>}
+      {selected && !frame.locked && <button type="button" aria-label="Resize frame" onPointerDown={beginResize} className="absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize border border-border bg-accent"/>}
     </div>
   </section>
 }
 
-function RuntimeUnavailable({ onRun }: { onRun: () => void }) { return <div className="flex h-full flex-col items-center justify-center bg-[#f4f5f7] text-[#545b66]"><Monitor size={28}/><div className="mt-2 text-[12px] font-medium">Application is not running</div><button type="button" onClick={onRun} className="mt-3 rounded bg-[#6857e5] px-3 py-1.5 text-[10px] text-white">Run application</button></div> }
-function RuntimeRenderFailure({ title, detail, onRetry, onCreateDesign }: { title: string; detail: string; onRetry: () => void; onCreateDesign: () => void }) { return <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#f7f7f8]/95 px-8 text-center text-[#545b66]"><div className="max-w-[360px]"><CircleAlert size={27} className="mx-auto text-amber-500"/><div className="mt-3 text-[12px] font-semibold text-[#31343a]">{title}</div><p className="mt-1 text-[10px] leading-relaxed">{detail}</p><div className="mt-4 flex justify-center gap-2"><button type="button" onClick={onRetry} className="rounded border border-[#d8dae0] bg-white px-3 py-1.5 text-[10px] text-[#4d525b]">Retry</button><button type="button" onClick={onCreateDesign} className="rounded bg-[#3b82f6] px-3 py-1.5 text-[10px] font-medium text-white">Render from source</button></div></div></div> }
-function SourceOnlyView({ page, route, onCreateDesign }: { page?: Page; route: string | null; onCreateDesign: () => void }) { const needsData = routeNeedsParameters(route); return <div className="flex h-full flex-col items-center justify-center bg-[#f7f7f8] px-8 text-center text-[#545b66]"><Frame size={26}/><div className="mt-3 text-[12px] font-semibold text-[#31343a]">{needsData ? 'This route needs application data' : 'Source view — no public route'}</div><p className="mt-1 max-w-[320px] text-[10px] leading-relaxed">{needsData ? `${route} cannot be opened until a real route parameter is selected.` : `${page?.source.filePath ?? 'This view'} is not mapped to a GET route, so FrameUI will not send a guessed URL to PHP.`}</p><button type="button" onClick={onCreateDesign} className="mt-4 rounded bg-[#3b82f6] px-3 py-1.5 text-[10px] font-medium text-white">Render from source</button></div> }
-function DesignLoading({ page }: { page: Page }) { return <div className="flex h-full flex-col items-center justify-center bg-[#fafafa] text-[#555]"><Frame size={28}/><div className="mt-2 text-[12px]">Loading editable design for {page.name}…</div></div> }
-function EmptyCanvas({ pages, onAdd, onBrowseComponents }: { pages: Page[]; onAdd: (page: Page) => void; onBrowseComponents: () => void }) { return <div className="absolute inset-0 flex items-center justify-center"><div className="w-[360px] rounded-xl border border-white/10 bg-[#202228]/95 p-7 text-center shadow-2xl"><Frame size={27} className="mx-auto text-accent-2"/><div className="mt-3 text-[14px] font-semibold text-text">Start designing</div><p className="mt-1.5 text-[10.5px] leading-relaxed text-text-3">This file has an empty infinite canvas. Bring in a real screen or start with components from your product.</p><div className="mt-5 grid grid-cols-2 gap-2">{pages[0] && <button type="button" onClick={() => onAdd(pages[0])} className="rounded bg-accent px-3 py-2 text-[10px] font-medium text-white">Use existing page</button>}<button type="button" onClick={onBrowseComponents} className="rounded border border-border-strong bg-panel px-3 py-2 text-[10px] text-text-2 hover:text-text">Browse components</button></div><div className="mt-5 flex justify-center gap-5 border-t border-border pt-4 font-mono text-[8.5px] text-text-3"><span><b className="text-text-2">F</b> Frame</span><span><b className="text-text-2">⇧I</b> Insert</span><span><b className="text-text-2">T</b> Text</span></div></div></div> }
+function RuntimeUnavailable({ onRun }: { onRun: () => void }) { return <div className="flex h-full flex-col items-center justify-center bg-panel text-text-2"><Monitor size={28}/><div className="mt-2 text-[12px] font-medium">Application is not running</div><button type="button" onClick={onRun} className="mt-3 rounded bg-accent px-3 py-1.5 text-[12px] text-on-accent">Run application</button></div> }
+function RuntimeRenderFailure({ title, detail, onRetry, onCreateDesign }: { title: string; detail: string; onRetry: () => void; onCreateDesign: () => void }) { return <div className="absolute inset-0 z-20 flex items-center justify-center bg-panel px-4 text-center text-text-2"><div className="max-w-[360px]"><CircleAlert size={27} className="mx-auto text-warning"/><div className="mt-3 text-[12px] font-semibold text-text-2">{title}</div><p className="mt-1 text-[12px] leading-relaxed">{detail}</p><div className="mt-4 flex justify-center gap-2"><button type="button" onClick={onRetry} className="rounded border border-border bg-panel px-3 py-1.5 text-[12px] text-text-2">Retry</button><button type="button" onClick={onCreateDesign} className="rounded bg-accent px-3 py-1.5 text-[12px] font-medium text-on-accent">Render from source</button></div></div></div> }
+function SourceOnlyView({ page, onCreateDesign }: { page?: Page; route: string | null; onCreateDesign: () => void }) { return <div className="flex h-full flex-col items-center justify-center bg-panel px-4 text-center text-text-2"><Frame size={26}/><div className="mt-3 text-sm font-semibold">No static layout found</div><p className="mt-2 max-w-[320px] text-xs leading-relaxed">FrameUI could not extract a visual layout from {page?.source.filePath ?? 'this page'}. This view may be generated at runtime. You can still create a design and add components from your project.</p><button type="button" onClick={onCreateDesign} className="mt-4 rounded bg-accent px-3 py-2 text-xs text-on-accent">Create design</button></div> }
+function DesignLoading({ page }: { page: Page }) { return <div className="flex h-full flex-col items-center justify-center bg-panel text-text-2"><Frame size={28}/><div className="mt-2 text-[12px]">Loading editable design for {page.name}…</div></div> }
+function EmptyCanvas({ pages, onAdd, onBrowseComponents }: { pages: Page[]; onAdd: (page: Page) => void; onBrowseComponents: () => void }) { return <div className="absolute inset-0 flex items-center justify-center"><div className="w-[360px] p-4 text-center"><Frame size={27} className="mx-auto text-accent-2"/><div className="mt-3 text-[13px] font-semibold text-text">Start designing</div><p className="mt-1.5 text-[12px] leading-relaxed text-text-3">This file has an empty infinite canvas. Bring in a real screen or start with components from your product.</p><div className="mt-5 grid grid-cols-2 gap-2">{pages[0] && <button type="button" onClick={() => { const page = startingPage(pages); if (page) onAdd(page) }} className="rounded bg-accent px-3 py-2 text-[12px] font-medium text-on-accent">Use existing page</button>}<button type="button" onClick={onBrowseComponents} className="rounded border border-border-strong bg-panel px-3 py-2 text-[12px] text-text-2 hover:text-text">Browse components</button></div><div className="mt-5 flex justify-center gap-5 border-t border-border pt-4 font-mono text-[11px] text-text-3"><span><b className="text-text-2">F</b> Frame</span><span><b className="text-text-2">⇧I</b> Insert</span><span><b className="text-text-2">T</b> Text</span></div></div></div> }
 
-function FrameInspector({ frame, inspected, onChange, onPreset }: { frame: CanvasFrameModel; inspected: InspectedElement | null; onChange: (patch: Partial<CanvasFrameModel>) => void; onPreset: (viewport: Viewport) => void }) { return <div><div className="border-b border-border p-3"><div className="flex items-center justify-between"><span className="text-[11px] font-semibold text-text">{frame.name}</span><span className={`rounded px-1.5 py-0.5 text-[7px] font-bold ${frame.kind === 'live-page' ? 'bg-green-500/15 text-green-300' : 'bg-violet-500/15 text-violet-300'}`}>{frame.kind === 'live-page' ? 'LIVE PAGE' : 'DESIGN FRAME'}</span></div><div className="mt-1 font-mono text-[8.5px] text-text-3">{frame.route ?? 'No detected route'}</div></div><InspectorSection title="Frame"><div className="grid grid-cols-2 gap-1.5"><NumberField label="X" value={frame.x} onChange={(x) => onChange({ x })}/><NumberField label="Y" value={frame.y} onChange={(y) => onChange({ y })}/><NumberField label="W" value={frame.width} onChange={(width) => onChange({ width: Math.max(240, width) })}/><NumberField label="H" value={frame.height} onChange={(height) => onChange({ height: Math.max(180, height) })}/></div></InspectorSection><InspectorSection title="Responsive"><div className="grid grid-cols-3 gap-1">{(['desktop', 'tablet', 'mobile'] as Viewport[]).map((viewport) => { const Icon = viewport === 'desktop' ? Monitor : viewport === 'tablet' ? Tablet : Smartphone; return <button key={viewport} type="button" onClick={() => onPreset(viewport)} className={`flex flex-col items-center gap-1 rounded border px-1 py-2 text-[8px] ${frame.viewport === viewport ? 'border-accent bg-accent/10 text-accent-2' : 'border-border text-text-3'}`}><Icon size={13}/>{VIEWPORTS[viewport].label}</button>})}</div></InspectorSection>{frame.kind === 'live-page' && <div className="m-3 rounded border border-green-500/20 bg-green-500/[.06] p-2.5 text-[9px] leading-relaxed text-green-200">Live frames render the application itself. In Design mode, click an element to inspect its real geometry and computed CSS. Live Preview enables normal app interaction.</div>}{inspected && <div className="mx-3 mb-3 text-[9px] text-text-3">Selected runtime element: <span className="font-mono text-text-2">{inspected.tag}{inspected.id ? `#${inspected.id}` : ''}</span></div>}</div> }
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) { return <label className="flex h-7 items-center rounded border border-border bg-panel px-2"><span className="w-4 text-[8px] text-text-3">{label}</span><input type="number" value={Math.round(value)} onChange={(event) => onChange(Number(event.target.value))} className="min-w-0 flex-1 bg-transparent text-right font-mono text-[9px] text-text outline-none"/></label> }
-function InspectorSection({ title, children }: { title: string; children: React.ReactNode }) { return <section className="border-b border-border p-3"><div className="mb-2 flex items-center justify-between text-[9px] font-semibold text-text-2">{title}<ChevronDown size={10} className="text-text-3"/></div>{children}</section> }
+function FrameInspector({ frame, inspected, onChange, onPreset }: { frame: CanvasFrameModel; inspected: InspectedElement | null; onChange: (patch: Partial<CanvasFrameModel>) => void; onPreset: (viewport: Viewport) => void }) { return <div><div className="border-b border-border p-3"><div className="flex items-center justify-between"><span className="text-[12px] font-semibold text-text">{frame.name}</span><span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${frame.kind === 'live-page' ? 'bg-selected text-text' : 'bg-selected text-accent-2'}`}>{frame.kind === 'live-page' ? 'Screen' : 'Design'}</span></div><div className="mt-1 font-mono text-[11px] text-text-3">{frame.route ?? 'No detected route'}</div></div><InspectorSection title="Frame"><div className="grid grid-cols-2 gap-1.5"><NumberField label="X" value={frame.x} onChange={(x) => onChange({ x })}/><NumberField label="Y" value={frame.y} onChange={(y) => onChange({ y })}/><NumberField label="W" value={frame.width} onChange={(width) => onChange({ width: Math.max(240, width) })}/><NumberField label="H" value={frame.height} onChange={(height) => onChange({ height: Math.max(180, height) })}/></div></InspectorSection><InspectorSection title="Responsive"><div className="grid grid-cols-3 gap-1">{(['desktop', 'tablet', 'mobile'] as Viewport[]).map((viewport) => { const Icon = viewport === 'desktop' ? Monitor : viewport === 'tablet' ? Tablet : Smartphone; return <button key={viewport} type="button" onClick={() => onPreset(viewport)} className={`flex flex-col items-center gap-1 rounded border px-1 py-2 text-[11px] ${frame.viewport === viewport ? 'border-accent bg-selected text-accent-2' : 'border-border text-text-3'}`}><Icon size={13}/>{VIEWPORTS[viewport].label}</button>})}</div></InspectorSection>{frame.kind === 'live-page' && <div className="m-3 border-t border-border pt-3 text-[12px] leading-relaxed text-text-3">Source pages use the layouts and styles found in your code. Edit a design copy to edit freely. Dynamic content and app interactions require an optional live preview.</div>}{inspected && <div className="mx-3 mb-3 text-[12px] text-text-3">Selected runtime element: <span className="font-mono text-text-2">{inspected.tag}{inspected.id ? `#${inspected.id}` : ''}</span></div>}</div> }
+function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) { return <label className="flex h-7 items-center rounded border border-border bg-panel px-2"><span className="w-4 text-[11px] text-text-3">{label}</span><input type="number" value={Math.round(value)} onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value)) onChange(value) }} className="min-w-0 flex-1 bg-transparent text-right font-mono text-[12px] text-text outline-none"/></label> }
+function InspectorSection({ title, children }: { title: string; children: React.ReactNode }) { return <section className="border-b border-border p-3"><div className="mb-2 flex items-center justify-between text-[12px] font-semibold text-text-2">{title}<ChevronDown size={10} className="text-text-3"/></div>{children}</section> }
 
-function InspectPanel({ frame, inspected, component, page }: { frame: CanvasFrameModel | null; inspected: InspectedElement | null; component?: Component; page?: Page }) { if (!frame) return null; return <div className="p-3"><InspectorField label="Relationship" value={frame.kind === 'live-page' ? 'Runtime → Project page' : 'Design state → Project page'}/><InspectorField label="Page source" value={sourceLabel(page?.source)} mono/>{component && <><InspectorField label="Detected component" value={component.name}/><InspectorField label="Component source" value={sourceLabel(component.source)} mono/></>}{inspected ? <><InspectorField label="Element" value={`${inspected.tag}${inspected.id ? `#${inspected.id}` : ''}`}/><InspectorField label="Bounds" value={`${inspected.rect.x}, ${inspected.rect.y} · ${inspected.rect.width} × ${inspected.rect.height}`}/>{inspected.ancestry.length > 0 && <InspectorField label="DOM ancestry" value={inspected.ancestry.join(' › ')} mono/>}<div className="mt-4 text-[9px] font-semibold text-text-2">Computed styles</div>{Object.entries(inspected.styles).filter(([, value]) => value && value !== 'none' && value !== 'normal' && value !== '0px').map(([key, value]) => <InspectorField key={key} label={key} value={value} mono/>)}{Object.keys(inspected.aria).length > 0 && <><div className="mt-4 text-[9px] font-semibold text-text-2">Accessibility</div>{Object.entries(inspected.aria).map(([key, value]) => <InspectorField key={key} label={key} value={value}/>)}</>}</> : <div className="mt-4 rounded border border-border bg-panel p-2.5 text-[9.5px] leading-relaxed text-text-3">Switch to Design mode and click any element in a live frame to read its rendered box, computed style, DOM ancestry and accessibility attributes.</div>}</div> }
-function CodePanel({ frame, inspected, component, page }: { frame: CanvasFrameModel | null; inspected: InspectedElement | null; component?: Component; page?: Page }) { return <div className="p-3">{frame ? <><InspectorField label="Page source" value={sourceLabel(page?.source)} mono/>{component && <InspectorField label={`${component.name} source`} value={sourceLabel(component.source)} mono/>}<InspectorField label="Route" value={frame.route ?? 'Unavailable'} mono/>{frame.designStateId && <InspectorField label="Design state" value={frame.designStateId} mono/>}{inspected?.componentHint && <InspectorField label="Component hint" value={inspected.componentHint}/>}<div className="mt-4 rounded border border-border bg-panel p-2.5 font-mono text-[8.5px] leading-relaxed text-text-3">{inspected ? `<${inspected.tag}${inspected.id ? ` id="${inspected.id}"` : ''}${inspected.classes ? ` class="${inspected.classes}"` : ''}>` : 'Select a runtime element to reveal its source-facing identity.'}</div></> : <div className="text-[10px] text-text-3">Select a frame.</div>}</div> }
-function PrototypePanel({ frame }: { frame: CanvasFrameModel | null }) { return <div className="p-3">{frame ? <><InspectorField label="Starting point" value={frame.name}/><InspectorField label="Route" value={frame.route ?? 'Design-only'}/><div className="mt-4 rounded border border-border bg-panel p-2.5 text-[9.5px] leading-relaxed text-text-3">Journey connections remain first-class workflow objects. Use Live Preview to verify real navigation and the Journeys workspace to annotate interaction triggers.</div></> : <div className="text-[10px] text-text-3">Select a frame.</div>}</div> }
-function InspectorField({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="border-b border-border py-2"><div className="mb-1 text-[8.5px] text-text-3">{label}</div><div className={`break-all text-[9.5px] text-text-2 ${mono ? 'font-mono text-[8.5px]' : ''}`}>{value}</div></div> }
+function InspectPanel({ frame, inspected, component, page }: { frame: CanvasFrameModel | null; inspected: InspectedElement | null; component?: Component; page?: Page }) { if (!frame) return null; return <div className="p-3"><InspectorField label="Relationship" value={frame.kind === 'live-page' ? 'Source → Project page' : 'Design state → Project page'}/><InspectorField label="Page source" value={sourceLabel(page?.source)} mono/>{component && <><InspectorField label="Detected component" value={component.name}/><InspectorField label="Component source" value={sourceLabel(component.source)} mono/></>}{inspected ? <><InspectorField label="Element" value={`${inspected.tag}${inspected.id ? `#${inspected.id}` : ''}`}/><InspectorField label="Bounds" value={`${inspected.rect.x}, ${inspected.rect.y} · ${inspected.rect.width} × ${inspected.rect.height}`}/>{inspected.ancestry.length > 0 && <InspectorField label="DOM ancestry" value={inspected.ancestry.join(' › ')} mono/>}<div className="mt-4 text-[12px] font-semibold text-text-2">Computed styles</div>{Object.entries(inspected.styles).filter(([, value]) => value && value !== 'none' && value !== 'normal' && value !== '0px').map(([key, value]) => <InspectorField key={key} label={key} value={value} mono/>)}{Object.keys(inspected.aria).length > 0 && <><div className="mt-4 text-[12px] font-semibold text-text-2">Accessibility</div>{Object.entries(inspected.aria).map(([key, value]) => <InspectorField key={key} label={key} value={value}/>)}</>}</> : <div className="mt-4 border-t border-border py-2.5 text-[12px] leading-relaxed text-text-3">Duplicate a source page to design to inspect and edit its elements. Runtime geometry and computed styles are available only from a running app.</div>}</div> }
+function CodePanel({ frame, inspected, component, page }: { frame: CanvasFrameModel | null; inspected: InspectedElement | null; component?: Component; page?: Page }) { return <div className="p-3">{frame ? <><InspectorField label="Page source" value={sourceLabel(page?.source)} mono/>{component && <InspectorField label={`${component.name} source`} value={sourceLabel(component.source)} mono/>}<InspectorField label="Route" value={frame.route ?? 'Unavailable'} mono/>{frame.designStateId && <InspectorField label="Design state" value={frame.designStateId} mono/>}{inspected?.componentHint && <InspectorField label="Component hint" value={inspected.componentHint}/>}<div className="mt-4 rounded border border-border bg-panel p-2.5 font-mono text-[11px] leading-relaxed text-text-3">{inspected ? `<${inspected.tag}${inspected.id ? ` id="${inspected.id}"` : ''}${inspected.classes ? ` class="${inspected.classes}"` : ''}>` : 'Select a runtime element to reveal its source-facing identity.'}</div></> : <div className="text-[12px] text-text-3">Select a frame.</div>}</div> }
+function PrototypePanel({ frame }: { frame: CanvasFrameModel | null }) { return <div className="p-3">{frame ? <><InspectorField label="Starting point" value={frame.name}/><InspectorField label="Route" value={frame.route ?? 'Design-only'}/><div className="mt-4 border-t border-border py-2.5 text-[12px] leading-relaxed text-text-3">Journey connections remain first-class workflow objects. Use Live Preview to verify real navigation and the Journeys workspace to annotate interaction triggers.</div></> : <div className="text-[12px] text-text-3">Select a frame.</div>}</div> }
+function InspectorField({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="border-b border-border py-2"><div className="mb-1 text-[11px] text-text-3">{label}</div><div className={`break-all text-[12px] text-text-2 ${mono ? 'font-mono text-[11px]' : ''}`}>{value}</div></div> }
+
+function OpenDesignTabs() {
+  const files = useDesignFilesStore((s) => s.files)
+  const active = useDesignFilesStore((s) => s.activeFileId)
+  const opened = useDesignFilesStore((s) => s.openFileIds)
+  return <div className="design-tabs" aria-label="Open designs">{files.filter((f) => opened.includes(f.id) && !f.archived).map((file) => <div key={file.id} className={active === file.id ? 'active' : ''}><button onClick={() => useDesignFilesStore.getState().selectFile(file.id)}>{file.name}</button><button aria-label={`Close ${file.name}`} onClick={() => useDesignFilesStore.getState().closeTab(file.id)}>×</button></div>)}</div>
+}

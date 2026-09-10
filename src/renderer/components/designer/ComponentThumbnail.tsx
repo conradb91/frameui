@@ -31,14 +31,14 @@ export function ComponentThumbnail({
   return (
     <div
       title={component.name}
-      className={`shrink-0 overflow-hidden rounded-[4px] border border-border bg-white ${sizeClass}`}
+      className={`shrink-0 overflow-hidden rounded-[4px] border border-border bg-panel ${sizeClass}`}
     >
       {isLoading ? (
         <div className="flex h-full w-full items-center justify-center bg-panel-2">
           <Box size={size === 'sm' ? 10 : 16} className="animate-pulse text-text-3" />
         </div>
       ) : isEmpty ? (
-        <div className="flex h-full w-full items-center justify-center bg-panel-2 px-1 text-center leading-tight text-text-3" style={{ fontSize: size === 'sm' ? 7.5 : 10 }}>
+        <div className="flex h-full w-full items-center justify-center bg-panel-2 px-1 text-center leading-tight text-text-3" style={{ fontSize: 11 }}>
           No preview available
         </div>
       ) : (

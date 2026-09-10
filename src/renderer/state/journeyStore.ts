@@ -1,3 +1,4 @@
+import { pendingWorkspaceSaves, reportSaveError } from './pendingSaves'
 import { create } from 'zustand'
 import type { Journey, JourneyConnection, JourneyStep } from '@shared/types/model/featureModel'
 
@@ -23,6 +24,8 @@ interface JourneyState {
   scheduleSave: () => void
 }
 
+let loadGeneration = 0
+let summaryGeneration = 0
 const SAVE_DEBOUNCE_MS = 600
 
 export const useJourneyStore = create<JourneyState>((set, get) => ({
@@ -36,12 +39,13 @@ export const useJourneyStore = create<JourneyState>((set, get) => ({
   selectedConnectionId: null,
 
   loadJourneys: async (projectId, featureId) => {
+    const generation = ++summaryGeneration
     set({ loadingSummaries: true })
     try {
       const summaries = await window.frameui.workspace.listJourneys(projectId, featureId)
-      set({ summaries, projectId })
+      if (generation === summaryGeneration) set({ summaries, projectId })
     } finally {
-      set({ loadingSummaries: false })
+      if (generation === summaryGeneration) set({ loadingSummaries: false })
     }
   },
 
@@ -52,16 +56,16 @@ export const useJourneyStore = create<JourneyState>((set, get) => ({
   },
 
   openJourney: async (projectId, journeyId) => {
-    const timer = get().saveTimer
-    if (timer) clearTimeout(timer)
+    const generation = ++loadGeneration
+    await pendingWorkspaceSaves.flush()
     const activeJourney = await window.frameui.workspace.getJourney(projectId, journeyId)
-    set({ activeJourney, projectId, saveTimer: null, selectedStepId: null, selectedConnectionId: null })
+    if (generation === loadGeneration) set({ activeJourney, saving: false, projectId, saveTimer: null, selectedStepId: null, selectedConnectionId: null })
   },
 
   closeJourney: () => {
-    const timer = get().saveTimer
-    if (timer) clearTimeout(timer)
-    set({ activeJourney: null, saveTimer: null, selectedStepId: null, selectedConnectionId: null })
+    loadGeneration++
+    void pendingWorkspaceSaves.flush().catch(reportSaveError)
+    set({ activeJourney: null, saving: false, saveTimer: null, selectedStepId: null, selectedConnectionId: null })
   },
 
   setSteps: (steps) => {
@@ -89,22 +93,15 @@ export const useJourneyStore = create<JourneyState>((set, get) => ({
   selectConnection: (selectedConnectionId) => set({ selectedConnectionId, selectedStepId: null }),
 
   scheduleSave: () => {
-    const existing = get().saveTimer
-    if (existing) clearTimeout(existing)
-    const timer = setTimeout(async () => {
-      const { activeJourney, projectId } = get()
-      if (!activeJourney || !projectId) return
-      set({ saving: true })
-      try {
-        const saved = await window.frameui.workspace.saveJourney(projectId, activeJourney)
-        set((state) => ({
-          activeJourney: saved,
-          summaries: state.summaries.map((journey) => (journey.id === saved.id ? saved : journey)),
-        }))
-      } finally {
-        set({ saving: false, saveTimer: null })
-      }
+    const { activeJourney, projectId } = get()
+    if (!activeJourney || !projectId) return
+    set({ saving: true })
+    pendingWorkspaceSaves.schedule(`${projectId}:journey:${activeJourney.id}`, async () => {
+      const saved = await window.frameui.workspace.saveJourney(projectId, activeJourney)
+      set((state) => ({
+        ...(state.activeJourney === activeJourney ? { activeJourney: saved, saving: false } : {}),
+        summaries: state.summaries.map((item) => item.id === saved.id ? saved : item),
+      }))
     }, SAVE_DEBOUNCE_MS)
-    set({ saveTimer: timer })
   },
 }))

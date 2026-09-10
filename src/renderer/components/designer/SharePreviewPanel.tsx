@@ -1,3 +1,4 @@
+import { pendingWorkspaceSaves } from '../../state/pendingSaves'
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Check, ExternalLink, Loader2, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import type { SharePreview, SharePreviewScope, Journey, Feature, FeaturePage, PageRef } from '@shared/types/model/featureModel'
@@ -59,12 +60,12 @@ export function SharePreviewPanel({ projectId, featureId, onClose }: { projectId
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-6">
-      <div className="flex max-h-[85vh] w-full max-w-[640px] flex-col overflow-hidden rounded-xl border border-border bg-panel shadow-2xl">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-scrim p-4">
+      <div className="flex max-h-[85vh] w-full max-w-[640px] flex-col overflow-hidden rounded-xl border border-border bg-panel shadow-sm">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <div className="text-[13px] font-semibold text-text">Share Previews</div>
-            <div className="mt-0.5 text-[10.5px] text-text-3">Package a read-only, reviewable prototype to hand off outside FrameUI.</div>
+            <div className="mt-0.5 text-[11px] text-text-3">Package a read-only, reviewable prototype to hand off outside FrameUI.</div>
           </div>
           <button type="button" onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-md text-text-2 hover:text-text">
             <X size={15} />
@@ -103,7 +104,7 @@ export function SharePreviewPanel({ projectId, featureId, onClose }: { projectId
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-[12.5px] font-semibold text-text">{preview.name}</div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-text-3">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-text-3">
                         <span>{SCOPE_LABEL[preview.scope]}</span>
                         <span>·</span>
                         <span>{preview.viewports.join(', ')}</span>
@@ -118,8 +119,8 @@ export function SharePreviewPanel({ projectId, featureId, onClose }: { projectId
                       </div>
                     </div>
                     <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[9.5px] font-semibold ${
-                        preview.packagePath ? 'bg-success/15 text-success' : 'bg-text-3/15 text-text-3'
+                      className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold ${
+                        preview.packagePath ? 'bg-panel text-success' : 'bg-text-3/15 text-text-3'
                       }`}
                     >
                       {preview.packagePath ? 'Packaged' : 'Not packaged'}
@@ -131,7 +132,7 @@ export function SharePreviewPanel({ projectId, featureId, onClose }: { projectId
                       type="button"
                       disabled={!preview.packagePath}
                       onClick={() => openViewer(preview.id)}
-                      className="flex flex-1 items-center justify-center gap-1 rounded-md border border-accent-2/30 bg-accent-2/[0.08] px-2 py-1.5 text-[10.5px] font-semibold text-accent-2 disabled:opacity-40"
+                      className="flex flex-1 items-center justify-center gap-1 rounded-md border border-accent-2/30 bg-selected px-2 py-1.5 text-[11px] font-semibold text-accent-2 disabled:opacity-40"
                     >
                       <ExternalLink size={11} /> Open
                     </button>
@@ -140,7 +141,7 @@ export function SharePreviewPanel({ projectId, featureId, onClose }: { projectId
                       disabled={packagingId === preview.id}
                       onClick={() => void handleRepackage(preview.id)}
                       title={preview.packagePath ? 'Re-package (e.g. after design changes)' : 'Package now'}
-                      className="flex items-center justify-center gap-1 rounded-md border border-border px-2 py-1.5 text-[10.5px] font-semibold text-text-2 hover:text-text disabled:opacity-50"
+                      className="flex items-center justify-center gap-1 rounded-md border border-border px-2 py-1.5 text-[11px] font-semibold text-text-2 hover:text-text disabled:opacity-50"
                     >
                       {packagingId === preview.id ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
                       {preview.packagePath ? 'Re-package' : 'Package Now'}
@@ -156,13 +157,13 @@ export function SharePreviewPanel({ projectId, featureId, onClose }: { projectId
                   </div>
 
                   {pendingDeleteId === preview.id && (
-                    <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-danger/30 bg-danger/[0.06] px-2 py-1.5">
-                      <span className="text-[10.5px] font-medium text-danger">Delete this share preview?</span>
+                    <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-danger/30 bg-panel px-2 py-1.5">
+                      <span className="text-[11px] font-medium text-danger">Delete this share preview?</span>
                       <div className="flex items-center gap-1">
-                        <button type="button" onClick={() => void handleDelete(preview.id)} className="rounded bg-danger/15 px-2 py-0.5 text-[10px] font-semibold text-danger">
+                        <button type="button" onClick={() => void handleDelete(preview.id)} className="rounded bg-panel px-2 py-0.5 text-[11px] font-semibold text-danger">
                           Delete
                         </button>
-                        <button type="button" onClick={() => setPendingDeleteId(null)} className="rounded px-2 py-0.5 text-[10px] font-semibold text-text-2">
+                        <button type="button" onClick={() => setPendingDeleteId(null)} className="rounded px-2 py-0.5 text-[11px] font-semibold text-text-2">
                           Cancel
                         </button>
                       </div>
@@ -246,6 +247,7 @@ function CreateSharePreviewForm({
     setSubmitting('creating')
     setError(null)
     try {
+      await pendingWorkspaceSaves.flush()
       const preview = await window.frameui.workspace.createSharePreview(projectId, {
         featureId,
         name: name.trim(),
@@ -272,7 +274,7 @@ function CreateSharePreviewForm({
   return (
     <div className="mb-3 rounded-md border border-border bg-panel-2 p-3">
       <label className="mb-2.5 block">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">Name</div>
+        <div className="mb-1 text-[11px] font-semibold tracking-wide text-text-3">Name</div>
         <input
           autoFocus
           value={name}
@@ -283,7 +285,7 @@ function CreateSharePreviewForm({
       </label>
 
       <div className="mb-2.5">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">Scope</div>
+        <div className="mb-1 text-[11px] font-semibold tracking-wide text-text-3">Scope</div>
         <div className="flex gap-1.5">
           {(['journey', 'page', 'feature'] as SharePreviewScope[]).map((s) => (
             <button
@@ -291,7 +293,7 @@ function CreateSharePreviewForm({
               type="button"
               onClick={() => setScope(s)}
               className={`flex-1 rounded-md border px-2 py-1.5 text-[11px] font-semibold ${
-                scope === s ? 'border-accent-2/40 bg-accent-2/[0.1] text-accent-2' : 'border-border text-text-2'
+                scope === s ? 'border-accent-2/40 bg-selected text-accent-2' : 'border-border text-text-2'
               }`}
             >
               {SCOPE_LABEL[s]}
@@ -302,9 +304,9 @@ function CreateSharePreviewForm({
 
       {scope === 'journey' && (
         <label className="mb-2.5 block">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">Journey</div>
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-text-3">Journey</div>
           {journeys.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border px-2 py-2 text-[10.5px] text-text-3">No Journeys yet in this Feature.</div>
+            <div className="rounded-md border border-dashed border-border px-2 py-2 text-[11px] text-text-3">No Journeys yet in this Feature.</div>
           ) : (
             <select
               value={journeyId}
@@ -323,9 +325,9 @@ function CreateSharePreviewForm({
 
       {scope === 'page' && (
         <label className="mb-2.5 block">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">Page</div>
+          <div className="mb-1 text-[11px] font-semibold tracking-wide text-text-3">Page</div>
           {existingPages.length === 0 && featurePages.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border px-2 py-2 text-[10.5px] text-text-3">No pages in this Feature yet.</div>
+            <div className="rounded-md border border-dashed border-border px-2 py-2 text-[11px] text-text-3">No pages in this Feature yet.</div>
           ) : (
             <select
               value={pageRefKey}
@@ -357,7 +359,7 @@ function CreateSharePreviewForm({
       )}
 
       <div className="mb-2.5">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">Viewports</div>
+        <div className="mb-1 text-[11px] font-semibold tracking-wide text-text-3">Viewports</div>
         <div className="flex gap-1.5">
           {VIEWPORTS.map((vp) => (
             <button
@@ -365,7 +367,7 @@ function CreateSharePreviewForm({
               type="button"
               onClick={() => toggleViewport(vp)}
               className={`flex-1 rounded-md border px-2 py-1.5 text-[11px] font-semibold capitalize ${
-                viewports.includes(vp) ? 'border-accent-2/40 bg-accent-2/[0.1] text-accent-2' : 'border-border text-text-2'
+                viewports.includes(vp) ? 'border-accent-2/40 bg-selected text-accent-2' : 'border-border text-text-2'
               }`}
             >
               {vp}
@@ -377,7 +379,7 @@ function CreateSharePreviewForm({
       <label className="mb-2.5 flex items-center justify-between gap-2 rounded-md border border-border bg-panel px-2.5 py-2">
         <div>
           <div className="text-[11px] font-semibold text-text">Compare against Current</div>
-          <div className="text-[10px] text-text-3">Show the real, currently-shipped page alongside each step.</div>
+          <div className="text-[11px] text-text-3">Show the real, currently-shipped page alongside each step.</div>
         </div>
         <input
           type="checkbox"
@@ -391,7 +393,7 @@ function CreateSharePreviewForm({
           between a share package and accidentally leaking real captured app
           data. Default OFF, deliberately made prominent rather than a plain
           checkbox in a settings list. */}
-      <div className={`mb-3 rounded-md border-2 p-2.5 ${includeCapturedStates ? 'border-warning/50 bg-warning/[0.08]' : 'border-border bg-panel'}`}>
+      <div className={`mb-3 rounded-md border-2 p-2.5 ${includeCapturedStates ? 'border-warning/50 bg-panel' : 'border-border bg-panel'}`}>
         <label className="flex items-start gap-2.5">
           <input
             type="checkbox"
@@ -400,11 +402,11 @@ function CreateSharePreviewForm({
             className="mt-0.5 h-4 w-4 shrink-0 accent-warning"
           />
           <div>
-            <div className="flex items-center gap-1.5 text-[11.5px] font-bold text-warning">
+            <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-warning">
               <AlertTriangle size={13} />
               Include captured runtime states
             </div>
-            <div className="mt-1 text-[10.5px] leading-relaxed text-text-2">
+            <div className="mt-1 text-[11px] leading-relaxed text-text-2">
               Off by default. Leave this OFF unless you're certain: any Design State captured from the real running
               application — which may contain real production or personal data — will be <strong>excluded</strong> from
               the package while this stays unchecked. Design fixture content is always safer to share than a live
@@ -414,14 +416,14 @@ function CreateSharePreviewForm({
         </label>
       </div>
 
-      {error && <div className="mb-2 rounded-md border border-danger/30 bg-danger/[0.06] px-2 py-1.5 text-[10.5px] text-danger">{error}</div>}
+      {error && <div className="mb-2 rounded-md border border-danger/30 bg-panel px-2 py-1.5 text-[11px] text-danger">{error}</div>}
 
       <div className="flex items-center gap-1.5">
         <button
           type="button"
           disabled={!canSubmit}
           onClick={() => void handleSubmit()}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-accent-2/30 bg-accent-2/[0.08] px-2 py-1.5 text-[11px] font-semibold text-accent-2 disabled:opacity-40"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-accent-2/30 bg-selected px-2 py-1.5 text-[11px] font-semibold text-accent-2 disabled:opacity-40"
         >
           {submitting === 'creating' && (
             <>

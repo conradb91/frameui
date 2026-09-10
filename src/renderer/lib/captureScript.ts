@@ -31,7 +31,7 @@ export const CAPTURE_SCRIPT = `
     'gridTemplateColumns', 'gridTemplateRows', 'gridAutoFlow',
     'padding', 'margin',
     'color', 'fontSize', 'fontWeight', 'fontFamily', 'lineHeight', 'textAlign',
-    'backgroundColor', 'borderRadius', 'boxShadow', 'opacity', 'zIndex',
+    'backgroundColor', 'backgroundImage', 'borderRadius', 'borderColor', 'borderStyle', 'borderWidth', 'boxShadow', 'opacity', 'zIndex', 'fill', 'stroke',
   ]
 
   function textPreviewOf(el) {
@@ -87,7 +87,10 @@ export const CAPTURE_SCRIPT = `
         if (child) children.push(child)
       }
       var classes = typeof el.className === 'string' && el.className ? el.className : undefined
+      var attributes = {}; ['src','alt','placeholder','type','viewBox','d','fill','stroke','cx','cy','r','x','y','width','height','points'].forEach(function(name) { var value=el.getAttribute(name); if(value !== null) attributes[name]=value });
+      if(el.tagName === 'IMG') attributes.src=el.currentSrc || el.src;
       return {
+        attributes: attributes,
         tag: el.tagName.toLowerCase(),
         classes: classes,
         textPreview: children.length === 0 ? textPreviewOf(el) : undefined,
@@ -179,3 +182,24 @@ export const START_JOURNEY_RECORDING_SCRIPT = `
 
 export const TAKE_JOURNEY_RECORDING_EVENTS_SCRIPT = `(window.__frameuiJourneyRecorder && window.__frameuiJourneyRecorder.take()) || []`
 export const STOP_JOURNEY_RECORDING_SCRIPT = `(window.__frameuiJourneyRecorder && window.__frameuiJourneyRecorder.stop()) || []`
+
+/** Wait for initial hydration/loading screens before copying the visible DOM. */
+export const WAIT_FOR_CAPTURE_SCRIPT = `
+(async function () {
+  var deadline = Date.now() + 15000
+  var lastChange = Date.now()
+  var observer = new MutationObserver(function () { lastChange = Date.now() })
+  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true })
+  try {
+    while (Date.now() < deadline) {
+      var text = (document.body && document.body.innerText || '').trim()
+      var loading = /^(loading|starting|please wait)([.\\s…]*)$/i.test(text)
+      var busy = document.body && document.body.querySelector('[aria-busy="true"]')
+      var visual = document.body && Array.from(document.body.querySelectorAll('img,svg,canvas,video')).some(function (element) { var rect = element.getBoundingClientRect(); return rect.width > 1 && rect.height > 1 && (element.tagName !== 'IMG' || element.complete && element.naturalWidth > 0) })
+      if (document.readyState === 'complete' && (text || visual) && !loading && !busy && Date.now() - lastChange >= 350) return true
+      await new Promise(function (resolve) { setTimeout(resolve, 100) })
+    }
+    throw new Error('This screen is still loading. Wait for its content, then try again.')
+  } finally { observer.disconnect() }
+})()
+`

@@ -27,7 +27,7 @@ export function readCustomPropertyTokens(rootPath: string): StyleTokens {
   const tokens: StyleTokens = { source: 'css-custom-properties', colors: [], spacing: [], radius: [], breakpoints: [] }
 
   const ignoreRules = createIgnoreRules()
-  const { files } = walkFiles(rootPath, ['.css'], ignoreRules)
+  const { files } = walkFiles(rootPath, ['.css', '.scss', '.sass'], ignoreRules)
 
   for (const filePath of files.slice(0, MAX_FILES)) {
     let content: string
@@ -35,6 +35,19 @@ export function readCustomPropertyTokens(rootPath: string): StyleTokens {
       content = fs.readFileSync(filePath, 'utf-8')
     } catch {
       continue
+    }
+    // Literal Sass variables and media boundaries are useful even when a
+    // build is unavailable. Expressions remain explicitly unresolved.
+    for (const match of content.matchAll(/^\s*\$([\w-]+)\s*:\s*([^;\n]+)/gm)) {
+      const value = match[2].replace(/\s*!default\s*$/, '').trim()
+      const category = categoryFor(match[1], value)
+      if (!category) continue
+      tokens.source = 'stylesheets'
+      tokens[category].push({ name: match[1], value, confidence: /\$|#\{|\b(?:map|color|math)\./.test(value) ? 'unresolved' : 'full' })
+    }
+    for (const match of content.matchAll(/@media[^{}]*(?:min|max)-width\s*:\s*(\d+(?:\.\d+)?(?:px|rem|em))/gi)) {
+      tokens.source = 'stylesheets'
+      if (!tokens.breakpoints.some((token) => token.value === match[1])) tokens.breakpoints.push({ name: `media-${match[1]}`, value: match[1], confidence: 'full' })
     }
     if (!content.includes(':root')) continue
 

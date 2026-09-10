@@ -197,6 +197,7 @@ export function buildProjectModel(
   detectedComponents: DetectedComponent[],
   styleTokens: StyleTokens,
   framework = 'unknown',
+  candidateFiles: string[] = [],
 ): ProjectModel {
   const registry = new IdRegistry()
   const knownNames = new Set(detectedComponents.map((component) => component.name))
@@ -302,7 +303,26 @@ export function buildProjectModel(
   const tokens = styleTokensToModel(styleTokens, registry)
   const tokenSource = styleTokens.source
   const designSystem = analyseDesignSystem(rootPath, pages, components, tokens, framework)
-  const layouts = components.filter((component) => /(?:^|\/)(?:layouts?|shells?)(?:\/|$)/i.test(component.source.filePath)).length
+  const isLayout = (file: string) => /(?:^|\/)(?:layouts?|shells?)(?:\/|[.])|(?:^|\/)(?:_Layout|MainLayout|\+layout)\./i.test(file)
+  const layouts = components.filter((component) => isLayout(component.source.filePath)).length
+  const sourceRelationships: NonNullable<ProjectModel['sourceRelationships']> = []
+  const relationshipKeys = new Set<string>()
+  function relationships(sourceFile: string, items: PageStructureItem[]) {
+    for (const item of items) {
+      const targetFile = item.sourceFilePath ?? (item.isKnownComponent ? componentPathsByName.get(componentKey(item.tagName)) : undefined)
+      const key = `${sourceFile}:${targetFile}`
+      if (targetFile && targetFile !== sourceFile && !relationshipKeys.has(key)) {
+        relationshipKeys.add(key)
+        sourceRelationships.push({ sourceFile, targetFile, kind: isLayout(targetFile) ? 'layout' : 'component' })
+      }
+      relationships(sourceFile, item.children)
+    }
+  }
+  for (const page of pages) relationships(page.source.filePath, page.structure)
+  for (const component of designSystem.components) {
+    const source = components.find((item) => item.id === component.componentId)
+    if (source) relationships(source.source.filePath, component.sourceStructure)
+  }
   return {
     version: 1,
     projectId,
@@ -313,8 +333,16 @@ export function buildProjectModel(
     components,
     tokens,
     tokenSource,
-    styles: [],
-    assets: [],
+    styles: candidateFiles.filter((file) => /\.(css|scss|sass|less)$/i.test(file)).map((file) => {
+      const filePath = path.relative(rootPath, file).split(path.sep).join('/')
+      return { id: registry.make('style', [filePath]), name: path.basename(file), tokenIds: [], source: { filePath } }
+    }),
+    assets: candidateFiles.filter((file) => /\.(svg|png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf)$/i.test(file)).map((file) => {
+      const filePath = path.relative(rootPath, file).split(path.sep).join('/')
+      const kind = /\.(woff2?|ttf|otf)$/i.test(file) ? 'font' as const : /\.(svg|ico)$/i.test(file) ? 'icon' as const : 'image' as const
+      return { id: registry.make('asset', [filePath]), name: path.basename(file), kind, source: { filePath } }
+    }),
+    sourceRelationships,
     interactions,
     diagnostics,
     designSystem,

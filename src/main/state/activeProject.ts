@@ -1,14 +1,15 @@
 import type { ProjectIndex, FileChangeNotice, DevCommand } from '@shared/types/projectIndex'
 import { ProjectWatcher } from '../watcher/projectWatcher'
 import { broadcast } from '../ipc/rendererEvents'
-import { ProjectIndexService } from '@core/indexer/projectIndexService'
+import { BackgroundIndexService } from '../indexer/backgroundIndexService'
+import { stopHostingProject } from '../hosting/service'
 
 interface ActiveProject {
   projectId: string
   rootPath: string
   watcher: ProjectWatcher
   cachedIndex: ProjectIndex | null
-  indexService: ProjectIndexService
+  indexService: BackgroundIndexService
   /** PRJ-03: "The user can change it." Survives reindex (unlike
    * cachedIndex) since it's an explicit user choice, not detected state;
    * cleared only when the project itself changes. */
@@ -40,34 +41,40 @@ export function setCachedIndex(index: ProjectIndex): void {
   if (active) active.cachedIndex = index
 }
 
-export function getIndexService(): ProjectIndexService | null { return active?.indexService ?? null }
+export function getIndexService(): BackgroundIndexService | null { return active?.indexService ?? null }
 
 export function invalidateCachedIndex(): void {
   if (active) active.cachedIndex = null
 }
 
 export function closeActiveProject(): void {
+  if (active) void stopHostingProject(active.projectId).catch(() => {})
   active?.watcher.stop()
+  active?.indexService.dispose()
   active = null
 }
 
 export function activateProject(projectId: string, rootPath: string, userDataPath: string): void {
   closeActiveProject()
-  const indexService = new ProjectIndexService(userDataPath, projectId, rootPath)
+  const indexService = new BackgroundIndexService(userDataPath, projectId, rootPath)
   const watcher = new ProjectWatcher(rootPath, (changes) => {
     if (!active) return
     const current = active
     broadcast('project:onFileChanged', { projectId: current.projectId, changedPaths: changes.map((item) => item.path), changes, status: 'updating' } satisfies FileChangeNotice)
-    setImmediate(() => {
+    setImmediate(async () => {
       if (active !== current) return
       try {
-        const index = current.indexService.update(changes, (step) => broadcast('project:onIndexProgress', { step }))
+        const index = await current.indexService.update(changes, (step) => broadcast('project:onIndexProgress', { step }))
+        if (active !== current) return
         current.cachedIndex = index
         broadcast('project:onFileChanged', { projectId: current.projectId, changedPaths: changes.map((item) => item.path), changes, status: 'up-to-date', summary: index.lastUpdate } satisfies FileChangeNotice)
       } catch {
         broadcast('project:onFileChanged', { projectId: current.projectId, changedPaths: changes.map((item) => item.path), changes, status: 'warning' } satisfies FileChangeNotice)
       }
     })
+  }, () => {
+    if (active?.watcher !== watcher) return
+    broadcast('project:onFileChanged', { projectId, changedPaths: [], status: 'warning' } satisfies FileChangeNotice)
   })
   active = { projectId, rootPath, watcher, cachedIndex: null, indexService, devCommandOverride: null }
   watcher.start()
