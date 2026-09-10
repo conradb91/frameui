@@ -15,6 +15,7 @@ const api: FrameUiApi = {
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
+    getPathForFile: (file) => electron.webUtils.getPathForFile(file as Parameters<typeof electron.webUtils.getPathForFile>[0]),
   },
   workspace: {
     listRecentProjects: () => ipcRenderer.invoke('workspace:listRecentProjects'),
@@ -74,6 +75,7 @@ const api: FrameUiApi = {
     readSharePackage: (projectId, sharePreviewId) => ipcRenderer.invoke('workspace:readSharePackage', { projectId, sharePreviewId }),
 
     getDesignOperations: (projectId, featureId, ownerId) => ipcRenderer.invoke('workspace:getDesignOperations', { projectId, featureId, ownerId }),
+    getVersionDesignOperations: (projectId, featureId, versionId) => ipcRenderer.invoke('workspace:getVersionDesignOperations', { projectId, featureId, versionId }),
     saveDesignOperations: (projectId, featureId, ownerId, operations) => ipcRenderer.invoke('workspace:saveDesignOperations', { projectId, featureId, ownerId, operations }),
     listAnnotations: (projectId, featureId) => ipcRenderer.invoke('workspace:listAnnotations', { projectId, featureId }),
     saveAnnotation: (projectId, annotation) => ipcRenderer.invoke('workspace:saveAnnotation', { projectId, annotation }),
@@ -84,6 +86,10 @@ const api: FrameUiApi = {
     restoreVersion: (projectId, featureId, versionId, createdBy) => ipcRenderer.invoke('workspace:restoreVersion', { projectId, featureId, versionId, createdBy }),
     duplicateVersion: (projectId, featureId, versionId, createdBy) => ipcRenderer.invoke('workspace:duplicateVersion', { projectId, featureId, versionId, createdBy }),
     compareVersions: (projectId, featureId, leftVersionId, rightVersionId) => ipcRenderer.invoke('workspace:compareVersions', { projectId, featureId, leftVersionId, rightVersionId }),
+    listSourceConflicts: (projectId, featureId) => ipcRenderer.invoke('workspace:listSourceConflicts', { projectId, featureId }),
+    resolveSourceConflict: (projectId, featureId, conflictId, resolution) => ipcRenderer.invoke('workspace:resolveSourceConflict', { projectId, featureId, conflictId, resolution }),
+    listExportHistory: (projectId, featureId) => ipcRenderer.invoke('workspace:listExportHistory', { projectId, featureId }),
+    recordExport: (projectId, record) => ipcRenderer.invoke('workspace:recordExport', { projectId, record }),
     getDesignSystemData: (projectId) => ipcRenderer.invoke('workspace:getDesignSystemData', projectId),
     saveComponentFixture: (projectId, fixture) => ipcRenderer.invoke('workspace:saveComponentFixture', { projectId, fixture }),
     deleteComponentFixture: (projectId, fixtureId) => ipcRenderer.invoke('workspace:deleteComponentFixture', { projectId, fixtureId }),
@@ -93,10 +99,18 @@ const api: FrameUiApi = {
     setObservationApproved: (projectId, observationId, approved) => ipcRenderer.invoke('workspace:setObservationApproved', { projectId, observationId, approved }),
   },
   project: {
+    listLibrary: () => ipcRenderer.invoke('project:listLibrary'),
+    removeFromRecent: (projectId) => ipcRenderer.invoke('project:removeFromRecent', projectId),
+    clearRecent: () => ipcRenderer.invoke('project:clearRecent'),
+    removeFromFrameUi: (projectId) => ipcRenderer.invoke('project:removeFromFrameUi', projectId),
+    deleteFromDisk: (projectId, confirmationName) => ipcRenderer.invoke('project:deleteFromDisk', { projectId, confirmationName }),
+    reveal: (projectId) => ipcRenderer.invoke('project:reveal', projectId),
+    getLibraryCover: (projectId) => ipcRenderer.invoke('project:getLibraryCover', projectId),
     openDialog: (relinkId) => ipcRenderer.invoke('project:openDialog', relinkId),
     openPath: (path) => ipcRenderer.invoke('project:openPath', path),
     getIndex: () => ipcRenderer.invoke('project:getIndex'),
     reindex: () => ipcRenderer.invoke('project:reindex'),
+    selectApplication: (applicationId) => ipcRenderer.invoke('project:selectApplication', applicationId),
     close: () => ipcRenderer.invoke('project:close'),
     onFileChanged: (callback) => {
       const listener = (_event: unknown, notice: FileChangeNotice) => callback(notice)
@@ -137,6 +151,7 @@ const api: FrameUiApi = {
     saveSvg: (svg, suggestedName) => ipcRenderer.invoke('export:saveSvg', { svg, suggestedName }),
     savePng: (base64, suggestedName) => ipcRenderer.invoke('export:savePng', { base64, suggestedName }),
     generateReviewPdf: (html, suggestedName) => ipcRenderer.invoke('export:generateReviewPdf', { html, suggestedName }),
+    savePackage: (files, suggestedFolder) => ipcRenderer.invoke('export:savePackage', { files, suggestedFolder }),
   },
   capture: {
     save: (capture) => ipcRenderer.invoke('capture:save', capture),

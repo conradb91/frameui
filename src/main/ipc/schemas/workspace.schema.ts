@@ -419,6 +419,7 @@ const designOperationSchema = z.object({
 })
 
 export const getDesignOperationsInputSchema = z.object({ projectId: idSchema, featureId: idSchema, ownerId: looseIdSchema })
+export const getVersionDesignOperationsInputSchema = z.object({ projectId: idSchema, featureId: idSchema, versionId: stableIdSchema })
 export const saveDesignOperationsInputSchema = z.object({ projectId: idSchema, featureId: idSchema, ownerId: looseIdSchema, operations: z.array(designOperationSchema).max(10000) })
 
 const annotationSchema = z.object({
@@ -437,6 +438,13 @@ export const createVersionInputSchema = z.object({ projectId: idSchema, featureI
 export const renameVersionInputSchema = z.object({ projectId: idSchema, featureId: idSchema, versionId: stableIdSchema, name: z.string().min(1).max(120) })
 export const restoreVersionInputSchema = z.object({ projectId: idSchema, featureId: idSchema, versionId: stableIdSchema, createdBy: z.string().max(200) })
 export const compareVersionsInputSchema = z.object({ projectId: idSchema, featureId: idSchema, leftVersionId: stableIdSchema.nullable(), rightVersionId: stableIdSchema.nullable() })
+export const listSourceConflictsInputSchema = z.object({ projectId: idSchema, featureId: idSchema })
+export const resolveSourceConflictInputSchema = z.object({ projectId: idSchema, featureId: idSchema, conflictId: looseIdSchema, resolution: z.enum(['keep-proposed', 'accept-current', 'manual']) })
+export const listExportHistoryInputSchema = z.object({ projectId: idSchema, featureId: idSchema })
+export const recordExportInputSchema = z.object({
+  projectId: idSchema,
+  record: z.object({ id: looseIdSchema, featureId: idSchema, versionId: stableIdSchema.nullable(), versionName: z.string().max(120), type: z.enum(['page', 'feature', 'journey', 'component']), fileCount: z.number().int().min(0).max(10000), configuration: z.unknown(), createdAt: z.string(), outputPath: z.string().max(4000).nullable() }),
+})
 
 const userFixtureSchema = z.object({ id: looseIdSchema, projectId: idSchema, componentId: stableIdSchema, name: z.string().min(1).max(120), origin: z.enum(['detected', 'captured', 'user-defined']), props: z.record(z.string().max(100), z.string().max(1000)).refine((value) => Object.keys(value).length <= 100), updatedAt: z.string() })
 const sourceReferenceSchema = z.object({ filePath: z.string().min(1).max(2000), line: z.number().int().min(1).optional(), route: z.string().max(2000).optional() })

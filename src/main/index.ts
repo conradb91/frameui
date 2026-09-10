@@ -12,7 +12,10 @@ const { app } = electron
 
 // A second launch should focus the existing window rather than open a
 // second instance — relevant once a project is open and has file watchers.
-const gotSingleInstanceLock = app.requestSingleInstanceLock()
+// Automated desktop smoke tests need an isolated second instance while a
+// user's installed FrameUI may already be open. Production behavior stays
+// single-instance; the opt-in is deliberately environment-only.
+const gotSingleInstanceLock = process.env.FRAMEUI_ALLOW_MULTIPLE_INSTANCES === '1' || app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
   app.quit()
 } else {

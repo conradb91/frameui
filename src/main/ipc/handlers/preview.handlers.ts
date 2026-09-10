@@ -1,9 +1,10 @@
 import electron from 'electron'
 import { z } from 'zod'
 import type { DevCommand } from '@shared/types/projectIndex'
-import { PreviewProcess } from '../../security/spawnPreview'
+import { previewProcess } from '../../security/spawnPreview'
 import { getActiveProject, getDevCommand, setDevCommandOverride } from '../../state/activeProject'
 import { broadcast } from '../rendererEvents'
+import path from 'node:path'
 
 const { shell } = electron
 
@@ -17,8 +18,6 @@ const setCommandSchema = z.object({
   args: z.array(z.string()),
 })
 
-const process_ = new PreviewProcess()
-
 export function registerPreviewHandlers(): void {
   const { ipcMain } = electron
 
@@ -26,7 +25,7 @@ export function registerPreviewHandlers(): void {
     return getDevCommand()
   })
 
-  ipcMain.handle('preview:getStatus', () => process_.getSnapshot())
+  ipcMain.handle('preview:getStatus', () => previewProcess.getSnapshot())
 
   ipcMain.handle('preview:setCommand', (_event, raw): { ok: boolean } => {
     const parsed = setCommandSchema.safeParse(raw)
@@ -41,20 +40,21 @@ export function registerPreviewHandlers(): void {
     if (!active || !command) {
       return { ok: false, message: 'No project or detected preview command.' }
     }
-    if (process_.isRunning) {
+    if (previewProcess.isRunning) {
       return { ok: false, message: 'Preview is already running.' }
     }
 
-    process_.start(command.command, command.args, active.rootPath, {
+    const commandRoot = command.workingDirectory ? path.resolve(active.rootPath, command.workingDirectory) : active.rootPath
+    if (commandRoot !== active.rootPath && !commandRoot.startsWith(`${active.rootPath}${path.sep}`)) return { ok: false, message: 'Invalid application working directory.' }
+    return previewProcess.start(command.command, command.args, commandRoot, {
       onOutput: (line, stream) => broadcast('preview:onOutput', { line, stream }),
       onStatus: (status, detail) => broadcast('preview:onStatus', { status, detail }),
       onUrlDetected: (url) => broadcast('preview:onUrlDetected', { url }),
     })
-    return { ok: true }
   })
 
   ipcMain.handle('preview:stop', (): { ok: true } => {
-    process_.stop()
+    previewProcess.stop()
     return { ok: true }
   })
 

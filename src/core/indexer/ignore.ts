@@ -7,6 +7,7 @@ import path from 'node:path'
  */
 const IGNORED_DIR_NAMES = new Set([
   'node_modules',
+  'vendor',
   '.git',
   'dist',
   'build',
@@ -16,11 +17,15 @@ const IGNORED_DIR_NAMES = new Set([
   '.vite',
   '.cache',
   'coverage',
+  'logs',
+  'tmp',
+  'temp',
+  '.frameui-cache',
   '.vercel',
   '.netlify',
 ])
 
-const IGNORED_FILE_PATTERNS = [/^\.env(\..+)?$/, /^\.DS_Store$/]
+const IGNORED_FILE_PATTERNS = [/^\.env(\..+)?$/, /^\.DS_Store$/, /(?:~|\.swp|\.swo|\.tmp|\.temp|\.log)$/i]
 
 export interface IgnoreRules {
   shouldSkipDir(dirName: string): boolean
@@ -57,4 +62,15 @@ export function pathContainsIgnoredSegment(rootPath: string, fullPath: string): 
   const relative = path.relative(rootPath, fullPath)
   const segments = relative.split(path.sep).filter(Boolean)
   return segments.some((seg) => IGNORED_DIR_NAMES.has(seg) || (seg.startsWith('.') && !ALLOWED_HIDDEN_DIRS.has(seg)))
+}
+
+const RELEVANT_FILE = /(?:\.(?:tsx?|jsx?|vue|svelte|astro|php|html?|css|scss|sass|less|styl|json|ya?ml|svg|png|jpe?g|gif|webp|avif|woff2?|ttf|otf)|(?:^|\/)(?:routes?|router|tailwind|vite|next|astro|svelte|webpack|turbo|nx)\.[^/]+)$/i
+
+export function isRelevantProjectPath(rootPath: string, fullPath: string): boolean {
+  if (pathContainsIgnoredSegment(rootPath, fullPath)) return false
+  const relative = path.relative(rootPath, fullPath).split(path.sep).join('/')
+  if (!relative) return true
+  const name = path.basename(relative)
+  if (IGNORED_FILE_PATTERNS.some((pattern) => pattern.test(name))) return false
+  return RELEVANT_FILE.test(relative)
 }

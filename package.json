@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "test": "bun test",
     "build": "bun run typecheck && vite build",
-    "build:mac": "bun run build && electron-builder --mac dmg",
+    "build:mac": "bun run build && ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/Electron.app/Contents/MacOS/Electron -e \"process.noAsar=true; require('./node_modules/electron-builder/out/cli/cli.js')\" -- --mac dmg --x64 && ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/Electron.app/Contents/MacOS/Electron -e \"process.noAsar=true; require('./node_modules/electron-builder/out/cli/cli.js')\" -- --mac dmg --arm64",
     "build:win": "bun run build && electron-builder --win nsis",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },

@@ -3,7 +3,7 @@ import type { RecentProject } from '@shared/types/project'
 import type { Flow, FlowSummary } from '@shared/types/flow'
 import type { ScreenDraft } from '@shared/types/screenDraft'
 import type { DesignNode } from '@shared/types/designNode'
-import type { ConceptComponent, Feature, FeaturePage, DesignState, Alternative, Journey, SharePreview, Annotation, DesignOperation, Version, VersionDifference } from '@shared/types/model/featureModel'
+import type { ConceptComponent, Feature, FeaturePage, DesignState, Alternative, Journey, SharePreview, Annotation, DesignOperation, SourceConflict, Version, VersionDifference } from '@shared/types/model/featureModel'
 import { listRecentProjects } from '@core/workspace/models/recentProjectsStore'
 import * as flowStore from '@core/workspace/models/flowStore'
 import * as screenDraftStore from '@core/workspace/models/screenDraftStore'
@@ -21,6 +21,7 @@ import { buildSharePackage, readSharePackage, type SharePackageBundle } from '@c
 import { applyDesignOperations } from '@core/design-model/operations'
 import * as designSystemStore from '@core/workspace/models/designSystemStore'
 import type { FindingDecision, PreviewCacheEntry, RuntimeComponentRelationship, UserComponentFixture } from '@shared/types/designSystem'
+import type { ExportRecord } from '@shared/types/handoff'
 import {
   projectIdSchema,
   createFlowInputSchema,
@@ -68,6 +69,7 @@ import {
   packageSharePreviewInputSchema,
   readSharePackageInputSchema,
   getDesignOperationsInputSchema,
+  getVersionDesignOperationsInputSchema,
   saveDesignOperationsInputSchema,
   listAnnotationsInputSchema,
   saveAnnotationInputSchema,
@@ -77,6 +79,10 @@ import {
   renameVersionInputSchema,
   restoreVersionInputSchema,
   compareVersionsInputSchema,
+  listSourceConflictsInputSchema,
+  resolveSourceConflictInputSchema,
+  listExportHistoryInputSchema,
+  recordExportInputSchema,
   saveComponentFixtureInputSchema,
   deleteComponentFixtureInputSchema,
   savePreviewCacheInputSchema,
@@ -381,6 +387,10 @@ export function registerWorkspaceHandlers(): void {
     const { projectId, featureId, ownerId } = getDesignOperationsInputSchema.parse(raw)
     return featureWorkPackageStore.getOperations(app.getPath('userData'), projectId, featureId, ownerId)
   })
+  ipcMain.handle('workspace:getVersionDesignOperations', (_event, raw): DesignOperation[] => {
+    const { projectId, featureId, versionId } = getVersionDesignOperationsInputSchema.parse(raw)
+    return featureWorkPackageStore.getVersionOperations(app.getPath('userData'), projectId, featureId, versionId)
+  })
   ipcMain.handle('workspace:saveDesignOperations', (_event, raw): DesignOperation[] => {
     const { projectId, featureId, ownerId, operations } = saveDesignOperationsInputSchema.parse(raw)
     return featureWorkPackageStore.saveOperations(app.getPath('userData'), projectId, featureId, ownerId, operations as DesignOperation[])
@@ -421,6 +431,22 @@ export function registerWorkspaceHandlers(): void {
   ipcMain.handle('workspace:compareVersions', (_event, raw): VersionDifference[] => {
     const { projectId, featureId, leftVersionId, rightVersionId } = compareVersionsInputSchema.parse(raw)
     return featureWorkPackageStore.compareVersions(app.getPath('userData'), projectId, featureId, leftVersionId, rightVersionId)
+  })
+  ipcMain.handle('workspace:listSourceConflicts', (_event, raw): SourceConflict[] => {
+    const { projectId, featureId } = listSourceConflictsInputSchema.parse(raw)
+    return featureWorkPackageStore.listSourceConflicts(app.getPath('userData'), projectId, featureId)
+  })
+  ipcMain.handle('workspace:resolveSourceConflict', (_event, raw): SourceConflict => {
+    const { projectId, featureId, conflictId, resolution } = resolveSourceConflictInputSchema.parse(raw)
+    return featureWorkPackageStore.resolveConflict(app.getPath('userData'), projectId, featureId, conflictId, resolution)
+  })
+  ipcMain.handle('workspace:listExportHistory', (_event, raw): ExportRecord[] => {
+    const { projectId, featureId } = listExportHistoryInputSchema.parse(raw)
+    return featureWorkPackageStore.listExportHistory(app.getPath('userData'), projectId, featureId)
+  })
+  ipcMain.handle('workspace:recordExport', (_event, raw): ExportRecord => {
+    const { projectId, record } = recordExportInputSchema.parse(raw)
+    return featureWorkPackageStore.recordExport(app.getPath('userData'), projectId, record as ExportRecord)
   })
   ipcMain.handle('workspace:getDesignSystemData', (_event, rawProjectId) => designSystemStore.getData(app.getPath('userData'), projectIdSchema.parse(rawProjectId)))
   ipcMain.handle('workspace:saveComponentFixture', (_event, raw): UserComponentFixture => { const { projectId, fixture } = saveComponentFixtureInputSchema.parse(raw); return designSystemStore.saveFixture(app.getPath('userData'), projectId, fixture as UserComponentFixture) })

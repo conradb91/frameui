@@ -2,13 +2,18 @@ import type { DesignNode, PlaceholderNode } from '@shared/types/designNode'
 import type { PageStructureItem } from '@shared/types/pageStructure'
 import { classifyEditability } from './editability'
 
-function buildPlaceholder(item: PageStructureItem, sourceFilePath: string): PlaceholderNode {
+function stableSourceNodeId(item: PageStructureItem, lineage: number[]): string {
+  const tag = item.tagName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'node'
+  return `source-node.${lineage.join('.')}.${tag}`
+}
+
+function buildPlaceholder(item: PageStructureItem, sourceFilePath: string, lineage: number[]): PlaceholderNode {
   return {
     kind: 'placeholder',
-    id: crypto.randomUUID(),
+    id: stableSourceNodeId(item, lineage),
     editability: classifyEditability(item.isKnownComponent ? 'project-component-partial' : 'unresolvable'),
     provenance: 'existing',
-    children: item.children.map((child) => buildPlaceholder(child, sourceFilePath)),
+    children: item.children.map((child, index) => buildPlaceholder(child, sourceFilePath, [...lineage, index])),
     label: item.tagName,
     sourceFilePath: item.sourceFilePath ?? sourceFilePath,
     sourceLine: item.sourceLine,
@@ -29,7 +34,7 @@ function buildPlaceholder(item: PageStructureItem, sourceFilePath: string): Plac
  * file is never opened for write (§18 source safety).
  */
 export function buildExistingPageDraftTree(rootId: string, items: PageStructureItem[], sourceFilePath: string): DesignNode {
-  const children: DesignNode[] = items.map((item) => buildPlaceholder(item, sourceFilePath))
+  const children: DesignNode[] = items.map((item, index) => buildPlaceholder(item, sourceFilePath, [index]))
 
   return {
     kind: 'stack',

@@ -154,7 +154,7 @@ const CATEGORY_MAP: Record<keyof Omit<StyleTokens, 'source'>, TokenCategory> = {
   breakpoints: 'breakpoint',
 }
 
-function styleTokensToModel(styleTokens: StyleTokens, registry: IdRegistry): Token[] {
+export function styleTokensToModel(styleTokens: StyleTokens, registry: IdRegistry): Token[] {
   const tokens: Token[] = []
   for (const [key, category] of Object.entries(CATEGORY_MAP) as [keyof Omit<StyleTokens, 'source'>, TokenCategory][]) {
     for (const token of styleTokens[key]) {
@@ -162,6 +162,20 @@ function styleTokensToModel(styleTokens: StyleTokens, registry: IdRegistry): Tok
     }
   }
   return tokens
+}
+
+/** Reparse one already-known page without rebuilding the Project Model or
+ * re-reading every component. Used by the incremental indexer. */
+export function refreshProjectPage(rootPath: string, page: Page, components: Component[]): Page {
+  let content = ''
+  try { content = fs.readFileSync(path.join(rootPath, page.source.filePath), 'utf-8') } catch {
+    return { ...page, structure: [], elementCount: 0, componentNames: [], textContent: [], analysisStatus: 'unreadable' }
+  }
+  const knownNames = new Set(components.map((component) => component.name))
+  const componentPaths = new Map(components.map((component) => [componentKey(component.name), component.source.filePath]))
+  const structure = extractPageStructureFromSource(content, page.source.filePath, knownNames)
+  attachComponentPaths(structure, componentPaths)
+  return { ...page, structure, ...summariseStructure(structure), analysisStatus: structure.length ? 'ready' : 'empty' }
 }
 
 /**

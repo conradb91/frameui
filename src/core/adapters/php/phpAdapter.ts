@@ -56,6 +56,11 @@ export const phpAdapter: SourceAdapter = {
         ? findLaravelRoutes(ctx.rootPath)
         : []
     const markupPages = findMarkupPages(ctx.rootPath, 'php', ctx.ignoreRules)
+      // A framework view path is not a public URL. Keep unmatched views
+      // available for source/design rendering, but never ask the running
+      // PHP router to open a filesystem-derived guess such as
+      // app/Views/admin/admin_accounts -> /admin/admin_accounts.
+      .map((page) => match.phpFramework ? { ...page, route: null } : page)
     // Route-derived pages carry real route/prefix/parameter semantics;
     // the generic markup scanner only guesses a route from the view file's
     // own path. On a collision (the same view reachable both ways) the

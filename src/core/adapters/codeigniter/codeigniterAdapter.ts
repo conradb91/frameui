@@ -63,7 +63,12 @@ function walkRoutes(node: unknown, groupStack: string[], routes: RawRoute[]): vo
     if (routeCall) {
       if (routeCall.method === 'group') {
         const prefix = phpStringValue(routeCall.args[0])
-        const closure = routeCall.args[1]
+        // CI4 accepts both group('prefix', closure) and
+        // group('prefix', ['filter' => 'auth'], closure). The previous
+        // positional lookup silently skipped every route in filtered or
+        // namespaced groups, leaving the markup fallback to invent URLs
+        // from view-directory names.
+        const closure = routeCall.args.slice(1).find((arg) => isPhpNode(arg) && arg.kind === 'closure')
         if (prefix !== null && isPhpNode(closure) && closure.kind === 'closure') {
           walkRoutes(closure.body, [...groupStack, prefix], routes)
         }

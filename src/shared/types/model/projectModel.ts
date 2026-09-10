@@ -40,6 +40,7 @@ export type PageAnalysisStatus = 'ready' | 'empty' | 'unreadable'
 
 export interface Page {
   id: string
+  applicationId?: string
   name: string
   /** Denormalized display copy of the matching `RoutePattern.path`, or null
    * when this page has no resolvable route. */
@@ -66,12 +67,13 @@ export type ComponentExportKind = 'default' | 'named' | 'template'
 
 export interface Component {
   id: string
+  applicationId?: string
   name: string
   exportKind: ComponentExportKind
   source: SourceReference
 }
 
-export type TokenCategory = 'color' | 'spacing' | 'radius' | 'breakpoint'
+export type TokenCategory = 'color' | 'spacing' | 'radius' | 'breakpoint' | 'typography' | 'effect'
 export type TokenConfidence = 'full' | 'unresolved'
 export type TokenSource = 'tailwind-v3' | 'tailwind-v4' | 'css-custom-properties' | 'none'
 

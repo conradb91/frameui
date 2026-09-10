@@ -76,6 +76,10 @@ const baseFields = {
   gridPlacement: gridPlacementSchema,
   style: nodeStyleSchema,
   responsiveOverrides: responsiveOverridesSchema,
+  layoutIntent: z.object({ positioning: z.enum(['flow', 'absolute', 'free']).optional(), widthMode: z.enum(['fixed', 'content', 'fill']).optional(), heightMode: z.enum(['fixed', 'content', 'fill']).optional(), horizontalConstraint: z.enum(['start', 'center', 'end', 'stretch', 'scale']).optional(), verticalConstraint: z.enum(['start', 'center', 'end', 'stretch', 'scale']).optional() }).optional(),
+  componentDefinitionId: z.string().max(300).optional(),
+  componentInstanceProperties: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+  tokenBindings: z.record(z.string(), z.string()).optional(),
 }
 
 // Recursive discriminated-union schema for DesignNode — z.lazy() is
@@ -120,6 +124,9 @@ export const designNodeSchema: z.ZodType<unknown> = z.lazy(() =>
       kind: z.literal('image'),
       children: z.array(designNodeSchema),
       alt: z.string().max(300),
+      src: z.string().max(15_000_000).optional(),
+      objectFit: z.enum(['cover', 'contain', 'fill']).optional(),
+      vector: z.object({ viewBox: z.string().max(100), paths: z.array(z.object({ id: z.string().max(300), d: z.string().max(100000), fill: z.string().max(64).optional(), stroke: z.string().max(64).optional(), opacity: z.number().min(0).max(1).optional() })).max(1000) }).optional(),
     }),
     z.object({
       ...baseFields,

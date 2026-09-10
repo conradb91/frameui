@@ -338,6 +338,28 @@ export interface DesignOperation {
   updatedAt: string
 }
 
+export type SourceConflictKind = 'safe-refresh' | 'safe-merge' | 'same-property' | 'source-deleted' | 'structure-changed' | 'unresolved-target'
+export type SourceConflictResolution = 'unresolved' | 'keep-proposed' | 'accept-current' | 'manual'
+
+/** Three-way context is stored as values, not rendered snapshots, so a
+ * semantic operation can be rebased after source changes. */
+export interface SourceConflict {
+  id: string
+  featureId: string
+  operationId: string | null
+  ownerId: string
+  targetNodeId: string
+  property: string | null
+  kind: SourceConflictKind
+  baseValue: unknown
+  currentValue: unknown
+  proposedValue: unknown
+  sourcePath: string | null
+  resolution: SourceConflictResolution
+  createdAt: string
+  resolvedAt: string | null
+}
+
 export interface Version {
   id: string
   featureId: string
@@ -373,6 +395,12 @@ export interface FeatureWorkPackage {
   workingOperationRevisionIds: Record<string, string[]>
   /** Owners migrated from pre-Phase-29 full-tree persistence. */
   baselineOwnerIds: string[]
+  /** Lightweight export audit only; generated binaries are not retained. */
+  exportHistory?: import('../handoff').ExportRecord[]
+  /** Latest recoverable source-rebase review state. Optional for backwards
+   * compatibility with Phase 0-37 work packages. */
+  sourceConflicts?: SourceConflict[]
+  sourceBaselineRef?: string | null
   updatedAt: string
 }
 

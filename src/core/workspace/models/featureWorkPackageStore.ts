@@ -1,4 +1,6 @@
-import type { Annotation, DesignOperation, Feature, FeatureVersionManifest, FeatureWorkPackage, Version, VersionDifference } from '@shared/types/model/featureModel'
+import type { Annotation, DesignOperation, Feature, FeatureVersionManifest, FeatureWorkPackage, SourceConflict, SourceConflictResolution, Version, VersionDifference } from '@shared/types/model/featureModel'
+import { resolveSourceConflict } from '@core/source-conflicts/rebaseFeatureOperations'
+import type { ExportRecord } from '@shared/types/handoff'
 import { compareOperationSets } from '@core/design-model/operations'
 import { makeStableId } from '@core/design-model/id'
 import { getFeatureWorkPackagesFile, getFeaturesFile } from '../paths'
@@ -17,7 +19,37 @@ function writeAll(userDataPath: string, projectId: string, packages: FeatureWork
 }
 
 function empty(projectId: string, featureId: string): FeatureWorkPackage {
-  return { schemaVersion: 1, projectId, featureId, annotations: [], versions: [], operationPool: {}, workingOperationRevisionIds: {}, baselineOwnerIds: [], updatedAt: new Date().toISOString() }
+  return { schemaVersion: 1, projectId, featureId, annotations: [], versions: [], operationPool: {}, workingOperationRevisionIds: {}, baselineOwnerIds: [], exportHistory: [], sourceConflicts: [], sourceBaselineRef: null, updatedAt: new Date().toISOString() }
+}
+
+export function listSourceConflicts(userDataPath: string, projectId: string, featureId: string): SourceConflict[] {
+  return [...(getPackage(userDataPath, projectId, featureId).sourceConflicts ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export function saveSourceConflicts(userDataPath: string, projectId: string, featureId: string, conflicts: SourceConflict[], sourceBaselineRef?: string): SourceConflict[] {
+  const value = getPackage(userDataPath, projectId, featureId)
+  savePackage(userDataPath, { ...value, sourceConflicts: conflicts, sourceBaselineRef: sourceBaselineRef ?? value.sourceBaselineRef ?? null })
+  return conflicts
+}
+
+export function resolveConflict(userDataPath: string, projectId: string, featureId: string, conflictId: string, resolution: Exclude<SourceConflictResolution, 'unresolved'>): SourceConflict {
+  const value = getPackage(userDataPath, projectId, featureId)
+  const conflict = (value.sourceConflicts ?? []).find((item) => item.id === conflictId)
+  if (!conflict) throw new Error(`Source conflict ${conflictId} not found`)
+  const saved = resolveSourceConflict(conflict, resolution)
+  savePackage(userDataPath, { ...value, sourceConflicts: (value.sourceConflicts ?? []).map((item) => item.id === conflictId ? saved : item) })
+  return saved
+}
+
+export function listExportHistory(userDataPath: string, projectId: string, featureId: string): ExportRecord[] {
+  return [...(getPackage(userDataPath, projectId, featureId).exportHistory ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export function recordExport(userDataPath: string, projectId: string, record: ExportRecord): ExportRecord {
+  const value = getPackage(userDataPath, projectId, record.featureId)
+  const history = [record, ...(value.exportHistory ?? []).filter((item) => item.id !== record.id)].slice(0, 50)
+  savePackage(userDataPath, { ...value, exportHistory: history })
+  return record
 }
 
 /** Reading old Phase 0-25 projects is a safe lazy migration: absence of a
@@ -45,6 +77,13 @@ export function markBaseline(userDataPath: string, projectId: string, featureId:
 export function getOperations(userDataPath: string, projectId: string, featureId: string, ownerId: string): DesignOperation[] {
   const value = getPackage(userDataPath, projectId, featureId)
   return (value.workingOperationRevisionIds[ownerId] ?? []).flatMap((id) => value.operationPool[id] ? [value.operationPool[id]] : [])
+}
+
+export function getVersionOperations(userDataPath: string, projectId: string, featureId: string, versionId: string): DesignOperation[] {
+  const value = getPackage(userDataPath, projectId, featureId)
+  const version = value.versions.find((item) => item.id === versionId)
+  if (!version) throw new Error(`Version ${versionId} not found`)
+  return Object.values(version.operationRevisionIds).flat().flatMap((revisionId) => value.operationPool[revisionId] ? [value.operationPool[revisionId]] : [])
 }
 
 export function saveOperations(userDataPath: string, projectId: string, featureId: string, ownerId: string, operations: DesignOperation[]): DesignOperation[] {

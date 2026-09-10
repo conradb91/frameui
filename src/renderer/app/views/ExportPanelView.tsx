@@ -8,6 +8,7 @@ import { svgToPngBase64 } from '../../lib/svgToPngBase64'
 import { buildReviewPdfHtml } from '../../lib/buildReviewPdfHtml'
 import { createDefaultTree } from '@core/design-model/defaultTree'
 import type { DesignNode, Breakpoint } from '@shared/types/designNode'
+import { FeatureExportPanelView } from './FeatureExportPanelView'
 
 // Matches ScreenDesignerView's breakpoint widths — a project's actual
 // detected breakpoints (RSP-02) aren't wired into export sizing yet; see
@@ -17,6 +18,12 @@ const BREAKPOINT_WIDTH: Record<Breakpoint, number> = { desktop: 900, tablet: 768
 const BREAKPOINT_LABEL: Record<Breakpoint, string> = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' }
 
 export function ExportPanelView() {
+  const activeFeatureId = useUiStore((s) => s.activeFeatureId)
+  if (activeFeatureId) return <FeatureExportPanelView />
+  return <LegacyExportPanelView />
+}
+
+function LegacyExportPanelView() {
   const activeFlow = useFlowStore((s) => s.activeFlow)
   const activeProject = useProjectStore((s) => s.activeProject)
   const setView = useUiStore((s) => s.setView)

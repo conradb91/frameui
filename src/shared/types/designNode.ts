@@ -71,6 +71,21 @@ interface DesignNodeBase {
    * `style` for anything) — a renderer only reads the ones relevant to the
    * node's own kind, same principle as `NodeStyle`. */
   responsiveOverrides?: Partial<Record<Exclude<Breakpoint, 'desktop'>, ResponsiveOverride>>
+  /** Format-neutral intent retained for future exporters. Renderers may use
+   * only a subset; it is deliberately not expressed in Figma terms. */
+  layoutIntent?: {
+    positioning?: 'flow' | 'absolute' | 'free'
+    widthMode?: 'fixed' | 'content' | 'fill'
+    heightMode?: 'fixed' | 'content' | 'fill'
+    horizontalConstraint?: 'start' | 'center' | 'end' | 'stretch' | 'scale'
+    verticalConstraint?: 'start' | 'center' | 'end' | 'stretch' | 'scale'
+  }
+  /** Definition/instance identity and property overrides, independent of
+   * any target design tool's component node representation. */
+  componentDefinitionId?: string
+  componentInstanceProperties?: Record<string, string | number | boolean>
+  /** Semantic or observed token references used by this node's properties. */
+  tokenBindings?: Record<string, string>
 }
 
 export interface ResponsiveOverride {
@@ -141,6 +156,11 @@ export interface DividerNode extends DesignNodeBase {
 export interface ImageNode extends DesignNodeBase {
   kind: 'image'
   alt: string
+  /** Portable image content for design/export. Local file paths are never
+   * emitted into exported SVG. */
+  src?: string
+  objectFit?: 'cover' | 'contain' | 'fill'
+  vector?: { viewBox: string; paths: { id: string; d: string; fill?: string; stroke?: string; opacity?: number }[] }
 }
 
 /**

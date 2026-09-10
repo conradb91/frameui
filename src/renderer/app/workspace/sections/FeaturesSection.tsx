@@ -41,6 +41,7 @@ function relativeUpdated(iso: string): string {
 }
 
 function openFeature(feature: Feature) {
+  localStorage.setItem(`frameui:session:${feature.projectId}`, JSON.stringify({ section: 'features', view: 'feature-workspace', activeFeatureId: feature.id }))
   useUiStore.getState().setActiveFeatureId(feature.id)
   useUiStore.getState().setView('feature-workspace')
 }

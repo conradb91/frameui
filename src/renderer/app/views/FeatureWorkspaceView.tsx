@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Palette, FileStack, Component as ComponentIcon, Map as MapIcon, ShieldCheck, Download, Share2, Play, Plus, Search, History } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Palette, FileStack, Component as ComponentIcon, Map as MapIcon, ShieldCheck, Download, Share2, Play, Plus, Search, History, ClipboardCheck } from 'lucide-react'
 import { useProjectStore } from '../../state/projectStore'
 import { useUiStore } from '../../state/uiStore'
 import { useFeatureStore } from '../../state/featureStore'
@@ -21,6 +21,7 @@ import { JourneyCanvas } from '../../components/designer/JourneyCanvas'
 import { JourneyInspector } from '../../components/designer/JourneyInspector'
 import { FeatureReviewPanel } from '../../components/designer/FeatureReviewPanel'
 import { VersionHistoryPanel } from '../../components/designer/VersionHistoryPanel'
+import { FeatureHandoffPanel } from '../../components/designer/FeatureHandoffPanel'
 import { StructurePreview } from '../../components/project/StructurePreview'
 import { openDesignThisPage } from '../../lib/designThisPage'
 import { FrameMark, ChevronRightIcon } from '../../components/icons/icons'
@@ -30,12 +31,18 @@ import { classifyEditability } from '@core/design-model/editability'
 import { resolveProjectBreakpoints } from '@core/design-model/resolveBreakpoints'
 import type { DesignNode, PrimitiveKind, PlaceholderNode, Breakpoint } from '@shared/types/designNode'
 import type { Component, Page, ProjectModel } from '@shared/types/model/projectModel'
-import type { Annotation, Feature, FeatureStatus, PageRef, FeaturePage } from '@shared/types/model/featureModel'
+import type { Annotation, Feature, FeatureStatus, PageRef, FeaturePage, SourceConflict } from '@shared/types/model/featureModel'
 
-type Activity = 'design' | 'pages' | 'components' | 'journey' | 'review' | 'history'
+type Activity = 'design' | 'pages' | 'components' | 'journey' | 'review' | 'history' | 'handoff'
 type ViewMode = 'current' | 'proposed' | 'compare'
 
 const BREAKPOINT_LABEL: Record<Breakpoint, string> = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' }
+function formatConflictValue(value: unknown): string {
+  if (value === null) return 'Deleted'
+  if (value === undefined) return 'Unavailable'
+  if (typeof value === 'string') return value
+  try { return JSON.stringify(value) } catch { return String(value) }
+}
 
 const ACTIVITIES: { id: Activity; label: string; icon: typeof Palette }[] = [
   { id: 'design', label: 'Design', icon: Palette },
@@ -44,6 +51,7 @@ const ACTIVITIES: { id: Activity; label: string; icon: typeof Palette }[] = [
   { id: 'journey', label: 'Journey', icon: MapIcon },
   { id: 'review', label: 'Review', icon: ShieldCheck },
   { id: 'history', label: 'Version History', icon: History },
+  { id: 'handoff', label: 'Handoff', icon: ClipboardCheck },
 ]
 
 const STATUS_ORDER: FeatureStatus[] = ['concept', 'designing', 'review', 'approved', 'ready-for-development', 'implemented', 'verified']
@@ -108,6 +116,10 @@ export function FeatureWorkspaceView() {
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(() => useJourneyStore.getState().activeJourney?.featureId === activeFeatureId ? useJourneyStore.getState().activeJourney?.id ?? null : null)
   const [newPageCreatorOpen, setNewPageCreatorOpen] = useState(false)
   const [newPages, setNewPages] = useState<FeaturePage[]>([])
+  const [sourceConflicts, setSourceConflicts] = useState<SourceConflict[]>([])
+  const [conflictsOpen, setConflictsOpen] = useState(false)
+  const restoredFeature = useRef<string | null>(null)
+  const restoredDesignOwner = useRef<string | null>(null)
 
   const projectModel = activeIndex?.projectModel ?? null
   const feature = useMemo(() => features.find((f) => f.id === activeFeatureId) ?? null, [features, activeFeatureId])
@@ -136,6 +148,54 @@ export function FeatureWorkspaceView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProject?.id, feature?.id])
 
+  useEffect(() => {
+    if (activeProject && feature) void window.frameui.workspace.listSourceConflicts(activeProject.id, feature.id).then(setSourceConflicts)
+  }, [activeIndex?.scannedAt, activeProject, feature])
+
+  useEffect(() => {
+    if (!activeProject || !feature || restoredFeature.current === feature.id) return
+    restoredFeature.current = feature.id
+    const saved = localStorage.getItem(`frameui:feature-session:${activeProject.id}:${feature.id}`)
+    if (!saved) return
+    try {
+      const value = JSON.parse(saved) as { activity?: Activity; viewMode?: ViewMode; breakpoint?: Breakpoint; selectedPageId?: string | null; activePageRef?: PageRef | null; leftTab?: 'layers' | 'insert'; componentsTab?: 'library' | 'concept' }
+      if (value.activity && ACTIVITIES.some((item) => item.id === value.activity)) setActivity(value.activity)
+      if (value.viewMode && ['current', 'proposed', 'compare'].includes(value.viewMode)) setViewMode(value.viewMode)
+      if (value.breakpoint && ['desktop', 'tablet', 'mobile'].includes(value.breakpoint)) setBreakpoint(value.breakpoint)
+      if (value.selectedPageId !== undefined) setSelectedPageId(value.selectedPageId)
+      if (value.activePageRef !== undefined) setActivePageRef(value.activePageRef)
+      if (value.leftTab) setLeftTab(value.leftTab)
+      if (value.componentsTab) setComponentsTab(value.componentsTab)
+    } catch { /* ignore corrupt UI state */ }
+  }, [activeProject, feature, setBreakpoint])
+
+  useEffect(() => {
+    if (!activeProject || !feature || !activePageRef || activeDesignStateId || restoredDesignOwner.current === `${feature.id}:${activePageRef.kind}:${activePageRef.pageId}`) return
+    restoredDesignOwner.current = `${feature.id}:${activePageRef.kind}:${activePageRef.pageId}`
+    if (activePageRef.kind === 'existing') {
+      const page = projectModel?.pages.find((item) => item.id === activePageRef.pageId)
+      if (page) void openDesignThisPage(activeProject.id, feature, page)
+    } else {
+      const page = newPages.find((item) => item.id === activePageRef.pageId)
+      if (page) void handleDesignNewPage(page)
+    }
+    // handleDesignNewPage is stable within this component and this effect
+    // is explicitly guarded to run once per restored owner.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDesignStateId, activePageRef, activeProject, feature, newPages, projectModel])
+
+  useEffect(() => {
+    if (!activeProject || !feature) return
+    localStorage.setItem(`frameui:feature-session:${activeProject.id}:${feature.id}`, JSON.stringify({ activity, viewMode, breakpoint, selectedPageId, activePageRef, leftTab, componentsTab }))
+    localStorage.setItem(`frameui:session:${activeProject.id}`, JSON.stringify({ section: 'features', view: 'feature-workspace', activeFeatureId: feature.id, applicationId: activeIndex?.activeApplicationId ?? null }))
+  }, [activeIndex?.activeApplicationId, activePageRef, activeProject, activity, breakpoint, componentsTab, feature, leftTab, selectedPageId, viewMode])
+
+  async function resolveConflict(conflict: SourceConflict, resolution: 'keep-proposed' | 'accept-current' | 'manual') {
+    if (!activeProject || !feature) return
+    const saved = await window.frameui.workspace.resolveSourceConflict(activeProject.id, feature.id, conflict.id, resolution)
+    setSourceConflicts((items) => items.map((item) => item.id === saved.id ? saved : item))
+  }
+
   const designPages = useMemo(
     () => (projectModel && feature ? projectModel.pages.filter((p) => feature.pageIds.includes(p.id)) : []),
     [projectModel, feature],
@@ -160,6 +220,8 @@ export function FeatureWorkspaceView() {
   if (!activeProject) return null
 
   function handleBack() {
+    localStorage.setItem(`frameui:session:${activeProject!.id}`, JSON.stringify({ section: 'features', view: 'workspace', applicationId: activeIndex?.activeApplicationId ?? null }))
+    useUiStore.getState().setActiveFeatureId(null)
     setView('workspace')
     setSection('features')
   }
@@ -351,6 +413,8 @@ export function FeatureWorkspaceView() {
         </div>
       </div>
 
+      {sourceConflicts.some((item) => item.resolution === 'unresolved') && <div className="relative flex h-8 shrink-0 items-center border-b border-warning/25 bg-warning/[0.06] px-4 text-[10.5px]"><button type="button" onClick={() => setConflictsOpen((value) => !value)} className="font-semibold text-warning">Source changed · {sourceConflicts.filter((item) => item.resolution === 'unresolved').length} need review</button>{conflictsOpen && <div className="absolute left-4 top-9 z-50 w-[520px] border border-border-strong bg-panel shadow-2xl">{sourceConflicts.filter((item) => item.resolution === 'unresolved').map((conflict) => <div key={conflict.id} className="border-b border-border p-3 last:border-0"><div className="flex items-center justify-between"><span className="text-[11.5px] font-semibold text-text">{conflict.kind === 'source-deleted' ? 'Source object deleted' : 'Source and Feature both changed'}</span><span className="font-mono text-[9px] text-text-3">{conflict.sourcePath ?? conflict.targetNodeId}</span></div><div className="mt-2 grid grid-cols-3 gap-2 font-mono text-[9.5px] text-text-3"><span>Feature Base<br /><b className="text-text-2">{formatConflictValue(conflict.baseValue)}</b></span><span>Current Source<br /><b className="text-text-2">{formatConflictValue(conflict.currentValue)}</b></span><span>Proposed<br /><b className="text-text-2">{formatConflictValue(conflict.proposedValue)}</b></span></div><div className="mt-3 flex gap-2"><button onClick={() => void resolveConflict(conflict, 'keep-proposed')} className="rounded border border-border px-2 py-1 text-text-2 hover:text-text">Keep Proposed</button><button onClick={() => void resolveConflict(conflict, 'accept-current')} className="rounded border border-border px-2 py-1 text-text-2 hover:text-text">Accept Current</button><button onClick={() => void resolveConflict(conflict, 'manual')} className="rounded border border-border px-2 py-1 text-text-2 hover:text-text">Review Manually</button></div></div>)}</div>}</div>}
+
       <div className="flex flex-1 min-h-0">
         {/* Activity rail */}
         <nav aria-label="Feature activities" className="flex w-12 shrink-0 flex-col items-center gap-0.5 border-r border-border bg-bg-raised py-2">
@@ -370,7 +434,7 @@ export function FeatureWorkspaceView() {
         </nav>
 
         {/* Contextual left panel */}
-        <div className="flex w-64 shrink-0 flex-col border-r border-border bg-bg-raised overflow-hidden">
+        {activity !== 'handoff' && <div className="flex w-64 shrink-0 flex-col border-r border-border bg-bg-raised overflow-hidden">
           {activity === 'design' && (
             <>
               <div className="flex border-b border-border">
@@ -455,10 +519,19 @@ export function FeatureWorkspaceView() {
             <FeatureReviewPanel projectId={activeProject.id} featureId={feature.id} pageRef={activePageRef} designStateId={activeDesignStateId} alternativeId={activeAlternativeId} breakpoint={breakpoint} selectedNode={selectedNode} tree={tree} onJump={(item) => void handleJumpToAnnotation(item)} />
           )}
           {activity === 'history' && <div className="p-3 text-[11px] leading-relaxed text-text-3">Named versions preserve semantic Feature operations. Restore creates a new milestone and never deletes later history.</div>}
-        </div>
+        </div>}
 
         {/* Main canvas */}
         <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
+          {activity === 'handoff' && projectModel && <FeatureHandoffPanel projectId={activeProject.id} feature={feature} projectModel={projectModel} onReturnToDesign={() => setActivity('design')} onOpenPage={(pageRef, stateId) => {
+            setActivePageRef(pageRef)
+            if (stateId) void window.frameui.workspace.listAlternativesForState(activeProject.id, stateId).then((alternatives) => {
+              const approved = alternatives.find((item) => item.isApproved) ?? alternatives.find((item) => item.isPreferred)
+              return loadDesignState(activeProject.id, stateId, approved?.id ?? null)
+            })
+            setViewMode(pageRef.kind === 'existing' ? 'compare' : 'proposed')
+            setActivity(stateId ? 'design' : 'pages')
+          }} onOpenComponents={() => setActivity('components')} />}
           {activity === 'design' && (
             <>
               {/* PHASE 17 (Design States) — tabs for the active page's

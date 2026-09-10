@@ -50,11 +50,15 @@ export function SettingsSection() {
           <section className="mb-6"><div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-3">Development environment</div><div className="grid grid-cols-2 border border-border bg-panel"><MetaRow label="Framework" value={frameworkLabel(activeIndex.framework, activeIndex.phpFramework)} /><MetaRow label="Language" value={activeIndex.language === 'php' ? 'PHP' : capitalize(activeIndex.language)} /><MetaRow label="Bundler" value={activeIndex.framework === 'php' ? 'Not applicable' : activeIndex.bundler === 'unknown' ? 'Unrecognized' : capitalize(activeIndex.bundler)} /><MetaRow label="Route style" value={routeStyleLabel(activeIndex.routerStyle)} /></div></section>
         )}
 
+        {activeIndex?.capabilities && <section className="mb-6"><div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-3">Project understanding · {capabilityLabel(activeIndex.capabilityLevel)}</div><div className="border border-border bg-panel"><CapabilityRow label="Source structure" available={activeIndex.capabilities.sourceStructure} /><CapabilityRow label="Runtime preview" available={activeIndex.capabilities.runtimePreview} /><MetaRow label="Component source mapping" value={capitalize(activeIndex.capabilities.componentSourceMapping)} /><MetaRow label="Route mapping" value={capitalize(activeIndex.capabilities.routeMapping)} /><CapabilityRow label="Isolated component previews" available={activeIndex.capabilities.isolatedComponentPreviews} /></div></section>}
+
+        {(activeIndex?.applications?.length ?? 0) > 1 && <section className="mb-6"><div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-3">Repository applications</div><div className="border border-border bg-panel">{activeIndex!.applications!.map((application) => <div key={application.id} className="grid grid-cols-[1fr_110px_1fr] border-b border-border px-3 py-2.5 last:border-0"><span className="text-[11px] text-text">{application.name}</span><span className="text-[10px] text-text-3">{application.kind.replace('-', ' ')}</span><span className="truncate text-right font-mono text-[9.5px] text-text-3">{application.rootPath}</span></div>)}</div></section>}
+
         <div className="mb-6 flex items-center justify-between border-y border-border py-3">
           <div>
             <div className="text-[11.5px] font-medium text-text">Project analysis</div>
             <div className="mt-1 text-[10.5px] text-text-3">
-              {activeIndex ? `Last scanned ${activeIndex.scannedFileCount.toLocaleString()} files in ${(activeIndex.scanDurationMs / 1000).toFixed(1)}s.` : '—'}
+              {activeIndex ? `${activeIndex.lastUpdate?.mode === 'cache-hit' ? 'Restored persistent index for' : 'Last processed'} ${activeIndex.scannedFileCount.toLocaleString()} files in ${(activeIndex.scanDurationMs / 1000).toFixed(2)}s.` : '—'}
             </div>
           </div>
           <button
@@ -66,6 +70,7 @@ export function SettingsSection() {
             {indexing ? 'Rebuilding…' : 'Rebuild Project Index'}
           </button>
         </div>
+        <div className="-mt-4 mb-6 text-[9.5px] text-text-3">Recovery action only. Routine external edits update incrementally and do not require a rebuild.</div>
 
         <div className="mb-6">
           <LivePreviewPanel devCommand={activeIndex?.devCommand ?? null} />
@@ -93,6 +98,8 @@ export function SettingsSection() {
 }
 
 function MetaRow({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between border-b border-r border-border px-3 py-2.5"><span className="text-[10px] text-text-3">{label}</span><span className="text-[10.5px] font-medium text-text-2">{value}</span></div> }
+function CapabilityRow({ label, available }: { label: string; available: boolean }) { return <div className="flex items-center justify-between border-b border-border px-3 py-2.5 last:border-0"><span className="text-[10px] text-text-3">{label}</span><span className={available ? 'text-[10.5px] text-success' : 'text-[10.5px] text-text-3'}>{available ? 'Available' : 'Unavailable'}</span></div> }
+function capabilityLabel(value?: string): string { return value === 'full' ? 'Full Source + Runtime' : value === 'partial' ? 'Partial Source + Runtime' : value === 'runtime-only' ? 'Runtime Only' : value === 'source-only' ? 'Source Only' : 'Limited' }
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)

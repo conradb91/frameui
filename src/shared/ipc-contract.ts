@@ -1,4 +1,4 @@
-import type { RecentProject, OpenProjectResult, OpenRecentResult } from './types/project'
+import type { RecentProject, OpenProjectResult, OpenRecentResult, ProjectLibraryEntry } from './types/project'
 import type { ProjectIndex, FileChangeNotice, DevCommand, IndexProgressUpdate } from './types/projectIndex'
 import type { PreviewOutputLine, PreviewStatusUpdate, PreviewUrlDetected, PreviewStatusSnapshot } from './types/preview'
 import type { Flow, FlowSummary } from './types/flow'
@@ -21,11 +21,14 @@ import type {
   DesignOperation,
   Version,
   VersionDifference,
+  SourceConflict,
+  SourceConflictResolution,
 } from './types/model/featureModel'
 import type { Viewport } from './types/model/projectModel'
 import type { DesignTreeRecord } from './types/designTreeRecord'
 import type { SharePackageBundle } from './types/sharePackage'
 import type { DesignSystemWorkspaceData, FindingDecision, PreviewCacheEntry, RuntimeComponentRelationship, UserComponentFixture } from './types/designSystem'
+import type { ExportFile, ExportRecord } from './types/handoff'
 
 /**
  * The complete shape of the narrow, typed bridge the preload script exposes
@@ -38,6 +41,7 @@ export interface FrameUiApi {
   app: {
     getVersion(): Promise<string>
     getPlatform(): Promise<FrameUiPlatform>
+    getPathForFile(file: object): string
   }
   workspace: {
     listRecentProjects(): Promise<RecentProject[]>
@@ -160,6 +164,7 @@ export interface FrameUiApi {
 
     // ---- Phase 26-29 — Feature work packages ----
     getDesignOperations(projectId: string, featureId: string, ownerId: string): Promise<DesignOperation[]>
+    getVersionDesignOperations(projectId: string, featureId: string, versionId: string): Promise<DesignOperation[]>
     saveDesignOperations(projectId: string, featureId: string, ownerId: string, operations: DesignOperation[]): Promise<DesignOperation[]>
     listAnnotations(projectId: string, featureId: string): Promise<Annotation[]>
     saveAnnotation(projectId: string, annotation: Annotation): Promise<Annotation>
@@ -170,6 +175,10 @@ export interface FrameUiApi {
     restoreVersion(projectId: string, featureId: string, versionId: string, createdBy: string): Promise<Version>
     duplicateVersion(projectId: string, featureId: string, versionId: string, createdBy: string): Promise<Version>
     compareVersions(projectId: string, featureId: string, leftVersionId: string | null, rightVersionId: string | null): Promise<VersionDifference[]>
+    listSourceConflicts(projectId: string, featureId: string): Promise<SourceConflict[]>
+    resolveSourceConflict(projectId: string, featureId: string, conflictId: string, resolution: Exclude<SourceConflictResolution, 'unresolved'>): Promise<SourceConflict>
+    listExportHistory(projectId: string, featureId: string): Promise<ExportRecord[]>
+    recordExport(projectId: string, record: ExportRecord): Promise<ExportRecord>
     getDesignSystemData(projectId: string): Promise<DesignSystemWorkspaceData>
     saveComponentFixture(projectId: string, fixture: UserComponentFixture): Promise<UserComponentFixture>
     deleteComponentFixture(projectId: string, fixtureId: string): Promise<{ ok: true }>
@@ -179,6 +188,13 @@ export interface FrameUiApi {
     setObservationApproved(projectId: string, observationId: string, approved: boolean): Promise<DesignSystemWorkspaceData>
   }
   project: {
+    listLibrary(): Promise<ProjectLibraryEntry[]>
+    removeFromRecent(projectId: string): Promise<{ ok: true }>
+    clearRecent(): Promise<{ ok: true }>
+    removeFromFrameUi(projectId: string): Promise<{ ok: true }>
+    deleteFromDisk(projectId: string, confirmationName: string): Promise<{ ok: true }>
+    reveal(projectId: string): Promise<{ ok: boolean }>
+    getLibraryCover(projectId: string): Promise<string | null>
     /** Shows the native folder picker. `relinkId` re-points an existing
      * (e.g. missing) recent-project entry at the newly chosen folder
      * instead of adding a new one. */
@@ -190,6 +206,7 @@ export interface FrameUiApi {
     getIndex(): Promise<ProjectIndex | null>
     /** Forces a fresh scan of the currently active project. */
     reindex(): Promise<ProjectIndex | null>
+    selectApplication(applicationId: string): Promise<ProjectIndex | null>
     /** Stops watching / clears the currently active project. */
     close(): Promise<{ ok: true }>
     /** Fires when files change on disk inside the active project (after the
@@ -226,6 +243,7 @@ export interface FrameUiApi {
     saveSvg(svg: string, suggestedName: string): Promise<{ ok: boolean; filePath?: string }>
     savePng(base64: string, suggestedName: string): Promise<{ ok: boolean; filePath?: string }>
     generateReviewPdf(html: string, suggestedName: string): Promise<{ ok: boolean; filePath?: string; error?: string }>
+    savePackage(files: ExportFile[], suggestedFolder: string): Promise<{ ok: boolean; directoryPath?: string; fileCount?: number; error?: string }>
   }
   capture: {
     /** Persists one runtime DOM snapshot (spec §3) taken from the Capture

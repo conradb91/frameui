@@ -17,6 +17,14 @@ export function getRecentProjectsFile(userDataPath: string): string {
   return path.join(getWorkspaceRoot(userDataPath), 'recent-projects.json')
 }
 
+export function getProjectLibraryFile(userDataPath: string): string {
+  return path.join(getWorkspaceRoot(userDataPath), 'project-library.json')
+}
+
+export function getProjectRecentHistoryFile(userDataPath: string): string {
+  return path.join(getWorkspaceRoot(userDataPath), 'project-recent-history.json')
+}
+
 /** All flows for one project live in a single file, keyed by projectId —
  * simple enough for V1's data volume, atomic per project. */
 export function getFlowsFile(userDataPath: string, projectId: string): string {
@@ -128,6 +136,14 @@ export function getFeatureWorkPackagesFile(userDataPath: string, projectId: stri
 
 export function getDesignSystemWorkspaceFile(userDataPath: string, projectId: string): string {
   const dir = path.join(getWorkspaceRoot(userDataPath), 'design-system')
+  fs.mkdirSync(dir, { recursive: true })
+  return path.join(dir, `${projectId}.json`)
+}
+
+/** Regenerable repository intelligence is stored outside the repository,
+ * alongside the rest of the local workspace. */
+export function getProjectIndexFile(userDataPath: string, projectId: string): string {
+  const dir = path.join(getWorkspaceRoot(userDataPath), 'project-indexes')
   fs.mkdirSync(dir, { recursive: true })
   return path.join(dir, `${projectId}.json`)
 }

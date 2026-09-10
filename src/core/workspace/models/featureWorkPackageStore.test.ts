@@ -63,4 +63,13 @@ describe('Feature work-package persistence', () => {
     featureStore.saveFeature(root, { ...feature, componentIds: ['component.primary-button'] })
     assert.deepEqual(featureStore.getFeature(root, projectId, feature.id)?.componentIds, ['component.primary-button'])
   })
+
+  test('persists lightweight export history and settings without binaries', () => {
+    const root = setup()
+    seedFeature(root)
+    const record = { id: 'export.1', featureId, versionId: null, versionName: 'Approved v3', type: 'feature' as const, fileCount: 12, configuration: { pageRefs: [{ kind: 'existing' as const, pageId: 'page.dashboard' }], stateIds: ['state.default'], viewports: ['desktop' as const, 'mobile' as const], componentIds: [], journeyIds: [], includeAnnotations: true, includePageLabels: true, includeMetadata: true, embedImages: true, textHandling: 'editable' as const, background: 'design' as const, journeyLayout: 'horizontal' as const }, createdAt: new Date().toISOString(), outputPath: '/tmp/Add-Bill-Redesign' }
+    store.recordExport(root, projectId, record)
+    assert.deepEqual(store.listExportHistory(root, projectId, featureId), [record])
+    assert.equal(JSON.stringify(store.getPackage(root, projectId, featureId)).includes('<svg'), false)
+  })
 })

@@ -30,6 +30,7 @@ const CONCEPT_HEIGHT = 64
 
 let measureCtx: OffscreenCanvasRenderingContext2D | null = null
 function measureTextWidth(text: string, font: string): number {
+  if (typeof OffscreenCanvas === 'undefined') return text.length * (font.includes('22px') ? 13 : 7.5)
   if (!measureCtx) {
     measureCtx = new OffscreenCanvas(10, 10).getContext('2d')
   }
@@ -52,6 +53,15 @@ function isVisible(node: DesignNode, breakpoint: Breakpoint): boolean {
  * just marked invisible, matching Preview's behavior.
  */
 export function resolveLayout(node: DesignNode, breakpoint: Breakpoint, containerWidth: number, x = 0, y = 0): ResolvedBox {
+  const responsive = breakpoint === 'desktop' ? undefined : node.responsiveOverrides?.[breakpoint]
+  if (responsive) {
+    node = {
+      ...node,
+      ...(node.kind === 'stack' ? { gap: responsive.gap ?? node.gap, direction: responsive.direction ?? node.direction, align: responsive.align ?? node.align, justify: responsive.justify ?? node.justify, wrap: responsive.wrap ?? node.wrap } : {}),
+      ...(node.kind === 'grid' ? { columns: responsive.columns ?? node.columns, columnGap: responsive.columnGap ?? node.columnGap, rowGap: responsive.rowGap ?? node.rowGap } : {}),
+      style: { ...node.style, ...responsive.style },
+    } as DesignNode
+  }
   switch (node.kind) {
     case 'stack': {
       const visibleChildren = node.children.filter((c) => isVisible(c, breakpoint))

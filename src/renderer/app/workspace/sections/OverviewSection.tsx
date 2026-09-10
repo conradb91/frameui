@@ -55,7 +55,7 @@ function AnalysisProgress() {
   const furthestIndex = indexProgress.reduce((max, step) => Math.max(max, PROGRESS_STEPS.findIndex((s) => s.step === step)), -1)
 
   return <div className="mt-8 max-w-md">
-    <div className="mb-3 text-[11.5px] font-semibold text-text">Scanning project</div>
+    <div className="mb-3 text-[11.5px] font-semibold text-text">Building project intelligence</div>
     <div className="flex items-center justify-between border-b border-border py-2 text-[10.5px]"><span className="text-text-2">Application running</span><span className={appRunning ? 'text-green-400' : 'text-text-3'}>{appRunning ? 'Running' : 'Not started'}</span></div>
     {PROGRESS_STEPS.map(({ step, label }, index) => <div key={step} className="flex items-center justify-between border-b border-border py-2 text-[10.5px]"><span className="text-text-2">{label}</span><span className={index <= furthestIndex ? 'text-green-400' : 'text-text-3'}>{index <= furthestIndex ? 'Complete' : 'Analysing…'}</span></div>)}
   </div>
