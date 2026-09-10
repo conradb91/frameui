@@ -3,6 +3,11 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const assert = require('node:assert/strict')
+function desktopEnvironment() {
+  const env = {...process.env,FRAMEUI_ALLOW_MULTIPLE_INSTANCES:'1'}
+  for (const key of Object.keys(env)) if (key.toUpperCase() === 'ELECTRON_RUN_AS_NODE') delete env[key]
+  return env
+}
 ;(async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'frameui-designer-'))
   let app
@@ -81,7 +86,7 @@ const assert = require('node:assert/strict')
     const server=path.join(source,'backend/server.cjs');fs.writeFileSync(server,"if(require('@budget/shared').title!=='Budget overview')throw new Error('Workspace dependency missing');\n"+fs.readFileSync(server,'utf8'))
   }
   const expectedSourceEnvironment = fs.readFileSync(path.join(source, '.env'), 'utf8')
-    app = await electron.launch({ executablePath: process.env.FRAMEUI_ELECTRON_PATH || require('electron'), args: [path.resolve(__dirname, '..'), `--user-data-dir=${root}/profile`], env: { ...process.env, ELECTRON_RUN_AS_NODE: '', FRAMEUI_ALLOW_MULTIPLE_INSTANCES: '1' } })
+    app = await electron.launch({ executablePath: process.env.FRAMEUI_ELECTRON_PATH || require('electron'), args: [path.resolve(__dirname, '..'), `--user-data-dir=${root}/profile`], env: desktopEnvironment() })
     const page = await app.firstWindow()
     page.on('pageerror', error => console.error('Renderer:', error.message))
     await page.getByRole('button', { name: 'Get started', exact: true }).click()
@@ -166,7 +171,7 @@ const assert = require('node:assert/strict')
     await page.getByRole('button', {name:'Fit canvas',exact:true}).click()
     await page.screenshot({ path: path.join(__dirname, '../docs/designer-preparation-smoke.png') })
     await app.close(); app = null
-    app = await electron.launch({ executablePath: process.env.FRAMEUI_ELECTRON_PATH || require('electron'), args: [path.resolve(__dirname, '..'), `--user-data-dir=${root}/profile`], env: { ...process.env, ELECTRON_RUN_AS_NODE: '', FRAMEUI_ALLOW_MULTIPLE_INSTANCES: '1' } })
+    app = await electron.launch({ executablePath: process.env.FRAMEUI_ELECTRON_PATH || require('electron'), args: [path.resolve(__dirname, '..'), `--user-data-dir=${root}/profile`], env: desktopEnvironment() })
     const reopened = await app.firstWindow()
     await reopened.getByRole('button', {name: 'Local app · Ready', exact:true}).waitFor({timeout:120000})
     assert.equal((await reopened.evaluate(() => window.frameui.preview.getStatus())).status, 'running')

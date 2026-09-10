@@ -28,18 +28,13 @@ jobs:
         run: node scripts/stage-windows-crt.cjs
       - name: Native database lifecycle
         if: matrix.fixture == 'static'
-        shell: pwsh
-        run: |
-          $env:ELECTRON_RUN_AS_NODE = '1'
-          & ./node_modules/electron/dist/electron.exe scripts/audit-managed-databases.cjs
-          $result = $LASTEXITCODE
-          Remove-Item Env:ELECTRON_RUN_AS_NODE
-          if ($result -ne 0) { exit $result }
+        run: node scripts/run-electron-node.cjs scripts/audit-managed-databases.cjs
       - run: bun run build
       - name: Real desktop journey
         shell: pwsh
         env:
           FIXTURE: ${{ matrix.fixture }}
+          DEBUG: pw:browser
         run: |
           if ($env:FIXTURE -eq 'mixed-workspace') {
             $env:FRAMEUI_SMOKE_MIXED = '1'
@@ -47,7 +42,7 @@ jobs:
           }
           if ($env:FIXTURE -eq 'dotnet') { $env:FRAMEUI_SMOKE_DOTNET = '1' }
           if ($env:FIXTURE -eq 'php') { $env:FRAMEUI_SMOKE_PHP = '1' }
-          node scripts/smoke-designer-preparation.cjs
+          node --unhandled-rejections=warn scripts/smoke-designer-preparation.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Package Windows application
         if: matrix.fixture == 'static'
@@ -57,7 +52,7 @@ jobs:
         shell: pwsh
         run: |
           $env:FRAMEUI_ELECTRON_PATH = (Resolve-Path 'release/win-unpacked/FrameUI.exe').Path
-          node scripts/smoke-designer-preparation.cjs
+          node --unhandled-rejections=warn scripts/smoke-designer-preparation.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: always()
