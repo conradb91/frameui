@@ -173,7 +173,9 @@ class ProcessManager {
       if (item) item.port = detected
       this.store.appendLog(project.id, 'process', 'info', `Detected application port ${detected} from framework output.`)
     }
-    const child = this.spawn(executionProject, 'start', command, true, null, null, { detached: true, unref: keepRunning, onOutput: detectAnnouncedPort })
+    // POSIX needs a process group for tree termination. Windows uses taskkill;
+    // detaching there gives the .NET CLI invalid console handles.
+    const child = this.spawn(executionProject, 'start', command, true, null, null, { detached: process.platform !== 'win32', unref: keepRunning, onOutput: detectAnnouncedPort })
     const startedAt = new Date().toISOString()
     item = { child, startedAt, port, apiPort, processGroup: child.pid, status: 'starting', readyAt: null, health: null, readyPromise: null }
     this.processes.set(project.id, item)

@@ -1,4 +1,4 @@
-name: Windows implementation audit
+name: Desktop implementation audit
 on:
   workflow_dispatch:
   push:
@@ -58,6 +58,53 @@ jobs:
         if: always()
         with:
           name: windows-${{ matrix.fixture }}-evidence
+          path: |
+            docs/designer-preparation-smoke.png
+            docs/designer-preparation-failure.png
+          if-no-files-found: ignore
+
+  apple-silicon:
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: [static, mixed-workspace, dotnet, php]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Verify native Apple Silicon
+        run: node -e "require('node:assert/strict').equal(process.arch, 'arm64')"
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - run: bun run lint
+      - run: bun run build
+      - name: Native database lifecycle
+        if: matrix.fixture == 'static'
+        run: node scripts/run-electron-node.cjs scripts/audit-managed-databases.cjs
+      - name: Real desktop journey
+        env:
+          FIXTURE: ${{ matrix.fixture }}
+        run: |
+          if [[ "$FIXTURE" == mixed-workspace ]]; then export FRAMEUI_SMOKE_MIXED=1 FRAMEUI_SMOKE_WORKSPACE=1; fi
+          if [[ "$FIXTURE" == dotnet ]]; then export FRAMEUI_SMOKE_DOTNET=1; fi
+          if [[ "$FIXTURE" == php ]]; then export FRAMEUI_SMOKE_PHP=1; fi
+          node --unhandled-rejections=warn scripts/smoke-designer-preparation.cjs
+      - name: Package Apple Silicon application
+        if: matrix.fixture == 'static'
+        run: bunx electron-builder --mac --dir --arm64
+      - name: Packaged desktop journey
+        if: matrix.fixture == 'static'
+        run: FRAMEUI_ELECTRON_PATH="$PWD/release/mac-arm64/FrameUI.app/Contents/MacOS/FrameUI" node --unhandled-rejections=warn scripts/smoke-designer-preparation.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apple-silicon-${{ matrix.fixture }}-evidence
           path: |
             docs/designer-preparation-smoke.png
             docs/designer-preparation-failure.png
