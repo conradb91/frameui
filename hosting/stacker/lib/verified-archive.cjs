@@ -110,9 +110,9 @@ async function downloadVerified(options) {
   downloadsInFlight.set(key, operation)
   try { return await operation } finally { downloadsInFlight.delete(key) }
 }
-async function extractArchive(archive, destination, strip = 0) {
+async function extractArchive(archive, destination, strip = 0, excludedTopLevel = []) {
   const format = await formatOf(archive)
   await fs.mkdir(destination, { recursive: true })
-  await extractPortable(archive, destination, format, strip)
+  await extractPortable(archive, destination, format, strip, excludedTopLevel)
 }
 module.exports = { responseFor, downloadVerified, verifyArchive, formatOf, extractArchive }

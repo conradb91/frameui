@@ -42,7 +42,7 @@ async function safeDirectory(root, relative) {
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('The extraction folder contains unsafe links.')
   }
 }
-async function zipArchive(file, destination = null, strip = 0) {
+async function zipArchive(file, destination = null, strip = 0, excludedTopLevel = []) {
   const zip = await new Promise((resolve,reject) => yauzl.open(file, {lazyEntries:true, strictFileNames:true}, (error,value) => error ? reject(error) : resolve(value)))
   let entries = 0, bytes = 0
   await new Promise((resolve,reject) => {
@@ -54,6 +54,7 @@ async function zipArchive(file, destination = null, strip = 0) {
       if (++entries > MAX_ENTRIES || (bytes += entry.uncompressedSize) > MAX_BYTES) throw new Error('The runtime archive exceeds extraction limits.')
       if (((entry.externalFileAttributes >>> 16) & 0xf000) === 0xa000) throw new Error('ZIP symbolic links are not supported.')
       const relative = name.split('/').slice(strip).join('/')
+      if (destination && excludedTopLevel.includes(relative.split('/')[0])) { zip.readEntry(); return }
       if (name.endsWith('/')) { if (destination && relative) await safeDirectory(destination, relative); zip.readEntry(); return }
       const stream = await new Promise((resolve,reject) => zip.openReadStream(entry,(error,value) => error ? reject(error) : resolve(value)))
       let checksum = 0
@@ -70,9 +71,10 @@ async function zipArchive(file, destination = null, strip = 0) {
     zip.readEntry()
   })
 }
-async function extractPortable(file, destination, format, strip) {
+async function extractPortable(file, destination, format, strip, excludedTopLevel = []) {
   if (!Number.isInteger(strip) || strip < 0) throw new Error('Invalid archive directory depth.')
-  if (format === 'zip') return zipArchive(file,destination,strip)
+  if (!Array.isArray(excludedTopLevel) || excludedTopLevel.some(name => typeof name !== 'string' || !name || /[\\/]/.test(name))) throw new Error('Invalid archive exclusion.')
+  if (format === 'zip') return zipArchive(file,destination,strip,excludedTopLevel)
   await verifyTar(file)
   // Extract data before links: node-tar rejects even safe symlink chains.
   // Resolve every link against completed files inside the extraction root.

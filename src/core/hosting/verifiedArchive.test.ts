@@ -100,3 +100,12 @@ test('wrapper stripping cannot turn an archive-relative link into an escape', as
   await require('tar').c({ cwd: folder, file: archive, gzip: true }, ['wrapper'])
   await expect(extractArchive(archive, path.join(root, 'escape-output'), 1)).rejects.toThrow('unsafe links')
 })
+test('runtime ZIP extraction can omit bundled management apps while retaining server files and licenses',async()=>{
+ const fixture=path.join(root,'optional-tools');await fs.mkdir(path.join(fixture,'wrapper/bin'),{recursive:true});await fs.mkdir(path.join(fixture,'wrapper/pgAdmin 4'),{recursive:true})
+ await fs.writeFile(path.join(fixture,'wrapper/bin/server.exe'),'server');await fs.writeFile(path.join(fixture,'wrapper/server_license.txt'),'license');await fs.writeFile(path.join(fixture,'wrapper/pgAdmin 4/default_app.asar'),'optional')
+ const archive=path.join(root,'optional-tools.zip');execFileSync('zip',['-qr',archive,'wrapper'],{cwd:fixture})
+ const output=path.join(root,'optional-output');await extractArchive(archive,output,1,['pgAdmin 4'])
+ expect(await fs.readFile(path.join(output,'bin/server.exe'),'utf8')).toBe('server')
+ expect(await fs.readFile(path.join(output,'server_license.txt'),'utf8')).toBe('license')
+ expect(await fs.stat(path.join(output,'pgAdmin 4')).then(()=>true).catch(()=>false)).toBe(false)
+})

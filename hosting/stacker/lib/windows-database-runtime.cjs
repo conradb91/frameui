@@ -21,7 +21,7 @@ class WindowsDatabaseRuntime {
     this.emit('database-runtime',{engine,version:entry.version,status:'Downloading',progress:0})
     await downloadVerified({urls:[entry.url],checksum:entry.sha256,archive,onProgress:(received,total)=>this.emit('database-runtime',{engine,version:entry.version,status:'Downloading',progress:total?Math.round(received/total*100):null})})
     this.emit('database-runtime',{engine,version:entry.version,status:'Installing',progress:100})
-    await extractArchive(archive,staging,1)
+    await extractArchive(archive,staging,1,engine === 'postgres' ? ['pgAdmin 4','StackBuilder'] : [])
     const bin=path.join(staging,'bin')
     for(const executable of entry.requiredExecutables)await verifyWindowsPhp(path.join(bin,executable),this.arch)
     await require('./windows-crt.cjs').installLocalCrt(bin)
