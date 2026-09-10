@@ -360,7 +360,7 @@ function justifyToCss(justify: 'start' | 'center' | 'end' | 'space-between' | un
  * existing class, only adds inline style for whatever the designer set. */
 function styleToCss(style: NodeStyle | undefined, kind: DesignNode['kind']): React.CSSProperties {
   if (!style) return {}
-  const css: React.CSSProperties = {}
+  const css: React.CSSProperties = { position: style.position, left: style.left, top: style.top }
   if (style.width !== undefined) css.width = style.width === 'fill' ? '100%' : style.width === 'auto' ? undefined : style.width
   if (style.height !== undefined) css.height = style.height === 'fill' ? '100%' : style.height === 'auto' ? undefined : style.height
   if (style.minWidth !== undefined) css.minWidth = style.minWidth

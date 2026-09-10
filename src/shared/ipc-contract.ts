@@ -1,3 +1,4 @@
+import type { ProjectVisuals } from './types/projectVisuals'
 import type { RecentProject, OpenProjectResult, OpenRecentResult, ProjectLibraryEntry } from './types/project'
 import type { ProjectIndex, FileChangeNotice, DevCommand, IndexProgressUpdate } from './types/projectIndex'
 import type { PreviewOutputLine, PreviewStatusUpdate, PreviewUrlDetected, PreviewStatusSnapshot } from './types/preview'
@@ -215,6 +216,7 @@ export interface FrameUiApi {
     /** Static read of a page's nested JSX, HTML or server-template
      * structure. Path-scoped to the active project root in main; source is
      * parsed as text and never executed. */
+    getVisuals(): Promise<ProjectVisuals>
     getPageStructure(relativeFilePath: string): Promise<PageStructureItem[]>
     /** Fires as `getIndex`/`reindex` pass through each real stage of
      * `indexProject` (detecting the framework, finding pages, etc.) so the

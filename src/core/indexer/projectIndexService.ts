@@ -25,7 +25,7 @@ import type { DesignNode } from '@shared/types/designNode'
 import type { DesignOperation, SourceConflict } from '@shared/types/model/featureModel'
 
 export const PROJECT_INDEX_CACHE_SCHEMA = 2
-const PARSER_VERSION = 'frameui-indexer-v3'
+const PARSER_VERSION = 'frameui-indexer-v4'
 const normalize = (value: string) => value.split(path.sep).join('/')
 
 function metadata(rootPath: string, absolutePath: string): IndexedFile | null {

@@ -31,7 +31,7 @@ export const CAPTURE_SCRIPT = `
     'gridTemplateColumns', 'gridTemplateRows', 'gridAutoFlow',
     'padding', 'margin',
     'color', 'fontSize', 'fontWeight', 'fontFamily', 'lineHeight', 'textAlign',
-    'backgroundColor', 'borderRadius', 'boxShadow', 'opacity', 'zIndex',
+    'backgroundColor', 'backgroundImage', 'borderRadius', 'borderColor', 'borderStyle', 'borderWidth', 'boxShadow', 'opacity', 'zIndex', 'fill', 'stroke',
   ]
 
   function textPreviewOf(el) {
@@ -87,7 +87,10 @@ export const CAPTURE_SCRIPT = `
         if (child) children.push(child)
       }
       var classes = typeof el.className === 'string' && el.className ? el.className : undefined
+      var attributes = {}; ['src','alt','placeholder','type','viewBox','d','fill','stroke','cx','cy','r','x','y','width','height','points'].forEach(function(name) { var value=el.getAttribute(name); if(value !== null) attributes[name]=value });
+      if(el.tagName === 'IMG') attributes.src=el.currentSrc || el.src;
       return {
+        attributes: attributes,
         tag: el.tagName.toLowerCase(),
         classes: classes,
         textPreview: children.length === 0 ? textPreviewOf(el) : undefined,

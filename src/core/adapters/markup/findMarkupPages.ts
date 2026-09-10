@@ -43,7 +43,7 @@ function routeFor(relativeWithinRoot: string): string {
 
 function rootsFor(rootPath: string, framework: Framework): string[] {
   const candidates: string[] = []
-  if (framework === 'php') candidates.push('resources/views', 'app/Views', 'application/views', 'views', 'templates')
+  if (framework === 'php') candidates.push('resources/views', 'app/Views', 'application/views', 'views', 'templates', 'public', '.')
   if (framework === 'astro') candidates.push('src/pages')
   if (framework === 'svelte') candidates.push('src/routes', 'src/pages', 'routes', 'pages')
   if (framework === 'vue') candidates.push('src/pages', 'pages', 'src/views', 'views')
@@ -78,13 +78,16 @@ export function findMarkupPages(rootPath: string, framework: Framework, ignoreRu
       if (pages.length >= MAX_PAGES) break
       const fullPath = path.join(dir, entry.name)
       if (entry.isDirectory()) {
-        if (ignoreRules.shouldSkipDir(entry.name) || NON_PAGE_DIRS.has(entry.name.toLowerCase())) continue
+        if (ignoreRules.shouldSkipDir(entry.name) || NON_PAGE_DIRS.has(entry.name.toLowerCase()) || (framework === 'php' && /^(controllers?|models?|config|database|migrations?|tests?|system|libraries|helpers|commands|filters)$/i.test(entry.name))) continue
         visit(fullPath, pagesRoot)
         continue
       }
       if (!entry.isFile() || ignoreRules.shouldSkipFile(entry.name)) continue
       const ext = path.extname(entry.name).toLowerCase()
       if (!EXTENSIONS.has(ext)) continue
+      if (framework === 'php' && /\.(php|phtml)$/i.test(entry.name)) {
+        try { if (!/<(?:html|body|div|main|section|h[1-6]|p|form|table|ul|a|button|header|article|nav|span)\b/i.test(fs.readFileSync(fullPath, 'utf8'))) continue } catch { continue }
+      }
       const base = withoutTemplateExtension(entry.name)
       if (NON_PAGE_NAMES.test(base) || (framework === 'php' && base.toLowerCase() === 'app')) continue
       const filePath = path.relative(rootPath, fullPath).split(path.sep).join('/')

@@ -1,3 +1,4 @@
+import { useDesignFilesStore } from '../../../state/designFilesStore'
 import { useState } from 'react'
 import { ArrowRight, GitFork, Map, Plus, Route } from 'lucide-react'
 import type { Interaction } from '@shared/types/model/projectModel'
@@ -8,6 +9,7 @@ import { useUiStore } from '../../../state/uiStore'
 import { formatRelativeTime } from '../../../lib/formatRelativeTime'
 
 export function FlowsSection({ flowSummaries }: { flowSummaries: FlowSummary[] }) {
+  const designFiles = useDesignFilesStore((s) => s.files)
   const activeProject = useProjectStore((s) => s.activeProject)
   const model = useProjectStore((s) => s.activeIndex?.projectModel)
   const createFlow = useFlowStore((s) => s.createFlow)
@@ -44,6 +46,7 @@ export function FlowsSection({ flowSummaries }: { flowSummaries: FlowSummary[] }
     <aside className="flex w-[260px] shrink-0 flex-col border-r border-border bg-bg-raised">
       <div className="flex h-10 items-center px-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-text-3">Journeys</div>
       <button type="button" className="mx-1.5 flex items-center gap-2 rounded-[4px] bg-blue-500/12 px-2 py-2 text-left"><Map size={14} className="text-blue-300" /><span className="min-w-0 flex-1"><span className="block text-[11.5px] font-medium text-text">Application Map</span><span className="mt-0.5 block font-mono text-[9px] text-text-3">{model?.statistics.pages ?? 0} screens · {model?.statistics.connections ?? 0} connections</span></span></button>
+      {designFiles.filter((file) => file.flowPageIds && !file.archived).map((file) => <button key={file.id} onClick={() => { useDesignFilesStore.getState().selectFile(file.id); setSection('canvas') }} className="mx-2 mt-2 rounded border border-border p-3 text-left"><span className="block text-xs text-text">{file.name}</span><span className="mt-1 block text-[10px] text-text-3">{file.flowPageIds!.length} screens · Design flow</span></button>)}
       <div className="mt-5 flex items-center justify-between px-3"><span className="text-[9.5px] font-semibold uppercase tracking-wider text-text-3">Curated journeys</span><button type="button" title="Create journey" onClick={() => setCreating(true)} className="text-text-3 hover:text-text"><Plus size={13} /></button></div>
       {creating && <div className="m-2 flex gap-1"><input autoFocus value={name} onChange={(event) => setName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleCreate(); if (event.key === 'Escape') setCreating(false) }} placeholder="Journey name" className="min-w-0 flex-1 rounded-[4px] border border-border bg-panel px-2 py-1.5 text-[10.5px] text-text outline-none focus:border-blue-400" /><button type="button" onClick={() => void handleCreate()} className="rounded-[4px] bg-blue-600 px-2 text-[10px] text-white">Create</button></div>}
       <div className="mt-1 overflow-y-auto px-1.5">{flowSummaries.map((flow) => <button key={flow.id} type="button" onClick={() => void handleOpen(flow.id)} className="block w-full rounded-[4px] px-2 py-2 text-left text-text-2 hover:bg-white/[0.04] hover:text-text"><span className="block text-[11px]">{flow.name}</span><span className="mt-0.5 block text-[9.5px] text-text-3">{flow.screenCount} screens · {formatRelativeTime(flow.updatedAt)}</span></button>)}{flowSummaries.length === 0 && <div className="px-2 py-3 text-[10px] leading-relaxed text-text-3">Create a focused UX journey from the detected application map.</div>}</div>

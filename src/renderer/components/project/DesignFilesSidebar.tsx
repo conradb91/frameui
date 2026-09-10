@@ -8,7 +8,7 @@ import { useProjectStore } from '../../state/projectStore'
 
 interface DesignFilesSidebarProps {
   section: string
-  onSection: (section: 'canvas' | 'components' | 'design-system' | 'flows' | 'settings') => void
+  onSection: (section: 'project-home' | 'canvas' | 'components' | 'design-system' | 'flows' | 'settings') => void
 }
 
 export function DesignFilesSidebar({ section, onSection }: DesignFilesSidebarProps) {
@@ -58,7 +58,7 @@ export function DesignFilesSidebar({ section, onSection }: DesignFilesSidebarPro
           <div className="truncate text-[12px] font-semibold text-text">{project?.name}</div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-text-3">
             <span className={`h-1.5 w-1.5 rounded-full ${indexing ? 'animate-pulse bg-accent-2' : sourceStatus === 'warning' ? 'bg-warning' : 'bg-success'}`}/>
-            {indexing ? 'Syncing…' : sourceStatus === 'warning' ? 'Sync issue' : 'Synced'}
+            Saved on this computer
           </div>
         </div>
         <button type="button" title="Project settings" onClick={() => onSection('settings')} className="flex h-7 w-7 items-center justify-center rounded text-text-3 hover:bg-white/5 hover:text-text"><Settings size={13}/></button>
@@ -69,7 +69,7 @@ export function DesignFilesSidebar({ section, onSection }: DesignFilesSidebarPro
     </div>
 
     <div className="flex items-center gap-1 border-y border-border px-2 py-1.5">
-      <NavButton active={section === 'canvas'} label="Files" icon={<File size={12}/>} onClick={() => onSection('canvas')}/>
+      <NavButton active={section === 'project-home'} label="Designs" icon={<File size={12}/>} onClick={() => onSection('project-home')}/>
       <NavButton active={section === 'components' || section === 'design-system'} label="Assets" icon={<Component size={12}/>} onClick={() => onSection('components')}/>
       <NavButton active={section === 'flows'} label="Flows" icon={<Map size={12}/>} onClick={() => onSection('flows')}/>
     </div>

@@ -117,6 +117,7 @@ const api: FrameUiApi = {
       ipcRenderer.on('project:onFileChanged', listener)
       return () => ipcRenderer.off('project:onFileChanged', listener)
     },
+    getVisuals: () => ipcRenderer.invoke('project:getVisuals'),
     getPageStructure: (relativeFilePath) => ipcRenderer.invoke('project:getPageStructure', relativeFilePath),
     onIndexProgress: (callback) => {
       const listener = (_event: unknown, update: IndexProgressUpdate) => callback(update)

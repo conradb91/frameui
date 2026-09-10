@@ -15,6 +15,7 @@ interface HistoryEntry {
 }
 
 const MAX_HISTORY = 100 // spec DRF-03: at least 100 in-session operations
+let loadGeneration = 0
 const SAVE_DEBOUNCE_MS = 500
 
 interface DesignState {
@@ -92,6 +93,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   saveTimer: null,
 
   loadScreen: async (projectId, flowId, screenId, source) => {
+    const generation = ++loadGeneration
+    await flushPendingDesignSaves()
     const existing = await window.frameui.workspace.getScreenDraft(projectId, screenId)
     let tree = existing?.tree ?? null
 
@@ -103,6 +106,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       tree = createDefaultTree(crypto.randomUUID())
     }
 
+    if (generation !== loadGeneration) return
     set({
       projectId,
       flowId,
@@ -124,6 +128,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   loadDesignState: async (projectId, designStateId, alternativeId = null) => {
+    const generation = ++loadGeneration
+    await flushPendingDesignSaves()
     const ownerId = alternativeId ?? designStateId
     const [existing, metadata] = await Promise.all([
       window.frameui.workspace.getDesignTree(projectId, ownerId),
@@ -132,6 +138,7 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     const baselineTree = existing?.tree ?? createDefaultTree(crypto.randomUUID())
     const operations = metadata ? await window.frameui.workspace.getDesignOperations(projectId, metadata.featureId, ownerId) : []
     const tree = applyDesignOperations(baselineTree, operations)
+    if (generation !== loadGeneration) return
 
     set({
       projectId,
@@ -154,8 +161,8 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 
   closeScreen: () => {
-    const timer = get().saveTimer
-    if (timer) clearTimeout(timer)
+    loadGeneration++
+    void flushPendingDesignSaves()
     set({
       projectId: null,
       flowId: null,
@@ -284,28 +291,41 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
 }))
 
+// A pending edit belongs to its owner, even if the user switches screens.
+const pendingSaves = new Map<string, { timer: ReturnType<typeof setTimeout>; save: () => Promise<void> }>()
+export async function flushPendingDesignSaves() {
+  const pending = [...pendingSaves.values()]
+  pendingSaves.clear()
+  for (const item of pending) clearTimeout(item.timer)
+  await Promise.all(pending.map((item) => item.save()))
+}
 function scheduleSave(get: () => DesignState, set: (partial: Partial<DesignState>) => void) {
-  const existing = get().saveTimer
-  if (existing) clearTimeout(existing)
-  const timer = setTimeout(async () => {
-    const { projectId, flowId, screenId, designStateId, alternativeId, featureId, operations, tree } = get()
-    if (!projectId || !tree) return
-    set({ saving: true })
-    if (designStateId && featureId) {
-      await window.frameui.workspace.saveDesignOperations(projectId, featureId, alternativeId ?? designStateId, operations)
-    } else if (flowId && screenId) {
-      await window.frameui.workspace.saveScreenDraft({
-        id: screenId,
-        projectId,
-        flowId,
-        tree,
-        updatedAt: new Date().toISOString(),
-      })
-    } else {
-      set({ saving: false, saveTimer: null })
-      return
+  const { projectId, flowId, screenId, designStateId, alternativeId, featureId, operations, tree } = get()
+  if (!projectId || !tree) return
+  const ownerId = alternativeId ?? designStateId ?? screenId
+  if (!ownerId) return
+  const key = `${projectId}:${ownerId}`
+  const existing = pendingSaves.get(key)
+  if (existing) clearTimeout(existing.timer)
+  const save = async () => {
+    try {
+      if (designStateId && featureId) {
+        await window.frameui.workspace.saveDesignOperations(projectId, featureId, ownerId, operations)
+      } else if (flowId && screenId) {
+        await window.frameui.workspace.saveScreenDraft({ id: screenId, projectId, flowId, tree, updatedAt: new Date().toISOString() })
+      }
+    } catch (error) {
+      // Retain the captured edit for a later flush instead of losing it on navigation.
+      pendingSaves.set(key, { timer, save })
+      throw error
+    } finally {
+      if (get().saveTimer === timer) set({ saving: false, saveTimer: null })
     }
-    set({ saving: false, saveTimer: null })
+  }
+  const timer = setTimeout(() => {
+    pendingSaves.delete(key)
+    void save().catch(() => { set({ saving: false }) })
   }, SAVE_DEBOUNCE_MS)
-  set({ saveTimer: timer })
+  pendingSaves.set(key, { timer, save })
+  set({ saving: true, saveTimer: timer })
 }

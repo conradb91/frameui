@@ -1,3 +1,4 @@
+import { flushPendingDesignSaves } from './designStore'
 import { create } from 'zustand'
 
 export interface DesignFolder {
@@ -11,6 +12,7 @@ export interface DesignFile {
   name: string
   folderId: string
   kind: 'source' | 'design'
+  flowPageIds?: string[]
   starred: boolean
   archived: boolean
   createdAt: string
@@ -27,11 +29,11 @@ interface DesignFilesState extends PersistedDesignFiles {
   projectId: string | null
   initialise: (projectId: string) => void
   selectFile: (fileId: string) => void
-  createFile: (folderId?: string, name?: string) => DesignFile
+  createFile: (folderId?: string, name?: string, flowPageIds?: string[]) => DesignFile
   createFolder: (name?: string) => DesignFolder
   renameFile: (fileId: string, name: string) => void
   renameFolder: (folderId: string, name: string) => void
-  duplicateFile: (fileId: string) => void
+  duplicateFile: (fileId: string) => Promise<void>
   moveFile: (fileId: string, folderId: string) => void
   toggleStar: (fileId: string) => void
   archiveFile: (fileId: string) => void
@@ -98,15 +100,15 @@ export const useDesignFilesStore = create<DesignFilesState>((set, get) => ({
     set({ projectId, ...read(projectId) })
   },
   selectFile: (activeFileId) => {
-    set({ activeFileId })
+    set((state) => ({ activeFileId, files: state.files.map((file) => file.id === activeFileId ? { ...file, updatedAt: new Date().toISOString() } : file) }))
     persist(get())
   },
-  createFile: (folderId, name = 'Untitled') => {
+  createFile: (folderId, name = 'Untitled', flowPageIds) => {
     const state = get()
     const now = new Date().toISOString()
     const file: DesignFile = {
       id: crypto.randomUUID(), name, folderId: folderId ?? state.folders[0]?.id ?? 'product',
-      kind: 'design', starred: false, archived: false, createdAt: now, updatedAt: now,
+      kind: 'design', flowPageIds, starred: false, archived: false, createdAt: now, updatedAt: now,
     }
     set({ files: [...state.files, file], activeFileId: file.id })
     persist(get())
@@ -129,15 +131,22 @@ export const useDesignFilesStore = create<DesignFilesState>((set, get) => ({
     set((state) => ({ folders: state.folders.map((folder) => folder.id === folderId ? { ...folder, name: name.trim() } : folder) }))
     persist(get())
   },
-  duplicateFile: (fileId) => {
+  duplicateFile: async (fileId) => {
     const original = get().files.find((file) => file.id === fileId)
-    if (!original) return
-    const copy = get().createFile(original.folderId, `${original.name} copy`)
     const projectId = get().projectId
-    if (projectId) {
-      const frames = localStorage.getItem(`frameui:visual-canvas:${projectId}:${fileId}:v2`)
-      if (frames) localStorage.setItem(`frameui:visual-canvas:${projectId}:${copy.id}:v2`, frames)
-    }
+    if (!original || !projectId) return
+    try {
+      await flushPendingDesignSaves()
+      const saved = localStorage.getItem(`frameui:visual-canvas:${projectId}:${fileId}:v2`)
+      const frames = JSON.parse(saved ?? '[]') as { id: string; designStateId?: string; flowNextId?: string; [key: string]: unknown }[]
+      const ids = new Map(frames.map((frame) => [frame.id, crypto.randomUUID()]))
+      const copies = await Promise.all(frames.map(async (frame) => {
+        const state = frame.designStateId ? await window.frameui.workspace.duplicateDesignState(projectId, frame.designStateId, `${original.name} copy`, 'design') : null
+        return { ...frame, id: ids.get(frame.id), designStateId: state?.id, flowNextId: frame.flowNextId ? ids.get(frame.flowNextId) : undefined }
+      }))
+      const copy = get().createFile(original.folderId, `${original.name} copy`, original.flowPageIds)
+      localStorage.setItem(`frameui:visual-canvas:${projectId}:${copy.id}:v2`, JSON.stringify(copies))
+    } catch { window.alert('The design could not be duplicated. Your original is unchanged.') }
   },
   moveFile: (fileId, folderId) => {
     set((state) => ({ files: state.files.map((file) => file.id === fileId ? { ...file, folderId, updatedAt: new Date().toISOString() } : file) }))

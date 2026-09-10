@@ -1,3 +1,4 @@
+import { previewProcess } from './security/spawnPreview'
 // Named imports from 'electron' break the ESM cjs-module-lexer interop for
 // Electron's synthetic built-in module (a real, documented Electron/Node
 // gap) — default-import + destructure is the working pattern.
@@ -35,6 +36,8 @@ if (!gotSingleInstanceLock) {
     setMainWindowRef(mainWindow)
     installCaptureWebviewGuard(mainWindow)
   })
+
+  app.on('before-quit', () => previewProcess.stop())
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {

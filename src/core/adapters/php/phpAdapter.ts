@@ -43,7 +43,7 @@ export const phpAdapter: SourceAdapter = {
       ? getCodeIgniterDevCommand(ctx.rootPath)
       : laravel
         ? { command: 'php', args: ['artisan', 'serve'] }
-        : resolveGenericBundler(ctx.rootPath, ctx.pkg, false).devCommand
+        : { command: 'php', args: ['-S', '127.0.0.1:8080', '-t', fs.existsSync(path.join(ctx.rootPath, 'public', 'index.php')) ? 'public' : '.'] }
     const bundler = resolveGenericBundler(ctx.rootPath, ctx.pkg, false).bundler
 
     return { framework: 'php', phpFramework, bundler, routerStyle, routesDir: null, devCommand }
@@ -60,7 +60,14 @@ export const phpAdapter: SourceAdapter = {
       // available for source/design rendering, but never ask the running
       // PHP router to open a filesystem-derived guess such as
       // app/Views/admin/admin_accounts -> /admin/admin_accounts.
-      .map((page) => match.phpFramework ? { ...page, route: null } : page)
+      .map((page) => {
+        if (match.phpFramework) return { ...page, route: null }
+        const publicRoot = fs.existsSync(path.join(ctx.rootPath, 'public', 'index.php')) ? 'public/' : ''
+        // PHP's built-in server serves real scripts, not extensionless route guesses.
+        const relative = page.filePath.startsWith(publicRoot) ? page.filePath.slice(publicRoot.length) : null
+        const isView = /^(?:resources|app|application|views|templates)\//.test(page.filePath)
+        return { ...page, route: relative && !isView ? `/${relative}`.replace(/index\.php$/i, '') : null }
+      })
     // Route-derived pages carry real route/prefix/parameter semantics;
     // the generic markup scanner only guesses a route from the view file's
     // own path. On a collision (the same view reachable both ways) the

@@ -40,6 +40,7 @@ import { ChangesSection } from './sections/ChangesSection'
 import { useFeatureStore } from '../../state/featureStore'
 import { useDesignStore } from '../../state/designStore'
 import { VisualCanvasSection } from './sections/VisualCanvasSection'
+import { ProjectHome } from './ProjectHome'
 import { StartWorkspace } from './StartWorkspace'
 import { DesignFilesSidebar } from '../../components/project/DesignFilesSidebar'
 import { useDesignFilesStore } from '../../state/designFilesStore'
@@ -54,7 +55,8 @@ interface NavItem {
 // The canvas is the product center: repository pages/components feed it,
 // while Features and Journeys remain the workflow layer around the work.
 const NAV_ITEMS: NavItem[] = [
-  { section: 'start', label: 'Start', icon: Home },
+  { section: 'start', label: 'Projects', icon: Home },
+  { section: 'project-home', label: 'Project Home', icon: Home },
   { section: 'canvas', label: 'Canvas', icon: PenTool },
   { section: 'features', label: 'Features', icon: Sparkles },
   { section: 'overview', label: 'Application', icon: Layers3 },
@@ -116,24 +118,8 @@ export function WorkspaceShellView({ children }: { children?: ReactNode }) {
   useEffect(() => {
     if (!activeProject || restoredProject.current === activeProject.id) return
     restoredProject.current = activeProject.id
-    const saved = localStorage.getItem(`frameui:session:${activeProject.id}`)
-    if (saved) {
-      try { const value = JSON.parse(saved) as { section?: ShellSection }; if (value.section) setSection(value.section) } catch { /* ignore corrupt UI state */ }
-    }
+    setSection('project-home')
   }, [activeProject, setSection])
-
-  useEffect(() => {
-    if (!activeProject || !activeIndex) return
-    const saved = localStorage.getItem(`frameui:session:${activeProject.id}`)
-    if (!saved) return
-    try {
-      const value = JSON.parse(saved) as { view?: string; activeFeatureId?: string }
-      if (value.view === 'feature-workspace' && value.activeFeatureId) {
-        useUiStore.getState().setActiveFeatureId(value.activeFeatureId)
-        setView('feature-workspace')
-      }
-    } catch { /* ignore corrupt UI state */ }
-  }, [activeIndex, activeProject, setView])
 
   useEffect(() => {
     if (activeProject) {
@@ -174,7 +160,7 @@ export function WorkspaceShellView({ children }: { children?: ReactNode }) {
 
   function enterProject(project: RecentProject) {
     useProjectStore.getState().setActiveProject(project)
-    setSection('canvas')
+    setSection('project-home')
     useUiStore.getState().setView('workspace')
     setCommandQuery('')
   }
@@ -318,8 +304,9 @@ export function WorkspaceShellView({ children }: { children?: ReactNode }) {
         ) : !activeProject || section === 'start' ? (
           <StartWorkspace recentProjects={recentProjects} activeProject={activeProject} onOpenFolder={openFolder} onOpenProject={openRecent} onProjectRemoved={handleProjectRemoved} onLibraryChanged={() => void refreshRecents()} />
         ) : (
-          <><DesignFilesSidebar section={section} onSection={goToSection}/><div className="flex min-h-0 min-w-0 flex-1">
-            {section === 'canvas' && <VisualCanvasSection designFileId={activeDesignFile?.id} designFileName={activeDesignFile?.name} sourceLinked={activeDesignFile?.kind !== 'design'} />}
+          <>{section !== 'canvas' && <DesignFilesSidebar section={section} onSection={goToSection}/>}<div className="flex min-h-0 min-w-0 flex-1">
+            {section === 'project-home' && <ProjectHome />}
+            {section === 'canvas' && <VisualCanvasSection key={activeDesignFile?.id}  designFileId={activeDesignFile?.id} designFileName={activeDesignFile?.name} sourceLinked={activeDesignFile?.kind !== 'design'} />}
             {section === 'features' && <FeaturesSection />}
             {section === 'overview' && <ProjectSidebar project={activeProject} recentProjects={recentProjects} indexing={indexing} onOpenFolder={openFolder} onOpenRecent={openRecent} />}
             {section === 'overview' && <OverviewSection />}

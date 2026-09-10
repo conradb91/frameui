@@ -5,7 +5,7 @@
     <!-- img-src includes blob: for the SVG->canvas->PNG export path
          (URL.createObjectURL) — confirmed needed while building export;
          without it Chromium silently fails the Image load. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FrameUI</title>
   </head>

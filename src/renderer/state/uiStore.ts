@@ -24,7 +24,7 @@ export type TopLevelView =
    * Preview, no editor chrome. */
   | 'share-preview'
 
-export type ShellSection = 'start' | 'canvas' | 'features' | 'overview' | 'screens' | 'flows' | 'components' | 'design-system' | 'captures' | 'review' | 'changes' | 'settings'
+export type ShellSection = 'start' | 'project-home' | 'canvas' | 'features' | 'overview' | 'screens' | 'flows' | 'components' | 'design-system' | 'captures' | 'review' | 'changes' | 'settings'
 
 interface UiState {
   view: TopLevelView

@@ -141,7 +141,7 @@ export function indexProject(projectId: string, rootPath: string, onProgress?: (
     indexedApplicationId: activeApplication?.id ?? null,
     files: indexedFiles,
     cacheVersion: 2,
-    parserVersion: 'frameui-indexer-v3',
+    parserVersion: 'frameui-indexer-v4',
     configurationFingerprint,
     scannedFileCount,
     scanDurationMs: Date.now() - startedAt,

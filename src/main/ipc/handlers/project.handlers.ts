@@ -1,3 +1,4 @@
+import { readProjectVisuals } from '@core/design-system/projectVisuals'
 import electron from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -120,6 +121,13 @@ export function registerProjectHandlers(): void {
     previewProcess.stop()
     closeActiveProject()
     return { ok: true }
+  })
+
+  ipcMain.handle('project:getVisuals', () => {
+    const active = getActiveProject()
+    if (!active) throw new Error('No active project')
+    const index = getCachedIndex() ?? getIndexService()!.load()
+    return readProjectVisuals(active.rootPath, Object.keys(index.files ?? {}))
   })
 
   ipcMain.handle('project:getPageStructure', (_event, rawPath): PageStructureItem[] => {

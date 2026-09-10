@@ -9,6 +9,7 @@ import { findNode, findParent, insertNode, removeNode, moveNode, updateNode } fr
 export type DesignCommand =
   | { type: 'InsertComponent'; parentId: string; index: number; node: DesignNode }
   | { type: 'DeleteNode'; nodeId: string }
+  | { type: 'SetAttribute'; nodeId: string; name: string; value: string | null }
   | { type: 'SetText'; nodeId: string; content: string }
   | { type: 'SetGap'; nodeId: string; gap: number }
   | { type: 'SetDirection'; nodeId: string; direction: 'row' | 'column' }
@@ -87,10 +88,20 @@ export function applyCommand(tree: DesignNode, command: DesignCommand): DesignNo
       return insertNode(tree, command.parentId, command.index, command.node)
     case 'DeleteNode':
       return removeNode(tree, command.nodeId)
+    case 'SetAttribute':
+      if (isLocked(tree, command.nodeId)) return tree
+      return updateNode(tree, command.nodeId, (n) => {
+        if (n.kind !== 'placeholder') return
+        n.attributes = { ...n.attributes }
+        if (command.value === null) delete n.attributes[command.name]
+        else n.attributes[command.name] = command.value
+        markModifiedIfExisting(n)
+      })
     case 'SetText':
       if (isLocked(tree, command.nodeId)) return tree
-      return updateNode<TextNode>(tree, command.nodeId, (n) => {
-        n.content = command.content
+      return updateNode(tree, command.nodeId, (n) => {
+        if (n.kind === 'placeholder') n.textPreview = command.content
+        else if (n.kind === 'text' || n.kind === 'heading') n.content = command.content
         markModifiedIfExisting(n)
       })
     case 'SetGap':
@@ -249,10 +260,15 @@ export function invertCommand(tree: DesignNode, command: DesignCommand): DesignC
       return { type: 'InsertComponent', parentId: info.parent.id, index: info.index, node }
     }
 
+    case 'SetAttribute': {
+      const node = findNode(tree, command.nodeId)
+      if (!node || node.kind !== 'placeholder') return null
+      return { type: 'SetAttribute', nodeId: node.id, name: command.name, value: node.attributes?.[command.name] ?? null }
+    }
     case 'SetText': {
-      const node = findNode(tree, command.nodeId) as TextNode | null
+      const node = findNode(tree, command.nodeId)
       if (!node) return null
-      return { type: 'SetText', nodeId: command.nodeId, content: node.content }
+      return { type: 'SetText', nodeId: command.nodeId, content: node.kind === 'placeholder' ? node.textPreview ?? '' : (node as TextNode).content }
     }
 
     case 'SetGap': {

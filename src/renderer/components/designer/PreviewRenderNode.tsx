@@ -115,7 +115,7 @@ function effectiveStyle(node: DesignNode, breakpoint: Breakpoint): NodeStyle | u
 
 function styleToCss(value: NodeStyle | undefined, kind: DesignNode['kind']): CSSProperties {
   if (!value) return {}
-  const style: CSSProperties = {}
+  const style: CSSProperties = { position: value.position, left: value.left, top: value.top }
   if (value.width !== undefined) style.width = value.width === 'fill' ? '100%' : value.width === 'auto' ? undefined : value.width
   if (value.height !== undefined) style.height = value.height === 'fill' ? '100%' : value.height === 'auto' ? undefined : value.height
   if (value.minWidth !== undefined) style.minWidth = value.minWidth
