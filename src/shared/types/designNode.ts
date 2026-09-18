@@ -101,6 +101,9 @@ export interface ResponsiveOverride {
 }
 
 export interface NodeStyle {
+  position?: 'relative' | 'absolute'
+  left?: number
+  top?: number
   width?: number | 'auto' | 'fill'
   height?: number | 'auto' | 'fill'
   minWidth?: number

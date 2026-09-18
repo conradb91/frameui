@@ -33,6 +33,7 @@ export function walkFiles(rootDir: string, extensions: string[], ignoreRules: Ig
       return
     }
     for (const entry of entries) {
+      if (ignoreRules.shouldSkipPath?.(path.join(dir, entry.name), entry.isDirectory())) continue
       if (entry.isDirectory()) {
         if (ignoreRules.shouldSkipDir(entry.name)) continue
         visit(path.join(dir, entry.name))
@@ -63,6 +64,7 @@ export function walkFileMetadata(rootDir: string, extensions: string[], ignoreRu
     try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
     for (const entry of entries) {
       const absolutePath = path.join(dir, entry.name)
+      if (ignoreRules.shouldSkipPath?.(path.join(dir, entry.name), entry.isDirectory())) continue
       if (entry.isDirectory()) {
         if (!ignoreRules.shouldSkipDir(entry.name)) visit(absolutePath)
         continue

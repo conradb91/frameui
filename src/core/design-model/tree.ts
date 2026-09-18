@@ -49,6 +49,10 @@ export function removeNode(root: DesignNode, id: string): DesignNode {
 }
 
 export function moveNode(root: DesignNode, nodeId: string, newParentId: string, newIndex: number): DesignNode {
+  const moving = findNode(root, nodeId)
+  // Moving a node into itself or its descendants would detach the whole
+  // subtree and create a cycle. Keep the original tree and undo history.
+  if (!moving || findNode(moving, newParentId)) return root
   return produce(root, (draft) => {
     const info = findParent(draft as DesignNode, nodeId)
     const newParent = findNode(draft as DesignNode, newParentId)

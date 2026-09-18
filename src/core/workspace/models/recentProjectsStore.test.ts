@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { clearRecentProjects, deleteProjectFromDisk, listAllProjects, listRecentProjects, recordProjectOpened, removeProjectFromFrameUi, removeProjectFromRecent } from './recentProjectsStore'
+import { renameProject, clearRecentProjects, deleteProjectFromDisk, listAllProjects, listRecentProjects, recordProjectOpened, removeProjectFromFrameUi, removeProjectFromRecent } from './recentProjectsStore'
 
 const roots: string[] = []
 function temporaryRoot(prefix: string) { const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix)); roots.push(root); return root }
@@ -68,3 +68,16 @@ describe('registered projects and recent history', () => {
     expect(listAllProjects(data)).toEqual([])
   })
 })
+
+ test('renaming persists across reopen without changing source or history', () => {
+  const data = temporaryRoot('frameui-rename-'), repository = temporaryRoot('frameui-source-')
+  fs.writeFileSync(path.join(repository, 'keep.txt'), 'original')
+  const project = recordProjectOpened(data, repository, 'Original')
+  renameProject(data, project.id, '  Budget App  ')
+  expect(listAllProjects(data)[0].name).toBe('Budget App')
+  expect(listRecentProjects(data)[0].lastOpenedAt).toBe(project.lastOpenedAt)
+  expect(recordProjectOpened(data, repository, 'Original').name).toBe('Budget App')
+  expect(fs.readFileSync(path.join(repository, 'keep.txt'), 'utf8')).toBe('original')
+  expect(() => renameProject(data, project.id, '  ')).toThrow()
+  expect(() => renameProject(data, 'unknown', 'Name')).toThrow()
+ })

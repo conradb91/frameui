@@ -16,7 +16,7 @@ export interface StyleToken {
   confidence: Confidence
 }
 
-export type StyleTokenSource = 'tailwind-v3' | 'tailwind-v4' | 'css-custom-properties' | 'none'
+export type StyleTokenSource = 'tailwind-v3' | 'tailwind-v4' | 'css-custom-properties' | 'stylesheets' | 'none'
 
 export interface StyleTokens {
   source: StyleTokenSource
@@ -24,4 +24,12 @@ export interface StyleTokens {
   spacing: StyleToken[]
   radius: StyleToken[]
   breakpoints: StyleToken[]
+  /** A named font stack (e.g. `sans` -> `Inter, sans-serif`) — never a bare
+   * weight or size, those are separate categories/data sources. */
+  fontFamilies: StyleToken[]
+  /** A named type-scale step (e.g. `lg` -> `1.125rem`). Font *weight* is
+   * deliberately not a static category here — the project's actually-loaded
+   * weights come from captured `@font-face` data instead (`VisualPage.fonts`),
+   * which is more accurate than a theoretical Tailwind scale. */
+  fontSizes: StyleToken[]
 }

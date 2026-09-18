@@ -38,28 +38,30 @@ export function matchRoutePattern(url: string, routes: RoutePattern[]): RouteMat
   const pathname = extractPathname(url)
   const urlSegments = segmentsOf(pathname)
 
-  for (const route of routes) {
+  // Prefer exact/static routes over parameter routes regardless of declaration order.
+  const ranked = [...routes].sort((a, b) => {
+    const score = (value: string) => segmentsOf(value).reduce((sum, part) => sum + (/^[:{[*]/.test(part) ? 0 : 10), 0)
+    return score(b.path) - score(a.path)
+  })
+  for (const route of ranked) {
     const patternSegments = segmentsOf(route.path)
-    if (patternSegments.length !== urlSegments.length) continue
-
     const params: Record<string, string> = {}
+    let cursor = 0
     let matched = true
-    for (let i = 0; i < patternSegments.length; i++) {
-      const patternSegment = patternSegments[i]
-      const urlSegment = urlSegments[i]
-      const colonMatch = patternSegment.match(COLON_PARAM)
-      const braceMatch = patternSegment.match(BRACE_PARAM)
-      const paramName = colonMatch?.[1] ?? braceMatch?.[1]
-      if (paramName) {
-        params[paramName] = urlSegment
-      } else if (patternSegment !== urlSegment) {
-        matched = false
-        break
+    for (const part of patternSegments) {
+      const catchAll = /^\[\[\.\.\.(\w+)\]\]$/.exec(part) || /^\[\.\.\.(\w+)\]$/.exec(part) || /^\*(\w*)$/.exec(part)
+      if (catchAll) {
+        if (cursor >= urlSegments.length && !part.startsWith('[[')) { matched = false; break }
+        params[catchAll[1] || 'path'] = urlSegments.slice(cursor).join('/')
+        cursor = urlSegments.length
+        continue
       }
+      const paramName = part.match(COLON_PARAM)?.[1] ?? part.match(BRACE_PARAM)?.[1] ?? /^\[(\w+)\]$/.exec(part)?.[1]
+      const value = urlSegments[cursor++]
+      if (value === undefined || (!paramName && part !== value)) { matched = false; break }
+      if (paramName) params[paramName] = value
     }
-
-    if (matched) return { route, params }
+    if (matched && cursor === urlSegments.length) return { route, params }
   }
-
   return null
 }

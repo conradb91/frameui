@@ -1,9 +1,10 @@
+import { UI_FONT, themes } from '../../shared/theme'
 import type { DesignNode, Breakpoint, NodeStyle } from '@shared/types/designNode'
 import type { ExportWarning, FeatureExportSettings, ExportScene, DesignExporter } from '@shared/types/handoff'
 import type { ResolvedBox } from '../design-model/layout'
 import { resolveLayout } from '../design-model/layout'
 
-const COLOR = { canvasBg: '#111114', border: '#37373d', textPrimary: '#ffffff', textSecondary: '#c2c2c8', textTertiary: '#85858e', accent: '#7c6af2', panel2: '#17171b', danger: '#f16565', warning: '#f5b84b' }
+const COLOR = { canvasBg: themes.dark.canvas, border: themes.dark.border, textPrimary: themes.dark.text, textSecondary: themes.dark['text-2'], textTertiary: themes.dark['text-3'], accent: themes.dark.accent, panel2: themes.dark['panel-2'], danger: themes.dark.danger, warning: themes.dark.warning }
 const CANVAS_PADDING = 32
 
 function esc(text: string): string { return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;') }
@@ -21,7 +22,7 @@ function name(node: DesignNode): string {
 function styleAt(node: DesignNode, breakpoint: Breakpoint): NodeStyle { return { ...node.style, ...(breakpoint === 'desktop' ? undefined : node.responsiveOverrides?.[breakpoint]?.style) } }
 function paintAttrs(style: NodeStyle): string { return style.opacity === undefined ? '' : `opacity="${num(style.opacity)}"` }
 function textAttrs(style: NodeStyle, defaults: { size: number; weight: number; color: string }): string {
-  return `font-family="${esc(style.fontFamily || 'Inter, system-ui, sans-serif')}" font-size="${num(style.fontSize ?? defaults.size)}" font-weight="${num(style.fontWeight ?? defaults.weight)}" fill="${esc(style.color ?? defaults.color)}"${style.letterSpacing !== undefined ? ` letter-spacing="${num(style.letterSpacing)}"` : ''}`
+  return `font-family="${esc(style.fontFamily || UI_FONT)}" font-size="${num(style.fontSize ?? defaults.size)}" font-weight="${num(style.fontWeight ?? defaults.weight)}" fill="${esc(style.color ?? defaults.color)}"${style.letterSpacing !== undefined ? ` letter-spacing="${num(style.letterSpacing)}"` : ''}`
 }
 function rect(box: ResolvedBox, style: NodeStyle, defaults: { fill: string; radius?: number; stroke?: string }): string {
   const fill = style.backgroundColor ?? defaults.fill
@@ -49,7 +50,7 @@ function renderBox(box: ResolvedBox, breakpoint: Breakpoint, warnings: ExportWar
     case 'button': {
       const primary = node.variant === 'primary'
       parts.push(rect(box, style, { fill: primary ? COLOR.accent : COLOR.panel2, radius: 9, stroke: primary ? 'none' : COLOR.border }))
-      parts.push(`<text x="${num(x + width / 2)}" y="${num(y + height / 2 + 4.5)}" text-anchor="middle" ${textAttrs(style, { size: 13, weight: 600, color: primary ? '#ffffff' : COLOR.textSecondary })}>${esc(safeContent(node.label))}</text>`)
+      parts.push(`<text x="${num(x + width / 2)}" y="${num(y + height / 2 + 4.5)}" text-anchor="middle" ${textAttrs(style, { size: 13, weight: 600, color: primary ? themes.dark['on-accent'] : COLOR.textSecondary })}>${esc(safeContent(node.label))}</text>`)
       break
     }
     case 'divider': parts.push(rect({ ...box, height: typeof style.height === 'number' ? style.height : 1 }, style, { fill: style.backgroundColor ?? COLOR.border })); break

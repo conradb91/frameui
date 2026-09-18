@@ -33,7 +33,7 @@ function findCssEntryWithTheme(rootPath: string): string | null {
     }
   }
 
-  const ignoreRules = createIgnoreRules()
+  const ignoreRules = createIgnoreRules([], rootPath)
   const { files } = walkFiles(rootPath, ['.css'], ignoreRules)
   for (const filePath of files.slice(0, MAX_FILES_TO_SCAN)) {
     try {
@@ -45,11 +45,18 @@ function findCssEntryWithTheme(rootPath: string): string | null {
   return null
 }
 
-function categoryFor(prop: string): 'colors' | 'spacing' | 'radius' | 'breakpoints' | null {
+function categoryFor(prop: string): 'colors' | 'spacing' | 'radius' | 'breakpoints' | 'fontFamilies' | 'fontSizes' | null {
   if (prop.startsWith('--color-')) return 'colors'
   if (prop.startsWith('--radius')) return 'radius'
   if (prop.startsWith('--breakpoint-')) return 'breakpoints'
   if (prop.startsWith('--spacing')) return 'spacing'
+  // `--font-weight-*` is deliberately excluded — the project's actually
+  // loaded weights come from captured `@font-face` data instead, not this
+  // theoretical scale (see StyleTokens.fontSizes' own comment).
+  if (prop.startsWith('--font-weight-')) return null
+  if (prop.startsWith('--font-')) return 'fontFamilies'
+  // `--text-sm--line-height` is a companion of `--text-sm`, not its own size.
+  if (prop.startsWith('--text-') && !prop.includes('--line-height')) return 'fontSizes'
   return null
 }
 
@@ -59,6 +66,8 @@ function nameFor(prop: string, category: string): string {
   if (category === 'breakpoints') return withoutDashes.replace(/^breakpoint-/, '')
   if (category === 'radius') return withoutDashes.replace(/^radius-?/, '') || 'DEFAULT'
   if (category === 'spacing') return withoutDashes.replace(/^spacing-?/, '') || 'DEFAULT'
+  if (category === 'fontFamilies') return withoutDashes.replace(/^font-/, '')
+  if (category === 'fontSizes') return withoutDashes.replace(/^text-/, '')
   return withoutDashes
 }
 
@@ -73,7 +82,7 @@ export function readTailwindV4Tokens(rootPath: string): StyleTokens | null {
     return null
   }
 
-  const tokens: StyleTokens = { source: 'tailwind-v4', colors: [], spacing: [], radius: [], breakpoints: [] }
+  const tokens: StyleTokens = { source: 'tailwind-v4', colors: [], spacing: [], radius: [], breakpoints: [], fontFamilies: [], fontSizes: [] }
 
   let root
   try {

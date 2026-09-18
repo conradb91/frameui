@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { configuredRoutes } from '../react/configuredRoutes'
 import { hasDependency } from '../shared/packageJson'
 import { resolveGenericBundler } from '../shared/genericBundler'
 import { findMarkupPages } from '../markup/findMarkupPages'
@@ -9,18 +10,22 @@ import type { SourceAdapter } from '../types'
  * scanner today; a real `.vue` SFC parser is Phase 2 follow-up work. */
 export const vueAdapter: SourceAdapter = {
   id: 'vue',
+  assetRoots: ['public', 'static'],
+  ownsFile: (file) => /\.vue$/i.test(file),
 
   detect(ctx) {
-    if (!ctx.pkg || !hasDependency(ctx.pkg, 'vue')) return null
+    if (!ctx.pkg || !(hasDependency(ctx.pkg, 'vue') || hasDependency(ctx.pkg, 'nuxt'))) return null
     // Same reasoning as svelteAdapter: a `vue` dependency alone doesn't
     // prove this project *is* a Vue app (a tool could depend on it purely
     // to parse other projects' `.vue` files) — require a real `.vue` file.
     if (!ctx.candidateFiles.some((file) => file.endsWith('.vue'))) return null
     const generic = resolveGenericBundler(ctx.rootPath, ctx.pkg, false)
-    return { framework: 'vue', phpFramework: null, bundler: generic.bundler, routerStyle: 'templates', routesDir: null, devCommand: generic.devCommand }
+    return { framework: 'vue', phpFramework: null, bundler: generic.bundler, routerStyle: hasDependency(ctx.pkg, 'nuxt') ? 'nuxt' : 'templates', routesDir: null, devCommand: generic.devCommand }
   },
 
-  findPages(ctx) {
+  findPages(ctx, match) {
+    const routes = match.routerStyle === 'nuxt' ? [] : configuredRoutes(ctx.rootPath, ctx.candidateFiles)
+    if (routes.length) return routes
     return findMarkupPages(ctx.rootPath, 'vue', ctx.ignoreRules)
   },
 

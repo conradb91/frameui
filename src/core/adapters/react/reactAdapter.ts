@@ -4,6 +4,7 @@ import { hasDependency } from '../shared/packageJson'
 import { resolveGenericBundler } from '../shared/genericBundler'
 import { detectNext } from '../nextjs/nextAdapter'
 import { findPages } from './findPages'
+import { configuredRoutes } from './configuredRoutes'
 import { findComponents } from './findComponents'
 import type { AdapterMatch, SourceAdapter } from '../types'
 
@@ -20,11 +21,12 @@ function findConventionalPagesDir(rootPath: string): string | null {
  * with a `react` dependency (islands) still matches Astro first. */
 export const reactAdapter: SourceAdapter = {
   id: 'react',
+  ownsFile: (file) => /\.[jt]sx?$/i.test(file),
 
   detect(ctx) {
-    if (!ctx.pkg || !hasDependency(ctx.pkg, 'react')) return null
+    if (!(ctx.pkg && (hasDependency(ctx.pkg, 'react') || hasDependency(ctx.pkg, 'next'))) && !ctx.candidateFiles.some((file) => /\.[jt]sx$/.test(file))) return null
 
-    const next = detectNext(ctx.rootPath, ctx.pkg)
+    const next = ctx.pkg ? detectNext(ctx.rootPath, ctx.pkg) : { detected: false, routesDir: null, routerStyle: 'unknown' as const, devCommand: null }
     const generic = next.detected ? null : resolveGenericBundler(ctx.rootPath, ctx.pkg, false)
     const bundler: AdapterMatch['bundler'] = next.detected ? 'next' : (generic!.bundler)
     const routesDir = next.detected ? next.routesDir : findConventionalPagesDir(ctx.rootPath)
@@ -35,7 +37,21 @@ export const reactAdapter: SourceAdapter = {
   },
 
   findPages(ctx, match) {
-    return findPages(ctx.rootPath, match.routerStyle, match.routesDir, ctx.ignoreRules)
+    if (match.routerStyle.startsWith('next-')) {
+      const pages = findPages(ctx.rootPath, match.routerStyle, match.routesDir, ctx.ignoreRules)
+      if (match.routerStyle === 'next-app') {
+        for (const dir of ['pages', 'src/pages']) {
+          const full = path.join(ctx.rootPath, dir)
+          if (!fs.existsSync(full)) continue
+          for (const page of findPages(ctx.rootPath, 'next-pages', full, ctx.ignoreRules))
+            if (!pages.some(existing => existing.route === page.route)) pages.push(page)
+          break
+        }
+      }
+      return pages
+    }
+    const routes = configuredRoutes(ctx.rootPath, ctx.candidateFiles)
+    return routes.length ? routes : findPages(ctx.rootPath, match.routerStyle, match.routesDir, ctx.ignoreRules)
   },
 
   findComponents(ctx, _match, pages) {

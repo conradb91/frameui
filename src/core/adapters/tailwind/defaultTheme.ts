@@ -45,3 +45,22 @@ export function defaultBreakpointTokens(): Omit<StyleToken, 'confidence'>[] {
     { name: 'xl', value: '1280px' },
   ]
 }
+
+export function defaultFontFamilyTokens(): Omit<StyleToken, 'confidence'>[] {
+  return [
+    { name: 'sans', value: 'ui-sans-serif, system-ui, sans-serif' },
+    { name: 'serif', value: 'ui-serif, Georgia, serif' },
+    { name: 'mono', value: 'ui-monospace, monospace' },
+  ]
+}
+
+export function defaultFontSizeTokens(): Omit<StyleToken, 'confidence'>[] {
+  return [
+    { name: 'xs', value: '0.75rem' },
+    { name: 'sm', value: '0.875rem' },
+    { name: 'base', value: '1rem' },
+    { name: 'lg', value: '1.125rem' },
+    { name: 'xl', value: '1.25rem' },
+    { name: '2xl', value: '1.5rem' },
+  ]
+}

@@ -23,6 +23,9 @@ export function readJsonFile<T>(filePath: string, fallback: T, schemaVersion = 1
       // phase adds a migrations/ step here keyed by parsed.schemaVersion.
       return fallback
     }
+    if (!Object.prototype.hasOwnProperty.call(parsed, 'data')) return fallback
+    if (Array.isArray(fallback) && !Array.isArray(parsed.data)) return fallback
+    if (parsed.data === null && fallback !== null) return fallback
     return parsed.data
   } catch {
     return fallback

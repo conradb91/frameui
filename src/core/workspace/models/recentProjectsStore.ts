@@ -86,7 +86,7 @@ export function recordProjectOpened(userDataPath: string, folderPath: string, na
   const matched = matchById ?? matchByPath
   const id = matched?.id ?? crypto.randomUUID()
   const now = new Date().toISOString()
-  const record: RecentProject = { id, name, path: canonicalPath, addedAt: matched?.addedAt ?? now, lastOpenedAt: now }
+  const record: RecentProject = { id, name: matched?.name ?? name, path: canonicalPath, addedAt: matched?.addedAt ?? now, lastOpenedAt: now }
 
   const updatedProjects = [record, ...existing.filter((project) => project.id !== id && project.id !== matchByPath?.id)]
   writeJsonFileAtomic(getProjectLibraryFile(userDataPath), updatedProjects)
@@ -134,4 +134,12 @@ export function deleteProjectFromDisk(userDataPath: string, projectId: string, c
   if (!fs.statSync(target).isDirectory()) throw new Error('Project path is not a directory.')
   fs.rmSync(target, { recursive: true, force: false })
   removeProjectFromFrameUi(userDataPath, projectId)
+}
+
+export function renameProject(userDataPath: string, projectId: string, name: string): void {
+  const normalized = name.trim()
+  if (!normalized || normalized.length > 120) throw new Error('Project name must contain 1 to 120 characters.')
+  const projects = readProjects(userDataPath)
+  if (!projects.some(project => project.id === projectId)) throw new Error('Project not found.')
+  writeJsonFileAtomic(getProjectLibraryFile(userDataPath), projects.map(project => project.id === projectId ? { ...project, name: normalized } : project))
 }

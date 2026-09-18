@@ -99,12 +99,12 @@ export function readTailwindV3Tokens(rootPath: string): StyleTokens | null {
 
   const configObj = findConfigObjectLiteral(sourceFile)
   if (!configObj) {
-    return { source: 'tailwind-v3', colors: [], spacing: [], radius: [], breakpoints: [] }
+    return { source: 'tailwind-v3', colors: [], spacing: [], radius: [], breakpoints: [], fontFamilies: [], fontSizes: [] }
   }
 
   const themeObj = getObjectProperty(configObj, 'theme')
   if (!themeObj) {
-    return { source: 'tailwind-v3', colors: [], spacing: [], radius: [], breakpoints: [] }
+    return { source: 'tailwind-v3', colors: [], spacing: [], radius: [], breakpoints: [], fontFamilies: [], fontSizes: [] }
   }
   const extendObj = getObjectProperty(themeObj, 'extend')
 
@@ -114,5 +114,7 @@ export function readTailwindV3Tokens(rootPath: string): StyleTokens | null {
     spacing: extractCategory(themeObj, extendObj, 'spacing', sourceFile),
     radius: extractCategory(themeObj, extendObj, 'borderRadius', sourceFile),
     breakpoints: extractCategory(themeObj, extendObj, 'screens', sourceFile),
+    fontFamilies: extractCategory(themeObj, extendObj, 'fontFamily', sourceFile),
+    fontSizes: extractCategory(themeObj, extendObj, 'fontSize', sourceFile),
   }
 }

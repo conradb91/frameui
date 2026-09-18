@@ -69,10 +69,12 @@ export function findComponents(
   // TypeScript checker, and without it the checker silently excludes
   // .js/.jsx files from module/export resolution — every plain-JavaScript
   // React project (spec §6.1 Primary tier) would report zero components.
+  // Component discovery reads local declarations, not runtime dependency types.
+  // Keep the checker from loading node_modules and TypeScript standard libs.
   const project = new Project({
-    useInMemoryFileSystem: false,
+    useInMemoryFileSystem: true,
     skipFileDependencyResolution: true,
-    compilerOptions: { allowJs: true },
+    compilerOptions: { allowJs: true, noLib: true, noResolve: true },
   })
   const components: DetectedComponent[] = []
 

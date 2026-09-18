@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { resolvePageName } from '../react/pageName'
 import type { DetectedPage, Framework } from '@shared/types/projectIndex'
 import type { IgnoreRules } from '@core/indexer/ignore'
 
@@ -25,7 +26,7 @@ function titleCase(value: string): string {
     .replace(/[-_]+/g, ' ')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .split(' ')
-    .filter(Boolean)
+    .filter((segment) => !!segment && !/^\(.*\)$/.test(segment))
     .map((word) => word[0].toUpperCase() + word.slice(1))
     .join(' ')
 }
@@ -35,7 +36,7 @@ function routeFor(relativeWithinRoot: string): string {
   const base = withoutTemplateExtension(parts.pop() ?? '')
   if (base.toLowerCase() !== 'index') parts.push(base)
   const route = parts
-    .filter(Boolean)
+    .filter((segment) => !!segment && !/^\(.*\)$/.test(segment))
     .map((segment) => segment.replace(/^\[\.\.\.([^\]]+)\]$/, '*$1').replace(/^\[([^\]]+)\]$/, ':$1'))
     .join('/')
   return `/${route}`.replace(/\/$/, '') || '/'
@@ -43,10 +44,10 @@ function routeFor(relativeWithinRoot: string): string {
 
 function rootsFor(rootPath: string, framework: Framework): string[] {
   const candidates: string[] = []
-  if (framework === 'php') candidates.push('resources/views', 'app/Views', 'application/views', 'views', 'templates')
+  if (framework === 'php') candidates.push('resources/views', 'app/Views', 'application/views', 'views', 'templates', 'public', '.')
   if (framework === 'astro') candidates.push('src/pages')
   if (framework === 'svelte') candidates.push('src/routes', 'src/pages', 'routes', 'pages')
-  if (framework === 'vue') candidates.push('src/pages', 'pages', 'src/views', 'views')
+  if (framework === 'vue') candidates.push('app/pages', 'src/pages', 'pages', 'src/views', 'views')
   if (framework === 'node') candidates.push('views', 'src/views', 'pages', 'src/pages', 'templates')
   if (framework === 'static') candidates.push('pages', 'public', '.')
   const existing = [...new Set(candidates.map((candidate) => path.resolve(rootPath, candidate)))].filter(
@@ -77,14 +78,18 @@ export function findMarkupPages(rootPath: string, framework: Framework, ignoreRu
     for (const entry of entries) {
       if (pages.length >= MAX_PAGES) break
       const fullPath = path.join(dir, entry.name)
+      if (ignoreRules.shouldSkipPath?.(fullPath, entry.isDirectory())) continue
       if (entry.isDirectory()) {
-        if (ignoreRules.shouldSkipDir(entry.name) || NON_PAGE_DIRS.has(entry.name.toLowerCase())) continue
+        if (ignoreRules.shouldSkipDir(entry.name) || NON_PAGE_DIRS.has(entry.name.toLowerCase()) || (framework === 'php' && /^(controllers?|models?|config|database|migrations?|tests?|system|libraries|helpers|commands|filters)$/i.test(entry.name))) continue
         visit(fullPath, pagesRoot)
         continue
       }
       if (!entry.isFile() || ignoreRules.shouldSkipFile(entry.name)) continue
       const ext = path.extname(entry.name).toLowerCase()
       if (!EXTENSIONS.has(ext)) continue
+      if (framework === 'php' && /\.(php|phtml)$/i.test(entry.name)) {
+        try { if (!/<(?:html|body|div|main|section|h[1-6]|p|form|table|ul|a|button|header|article|nav|span)\b/i.test(fs.readFileSync(fullPath, 'utf8'))) continue } catch { continue }
+      }
       const base = withoutTemplateExtension(entry.name)
       if (NON_PAGE_NAMES.test(base) || (framework === 'php' && base.toLowerCase() === 'app')) continue
       const filePath = path.relative(rootPath, fullPath).split(path.sep).join('/')
@@ -93,9 +98,17 @@ export function findMarkupPages(rootPath: string, framework: Framework, ignoreRu
       const relativeWithinRoot = path.relative(pagesRoot, fullPath).split(path.sep).join('/')
       const route = routeFor(relativeWithinRoot)
       const parentName = path.basename(path.dirname(relativeWithinRoot))
+      let pageTitle: string | undefined
+      let heading: string | undefined
+      try {
+        const content = fs.readFileSync(fullPath, 'utf8')
+        pageTitle = content.match(/<title[^>]*>([^<>{]+)<\/title>/i)?.[1]
+        heading = content.match(/<h1[^>]*>([^<>{]+)<\/h1>/i)?.[1]
+        if (pageTitle?.includes('<?')) pageTitle = undefined
+      } catch { /* Filename remains a fallback. */ }
       pages.push({
         id: crypto.randomUUID(),
-        name: titleCase(base.toLowerCase() === 'index' && parentName !== '.' ? parentName : base) || 'Home',
+        name: resolvePageName({heading, title: pageTitle, fallback: titleCase(base.toLowerCase() === 'index' && parentName !== '.' ? parentName : base), route}),
         filePath,
         route,
       })

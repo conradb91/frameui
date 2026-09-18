@@ -14,6 +14,7 @@ import type { SourceAdapter } from '../types'
  * ts-morph-based component finder — both contribute, not either/or. */
 export const astroAdapter: SourceAdapter = {
   id: 'astro',
+  ownsFile: (file) => /\.astro$/i.test(file),
 
   detect(ctx) {
     if (!ctx.pkg || !hasDependency(ctx.pkg, 'astro')) return null

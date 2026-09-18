@@ -3,7 +3,7 @@ import type { Component, Page, RoutePattern } from '@shared/types/model/projectM
 import type { ComponentIntelligence, RuntimeComponentRelationship } from '@shared/types/designSystem'
 
 const key = (value: string) => value.replace(/[^a-z0-9]/gi, '').toLowerCase()
-const safeText = (value: string | undefined) => value && /(?:bearer\s+|api[_-]?key|password|secret|card\s*number|\b\d{13,19}\b)/i.test(value) ? '[redacted]' : value
+const safeText = (value: string | undefined) => value && /(?:bearer\s+[a-z0-9._-]+|api[_-]?key\s*[:=]|password\s*[:=]|secret\s*[:=]|\b\d{13,19}\b)/i.test(value) ? '[redacted]' : value
 
 export function sanitizeRuntimeElement(element: CapturedElement): CapturedElement {
   return { ...element, id: undefined, textPreview: safeText(element.textPreview), aria: element.aria ? Object.fromEntries(Object.entries(element.aria).filter(([name]) => !/value|token|secret/i.test(name))) : undefined, children: element.children.map(sanitizeRuntimeElement) }

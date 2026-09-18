@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { readAdapterStructure } from '../structureReaders'
 import type { PageStructureItem } from '@shared/types/pageStructure'
 import { extractPageStructure as extractJsxStructure } from '@core/adapters/react/extractPageStructure'
 import { extractVueStructure } from '@core/adapters/vue/extractVueStructure'
@@ -15,8 +16,10 @@ export function extractPageStructureFromSource(
   content: string,
   filePath: string,
   knownComponentNames: Set<string>,
-  includeRoot = false,
+  includeRoot = true,
 ): PageStructureItem[] {
+  const adapted = readAdapterStructure(content, filePath, knownComponentNames, includeRoot)
+  if (adapted !== null) return adapted
   const ext = path.extname(filePath).toLowerCase()
   if (JSX_EXTENSIONS.has(ext)) return extractJsxStructure(content, ext, knownComponentNames, includeRoot)
   if (PUG_EXTENSIONS.has(ext)) return extractPugStructure(content, knownComponentNames)

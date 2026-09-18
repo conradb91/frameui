@@ -2,11 +2,12 @@ import type { PackageJsonInfo } from './shared/packageJson'
 import type { ComposerJsonInfo } from './shared/composerJson'
 import type { IgnoreRules } from '@core/indexer/ignore'
 import type { Bundler, DetectedComponent, DetectedPage, DevCommand, Framework, PhpFramework, RouterStyle } from '@shared/types/projectIndex'
+import type { PageStructureItem } from '@shared/types/pageStructure'
 
 /**
  * Everything an adapter needs to detect and parse a project — built once
  * per `indexProject` call and passed through unchanged. Adapters read this,
- * they never re-walk the filesystem or re-parse package.json themselves.
+ * new adapters should use this scoped file set for discovery.
  */
 export interface AdapterContext {
   rootPath: string
@@ -28,24 +29,23 @@ export interface AdapterMatch {
   devCommand: DevCommand | null
 }
 
-/**
- * One implementation per framework/ecosystem (Design Model spec §1). The
- * registry (`registry.ts`) tries each adapter's `detect()` in a fixed
- * priority order and uses the first match's `findPages`/`findComponents` —
- * adding a framework means adding one adapter here, not editing
- * `indexProject.ts`. Parsing technique (regex vs. AST) is each adapter's
- * own concern, not part of this contract — swapping an adapter's internals
- * for real AST parsing later (spec §2) never touches the registry.
- */
+/** A composable source importer. All contributions feed the same Design Model. */
 export interface SourceAdapter {
   /** Stable id for logging/debugging. */
   id: string
+  /** File extensions contributed to scanning and cache validation. */
+  extensions?: string[]
+  /** Project-relative directories served at the application URL root. */
+  assetRoots?: string[]
+  /** Lower priority generic importers only claim files left by specific adapters. */
+  fallback?: boolean
+  ownsFile?(filePath: string): boolean
+  readStructure?(content: string, filePath: string, knownNames: Set<string>, includeRoot: boolean): PageStructureItem[] | null
   /** Returns match metadata when this adapter recognizes the project, or
    * null when it doesn't apply. */
   detect(ctx: AdapterContext): AdapterMatch | null
   findPages(ctx: AdapterContext, match: AdapterMatch): DetectedPage[]
-  /** `pages` is this same call's own `findPages` result — passed in rather
-   * than re-derived so a page file is never also counted as a component
-   * (matches today's `pageAbsolutePaths` exclusion behavior exactly). */
+  /** The adapter's own discovered pages. Importers can exclude them from
+   * components or retain reusable routed components where appropriate. */
   findComponents(ctx: AdapterContext, match: AdapterMatch, pages: DetectedPage[]): DetectedComponent[]
 }

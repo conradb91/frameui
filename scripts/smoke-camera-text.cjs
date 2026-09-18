@@ -1,0 +1,42 @@
+const { _electron } = require('playwright-core')
+const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), assert = require('node:assert/strict')
+;(async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'frameui-camera-text-'))
+  const env = {...process.env, FRAMEUI_ALLOW_MULTIPLE_INSTANCES:'1'}; delete env.ELECTRON_RUN_AS_NODE
+  let app
+  try {
+    app = await _electron.launch({executablePath:require('electron'), args:['.', `--user-data-dir=${root}`], env})
+    const page = await app.firstWindow()
+    const skip = page.getByRole('button', {name:'Skip introduction',exact:true})
+    if (await skip.isVisible()) await skip.click()
+    await page.getByRole('button',{name:'Create Blank Design',exact:true}).click()
+    await page.getByRole('button',{name:'Text (T)',exact:true}).click()
+    const box = await page.locator('[data-canvas-frame] > rect').first().boundingBox()
+    await page.mouse.move(box.x+90,box.y+90); await page.mouse.down(); await page.mouse.move(box.x+250,box.y+120); await page.mouse.up()
+    await page.locator('[data-object-id]').first().dblclick()
+    const editor = page.locator('[contenteditable="true"]').first(); await editor.waitFor()
+    await editor.fill('Navigation stays aligned')
+    const check = await page.evaluate(async () => {
+      const stage=document.querySelector('.ide-stage'), editor=document.querySelector('[contenteditable="true"]')
+      const before=editor.getBoundingClientRect()
+      stage.dispatchEvent(new WheelEvent('wheel',{deltaX:23,deltaY:17,bubbles:true,cancelable:true}))
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))
+      const during=editor.getBoundingClientRect()
+      await new Promise(resolve=>setTimeout(resolve,180))
+      const after=editor.getBoundingClientRect()
+      return {dx:during.x-before.x,dy:during.y-before.y,settleX:after.x-during.x,settleY:after.y-during.y}
+    })
+    assert(Math.abs(check.dx+23)<0.1); assert(Math.abs(check.dy+17)<0.1)
+    assert(Math.abs(check.settleX)<0.1); assert(Math.abs(check.settleY)<0.1)
+    await editor.press('Meta+Enter')
+    await page.getByRole('button',{name:'Hand (H)',exact:true}).click()
+    const stage = await page.locator('.ide-stage').boundingBox()
+    const camera = () => page.locator('[data-canvas-camera]').evaluate(el=>{const m=el.transform.baseVal.consolidate().matrix;return {x:m.e,y:m.f}})
+    const beforePan = await camera()
+    await page.mouse.move(stage.x+200,stage.y+200);await page.mouse.down();await page.mouse.move(stage.x+265,stage.y+235,{steps:12});await page.mouse.up()
+    const afterPan = await camera()
+    assert(Math.abs(afterPan.x-beforePan.x-65)<0.1);assert(Math.abs(afterPan.y-beforePan.y-35)<0.1)
+    assert.equal(await page.locator('.ide-navigating').count(),0)
+    console.log('PASS: live text editor alignment and hand-tool panning without settling jumps')
+  } finally { if(app)await app.close();fs.rmSync(root,{recursive:true,force:true}) }
+})().catch(error=>{console.error(error);process.exitCode=1})

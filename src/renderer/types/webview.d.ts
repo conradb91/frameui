@@ -14,6 +14,7 @@ export interface FrameUiWebviewElement extends HTMLElement {
   goForward(): void
   canGoBack(): boolean
   canGoForward(): boolean
+  getWebContentsId(): number
   getURL(): string
   loadURL(url: string): Promise<void>
   stop(): void

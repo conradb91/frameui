@@ -6,6 +6,7 @@ import type { IgnoreRules } from '@core/indexer/ignore'
 import { nameFromSegments, routeFromSegments, prettifySegment } from './routeNaming'
 
 const PAGE_EXTENSIONS = new Set(['.tsx', '.ts', '.jsx', '.js'])
+const routerPrivate = (name: string) => name.startsWith('_') || name.startsWith('@') || /^\(\.{1,3}\)/.test(name)
 const NEXT_PAGES_EXCLUDED = new Set(['_app', '_document', '_error', '_middleware', 'middleware'])
 
 function toRootRelative(rootPath: string, filePath: string): string {
@@ -23,8 +24,9 @@ function walkNextAppRouter(routesDir: string, rootPath: string, ignoreRules: Ign
       return
     }
     for (const entry of entries) {
+      if (ignoreRules.shouldSkipPath?.(path.join(dir, entry.name), entry.isDirectory())) continue
       if (entry.isDirectory()) {
-        if (ignoreRules.shouldSkipDir(entry.name)) continue
+        if (ignoreRules.shouldSkipDir(entry.name) || (routerPrivate(entry.name))) continue
         visit(path.join(dir, entry.name), [...segments, entry.name])
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name)
@@ -34,7 +36,7 @@ function walkNextAppRouter(routesDir: string, rootPath: string, ignoreRules: Ign
           const routeSegments = segments.filter((s) => !(s.startsWith('(') && s.endsWith(')')))
           pages.push({
             id: crypto.randomUUID(),
-            name: nameFromSegments(segments),
+            name: nameFromSegments(routeSegments),
             filePath: toRootRelative(rootPath, filePath),
             route: routeFromSegments(routeSegments),
           })
@@ -58,6 +60,7 @@ function walkNextPagesRouter(routesDir: string, rootPath: string, ignoreRules: I
       return
     }
     for (const entry of entries) {
+      if (ignoreRules.shouldSkipPath?.(path.join(dir, entry.name), entry.isDirectory())) continue
       if (entry.isDirectory()) {
         if (ignoreRules.shouldSkipDir(entry.name) || entry.name === 'api') continue
         visit(path.join(dir, entry.name), [...segments, entry.name])
@@ -96,6 +99,7 @@ function walkConventionalPagesDir(pagesDir: string, rootPath: string, ignoreRule
       return
     }
     for (const entry of entries) {
+      if (ignoreRules.shouldSkipPath?.(path.join(dir, entry.name), entry.isDirectory())) continue
       if (entry.isDirectory()) {
         if (ignoreRules.shouldSkipDir(entry.name)) continue
         visit(path.join(dir, entry.name))

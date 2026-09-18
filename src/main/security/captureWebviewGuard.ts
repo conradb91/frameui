@@ -1,5 +1,7 @@
 import electron, { type BrowserWindow } from 'electron'
 
+import { enableCaptureMotion } from '../ipc/handlers/cdp/captureMotion'
+
 const { app, shell } = electron
 
 /**
@@ -44,6 +46,10 @@ export function installCaptureWebviewGuard(mainWindow: BrowserWindow): void {
       if (!url.startsWith('https://') && !url.startsWith('http://')) {
         navEvent.preventDefault()
       }
+    })
+
+    void enableCaptureMotion(contents).catch((error: unknown) => {
+      console.warn('Could not prepare reduced-motion capture browser:', error)
     })
   })
 }

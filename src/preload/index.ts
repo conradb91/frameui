@@ -12,6 +12,27 @@ const { contextBridge, ipcRenderer } = electron
 // every method here is one specific, named call. Add to this file (and its
 // matching handler in src/main/ipc) as each phase needs a new capability.
 const api: FrameUiApi = {
+  design: {
+    fromSource: input => ipcRenderer.invoke('design:fromSource', input),
+    list: () => ipcRenderer.invoke('design:list'),
+    load: id => ipcRenderer.invoke('design:load', id),
+    save: document => ipcRenderer.invoke('design:save', document),
+    login: input => ipcRenderer.invoke('design:login',input),
+    scan: () => ipcRenderer.invoke('design:scan'),
+    testConnection: (url, profile) => ipcRenderer.invoke('design:testConnection', {url, profile}),
+    prepareCapture: input => ipcRenderer.invoke('design:prepareCapture', input),
+    discover: (url, profile) => ipcRenderer.invoke('design:discover', {url, profile}),
+    addRoute: (token, address) => ipcRenderer.invoke('design:addRoute', {token,address}),
+    capture: input => ipcRenderer.invoke('design:capture', input),
+    captureCurrentState: guestId => ipcRenderer.invoke('design:captureCurrentState', {guestId}),
+    captureLiveVisualStates: (guestId, objects) => ipcRenderer.invoke('design:captureLiveVisualStates', {guestId, objects}),
+    cancelCapture: () => ipcRenderer.invoke('design:cancelCapture'),
+    listStructuredCaptures: projectId => ipcRenderer.invoke('design:listStructuredCaptures', { projectId }),
+    loadStructuredCapture: (projectId, baseName) => ipcRenderer.invoke('design:loadStructuredCapture', { projectId, baseName }),
+    onCommand: callback => {const listener=(_event:Electron.IpcRendererEvent,id:string)=>callback(id);ipcRenderer.on('design:command',listener);return()=>ipcRenderer.removeListener('design:command',listener)},
+    onProgress: callback => { const listener = (_event: Electron.IpcRendererEvent, progress: import('@shared/types/visualDesign').CaptureProgress) => callback(progress); ipcRenderer.on('design:progress', listener); return () => ipcRenderer.removeListener('design:progress', listener) },
+    onCaptureStage: callback => { const listener = (_event: Electron.IpcRendererEvent, stage: import('@shared/types/visualDesign').CaptureStage) => callback(stage); ipcRenderer.on('design:captureStage', listener); return () => ipcRenderer.removeListener('design:captureStage', listener) },
+  },
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
@@ -99,12 +120,14 @@ const api: FrameUiApi = {
     setObservationApproved: (projectId, observationId, approved) => ipcRenderer.invoke('workspace:setObservationApproved', { projectId, observationId, approved }),
   },
   project: {
+    rename: (projectId, name) => ipcRenderer.invoke('project:rename', projectId, name),
     listLibrary: () => ipcRenderer.invoke('project:listLibrary'),
     removeFromRecent: (projectId) => ipcRenderer.invoke('project:removeFromRecent', projectId),
     clearRecent: () => ipcRenderer.invoke('project:clearRecent'),
     removeFromFrameUi: (projectId) => ipcRenderer.invoke('project:removeFromFrameUi', projectId),
     deleteFromDisk: (projectId, confirmationName) => ipcRenderer.invoke('project:deleteFromDisk', { projectId, confirmationName }),
     reveal: (projectId) => ipcRenderer.invoke('project:reveal', projectId),
+    revealFile: (projectId, relativePath) => ipcRenderer.invoke('project:revealFile', projectId, relativePath),
     getLibraryCover: (projectId) => ipcRenderer.invoke('project:getLibraryCover', projectId),
     openDialog: (relinkId) => ipcRenderer.invoke('project:openDialog', relinkId),
     openPath: (path) => ipcRenderer.invoke('project:openPath', path),
@@ -117,6 +140,7 @@ const api: FrameUiApi = {
       ipcRenderer.on('project:onFileChanged', listener)
       return () => ipcRenderer.off('project:onFileChanged', listener)
     },
+    getVisuals: () => ipcRenderer.invoke('project:getVisuals'),
     getPageStructure: (relativeFilePath) => ipcRenderer.invoke('project:getPageStructure', relativeFilePath),
     onIndexProgress: (callback) => {
       const listener = (_event: unknown, update: IndexProgressUpdate) => callback(update)
@@ -148,16 +172,13 @@ const api: FrameUiApi = {
     openExternal: (url) => ipcRenderer.invoke('preview:openExternal', url),
   },
   export: {
+    saveFrameUiPackage: (files, suggestedName) => ipcRenderer.invoke('export:saveFrameUiPackage', { files, suggestedName }),
+    revealSaved: (filePath) => ipcRenderer.invoke('export:revealSaved', filePath),
+    revealFigmaImporter: () => ipcRenderer.invoke('export:revealFigmaImporter'),
     saveSvg: (svg, suggestedName) => ipcRenderer.invoke('export:saveSvg', { svg, suggestedName }),
     savePng: (base64, suggestedName) => ipcRenderer.invoke('export:savePng', { base64, suggestedName }),
     generateReviewPdf: (html, suggestedName) => ipcRenderer.invoke('export:generateReviewPdf', { html, suggestedName }),
     savePackage: (files, suggestedFolder) => ipcRenderer.invoke('export:savePackage', { files, suggestedFolder }),
-  },
-  capture: {
-    save: (capture) => ipcRenderer.invoke('capture:save', capture),
-    list: (projectId) => ipcRenderer.invoke('capture:list', projectId),
-    saveScreenshot: (projectId, captureId, base64Png) => ipcRenderer.invoke('capture:saveScreenshot', { projectId, captureId, base64: base64Png }),
-    getScreenshotDataUrl: (projectId, captureId) => ipcRenderer.invoke('capture:getScreenshotDataUrl', { projectId, captureId }),
   },
 }
 

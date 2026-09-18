@@ -1,10 +1,11 @@
+import type { VisualDocument, VisualPage, VisualObject, ApplicationCandidate, CaptureRoute, CaptureProgress, CaptureStage } from './types/visualDesign'
+import type { ProjectVisuals } from './types/projectVisuals'
 import type { RecentProject, OpenProjectResult, OpenRecentResult, ProjectLibraryEntry } from './types/project'
 import type { ProjectIndex, FileChangeNotice, DevCommand, IndexProgressUpdate } from './types/projectIndex'
 import type { PreviewOutputLine, PreviewStatusUpdate, PreviewUrlDetected, PreviewStatusSnapshot } from './types/preview'
 import type { Flow, FlowSummary } from './types/flow'
 import type { ScreenDraft } from './types/screenDraft'
 import type { PageStructureItem } from './types/pageStructure'
-import type { CapturedPage } from './types/runtimeCapture'
 import type {
   ConceptComponent,
   Feature,
@@ -29,6 +30,7 @@ import type { DesignTreeRecord } from './types/designTreeRecord'
 import type { SharePackageBundle } from './types/sharePackage'
 import type { DesignSystemWorkspaceData, FindingDecision, PreviewCacheEntry, RuntimeComponentRelationship, UserComponentFixture } from './types/designSystem'
 import type { ExportFile, ExportRecord } from './types/handoff'
+import type { FrameUiPackageFile } from './types/frameuiExport'
 
 /**
  * The complete shape of the narrow, typed bridge the preload script exposes
@@ -38,6 +40,50 @@ import type { ExportFile, ExportRecord } from './types/handoff'
  * its own input (see src/main/ipc/schemas) rather than trusting the renderer.
  */
 export interface FrameUiApi {
+  design: {
+    fromSource(input: { projectId: string; pageId: string; width?: number; state?: string }): Promise<VisualPage>
+    /** `pageCount`/`thumbnail` describe the document's own first page (a
+     * Design's frame count/preview); `designCount` is only meaningful for a
+     * project ("library") document — the number of Designs that belong to
+     * it — and is `undefined` on a Design document itself. */
+    list(): Promise<(Pick<VisualDocument, 'id' | 'name' | 'projectId' | 'libraryId' | 'updatedAt'> & { pageCount: number; thumbnail?: string; designCount?: number })[]>
+    load(id: string): Promise<VisualDocument | null>
+    save(document: VisualDocument): Promise<{ ok: boolean }>
+    login(input: {url:string;profile?: 'standard' | 'admin' | 'super-admin';username:string;password:string}): Promise<{ok:boolean;message:string}>
+    scan(): Promise<ApplicationCandidate[]>
+    /** Live Fidelity Capture's "Test connection" preflight — cheap reachability
+     * check reusing the same guest-browser mechanism as `discover`, but never
+     * crawls links or touches the route model. */
+    testConnection(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ ok: true; address: string; title: string; route: string; assetsLoaded: number; assetsTotal: number }>
+    prepareCapture(input: { url: string; profile?: 'standard' | 'admin' | 'super-admin'; routes: { pattern: string; path: string; name: string }[] }): Promise<{ token: string }>
+    discover(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ token: string; routes: CaptureRoute[]; components: number; layouts: number; warnings: string[] }>
+    addRoute(token: string, address: string): Promise<CaptureRoute[]>
+    captureCurrentState(guestId: number): Promise<{root: import('./types/runtimeCapture').CapturedElement; metadata:{title:string;heading?:string;width:number;height:number}; thumbnail:string; fonts: NonNullable<VisualPage['fonts']>; url:string; warnings:string[]; structured?: import('./types/structuredDesign').StructuredFrame}>
+    /** Additive follow-up to `captureCurrentState`: forces hover/focus/active
+     * on the caller's already-normalized objects and returns them enriched
+     * with variants — the live capture flow's only way to preserve a real
+     * `:hover` state, since clicking "Capture screen" requires moving the
+     * mouse off whatever's hovered in the webview. */
+    captureLiveVisualStates(guestId: number, objects: VisualObject[]): Promise<VisualObject[]>
+    cancelCapture(): Promise<{ ok: boolean }>
+    capture(input: { token: string; routes?: string[]; controlStates?: boolean; overlays?: boolean; widths: number[]; unchanged: { route: string; hash: string }[] }): Promise<VisualPage[]>
+    /** Stage 3 of the capture-engine rebuild (docs/CAPTURE_ENGINE_REBUILD_SPEC.md):
+     * dev-only read-back for `StructuredCapturePreview.tsx`, the "render
+     * captured models beside the existing SVG output" debug view. Lists the
+     * diagnostic `StructuredDesignDocument` files `design:capture`/
+     * `design:captureCurrentState` already write. */
+    listStructuredCaptures(projectId: string): Promise<{ baseName: string; route: string; viewport: string; name: string; capturedAt: string; hasLegacy: boolean; visualMatchPercent?: number }[]>
+    loadStructuredCapture(projectId: string, baseName: string): Promise<{
+      structured: import('./types/structuredDesign').StructuredDesignDocument
+      legacy?: { objects: VisualObject[]; fonts: NonNullable<VisualPage['fonts']> }
+      /** Stage 4 — the three Pixelmatch comparison images, as data URLs,
+       * present only once `renderAndCompareStructuredCapture` has run. */
+      images?: { original?: string; render?: string; diff?: string }
+    } | null>
+    onCommand(callback: (id: string) => void): () => void
+    onProgress(callback: (progress: CaptureProgress) => void): () => void
+    onCaptureStage(callback: (stage: CaptureStage) => void): () => void
+  }
   app: {
     getVersion(): Promise<string>
     getPlatform(): Promise<FrameUiPlatform>
@@ -188,12 +234,17 @@ export interface FrameUiApi {
     setObservationApproved(projectId: string, observationId: string, approved: boolean): Promise<DesignSystemWorkspaceData>
   }
   project: {
+    rename(projectId: string, name: string): Promise<{ ok: true }>
     listLibrary(): Promise<ProjectLibraryEntry[]>
     removeFromRecent(projectId: string): Promise<{ ok: true }>
     clearRecent(): Promise<{ ok: true }>
     removeFromFrameUi(projectId: string): Promise<{ ok: true }>
     deleteFromDisk(projectId: string, confirmationName: string): Promise<{ ok: true }>
     reveal(projectId: string): Promise<{ ok: boolean }>
+    /** Reveals one project-relative file (e.g. a page's source file) in the
+     * OS file manager. Rejects (returns `ok: false`) if it resolves outside
+     * the project root. */
+    revealFile(projectId: string, relativePath: string): Promise<{ ok: boolean }>
     getLibraryCover(projectId: string): Promise<string | null>
     /** Shows the native folder picker. `relinkId` re-points an existing
      * (e.g. missing) recent-project entry at the newly chosen folder
@@ -215,6 +266,7 @@ export interface FrameUiApi {
     /** Static read of a page's nested JSX, HTML or server-template
      * structure. Path-scoped to the active project root in main; source is
      * parsed as text and never executed. */
+    getVisuals(): Promise<ProjectVisuals>
     getPageStructure(relativeFilePath: string): Promise<PageStructureItem[]>
     /** Fires as `getIndex`/`reindex` pass through each real stage of
      * `indexProject` (detecting the framework, finding pages, etc.) so the
@@ -240,23 +292,13 @@ export interface FrameUiApi {
     openExternal(url: string): Promise<{ ok: boolean }>
   }
   export: {
+    saveFrameUiPackage(files: FrameUiPackageFile[], suggestedName: string): Promise<{ ok: boolean; filePath?: string; byteLength?: number; error?: string }>
+    revealSaved(filePath: string): Promise<{ ok: boolean }>
+    revealFigmaImporter(): Promise<{ ok: boolean }>
     saveSvg(svg: string, suggestedName: string): Promise<{ ok: boolean; filePath?: string }>
     savePng(base64: string, suggestedName: string): Promise<{ ok: boolean; filePath?: string }>
     generateReviewPdf(html: string, suggestedName: string): Promise<{ ok: boolean; filePath?: string; error?: string }>
     savePackage(files: ExportFile[], suggestedFolder: string): Promise<{ ok: boolean; directoryPath?: string; fileCount?: number; error?: string }>
-  }
-  capture: {
-    /** Persists one runtime DOM snapshot (spec §3) taken from the Capture
-     * Session webview. Validated and written to disk in main. */
-    save(capture: CapturedPage): Promise<CapturedPage>
-    list(projectId: string): Promise<CapturedPage[]>
-    /** App-managed screenshot storage (not a user-facing Save dialog, see
-     * `export.savePng` for that) — one PNG per capture, named
-     * `${captureId}.png`. */
-    saveScreenshot(projectId: string, captureId: string, base64Png: string): Promise<{ ok: boolean }>
-    /** Reads a previously saved screenshot back as an inline `data:` URL for
-     * `<img>` `src`, or `null` if none was ever saved for this capture. */
-    getScreenshotDataUrl(projectId: string, captureId: string): Promise<string | null>
   }
 }
 

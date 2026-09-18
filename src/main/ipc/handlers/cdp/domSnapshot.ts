@@ -1,0 +1,115 @@
+import { normalizeCaptureScale } from './normalizeCaptureScale'
+import type { WebContents } from 'electron'
+import type { Protocol } from 'devtools-protocol'
+import type { CapturedElement } from '@shared/types/runtimeCapture'
+import { CAPTURED_STYLE_PROPERTIES } from '@shared/captureStyleProperties'
+import { withDebugger } from './withDebugger'
+import { reconstructSnapshotTree } from './reconstructSnapshotTree'
+
+/** Mirrors `CAPTURE_SCRIPT`'s own `captureSelector` derivation so canvas
+ * elements found here match the ones `reconstructSnapshotTree.ts` tags. */
+const CANVAS_SCRIPT = `(() => {
+  function captureSelectorOf(el) {
+    var path = []; var cursor = el
+    while (cursor && cursor.parentElement && cursor !== document.documentElement) {
+      var index = Array.prototype.indexOf.call(cursor.parentElement.children, cursor) + 1
+      path.unshift(cursor.tagName.toLowerCase() + ':nth-child(' + index + ')')
+      cursor = cursor.parentElement
+    }
+    return 'html>' + path.join('>')
+  }
+  return Array.from(document.querySelectorAll('canvas')).map(function (canvas) {
+    try { return { captureSelector: captureSelectorOf(canvas), dataUrl: canvas.toDataURL('image/png') } }
+    catch (_) { return null }
+  }).filter(Boolean)
+})()`
+
+/**
+ * `CAPTURED_STYLE_PROPERTIES` is written in the JS `CSSStyleDeclaration`
+ * spelling (`fontSize`, `boxSizing`) because that's what `getComputedStyle()`
+ * indexes with in the shared in-page script. CDP's `DOMSnapshot`, though,
+ * validates its `computedStyles` request against real CSS property syntax
+ * — kebab-case — and rejects the camelCase form outright with "invalid CSS
+ * property". Only the outgoing request needs converting; the response is
+ * zipped back against the original (camelCase) list positionally, so the
+ * `CapturedElement.styles` keys stay exactly as every other consumer
+ * expects. Confirmed against a real Electron/Chromium build, not assumed —
+ * see `scripts/smoke-capture-registry.cjs`.
+ */
+export function toCssPropertyName(camelCase: string): string {
+  return camelCase.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
+}
+
+function spliceCanvasFallback(el: CapturedElement, canvases: Map<string, string>) {
+  const selector = el.attributes?.captureSelector
+  const dataUrl = selector ? canvases.get(selector) : undefined
+  if (dataUrl) {
+    el.tag = 'img'
+    // Stage 9 (docs/CAPTURE_ENGINE_REBUILD_SPEC.md §22): marks this `<img>`
+    // as a substitute for content that couldn't be captured structurally,
+    // not a real `<img>` — read by `compile.ts` to assign `RasterFallback`
+    // instead of `Image`. Invisible to the legacy pipeline (`normalize.ts`
+    // only reads a fixed set of known attribute keys, never copies unknown
+    // ones verbatim), so this is safe to add unconditionally.
+    el.attributes = { alt: 'Canvas (image)', ...el.attributes, src: dataUrl, 'data-frameui-raster-fallback': 'canvas' }
+    el.children = []
+    return
+  }
+  for (const child of el.children) spliceCanvasFallback(child, canvases)
+}
+
+/**
+ * Replaces `executeJavaScript(CAPTURE_SCRIPT)` as the primary capture step:
+ * pulls real layout + computed-style data from Chromium itself via CDP's
+ * `DOMSnapshot.captureSnapshot`, instead of re-deriving it with a hand-rolled
+ * JS walk. Errors propagate — this is a primary data source, not an
+ * enhancement, so nothing here catches and swallows failures the way
+ * `captureVisualStates.ts` does; the caller's existing per-job error
+ * handling in `designIde.handlers.ts` is what's meant to catch these.
+ *
+ * Takes a plain `WebContents` rather than a `BrowserWindow` (the caller
+ * supplies the viewport size explicitly instead of it being derived from
+ * `BrowserWindow.getContentSize()`) so this also works for a `<webview>`
+ * guest resolved via `electron.webContents.fromId()`, which has no
+ * `getContentSize()` — the same generalization `captureVisualStates.ts`
+ * already went through, for the same reason. Callers with a `BrowserWindow`
+ * just pass `win.webContents` and `win.getContentSize()`.
+ */
+export async function captureDomSnapshot(
+  contents: WebContents,
+  viewport: { width: number; height: number },
+): Promise<CapturedElement> {
+  const snapshot = await withDebugger(contents, '1.3', async (send) => {
+    await send('DOM.enable')
+    await send('CSS.enable')
+    await send('DOMSnapshot.enable')
+    const request: Protocol.DOMSnapshot.CaptureSnapshotRequest = {
+      computedStyles: CAPTURED_STYLE_PROPERTIES.map(toCssPropertyName),
+      includeDOMRects: true,
+    }
+    return send<Protocol.DOMSnapshot.CaptureSnapshotResponse>(
+      'DOMSnapshot.captureSnapshot',
+      request,
+    )
+  })
+  // DOMSnapshot bounds can be emitted in device pixels on scaled macOS
+  // displays, while computed CSS styles and the design viewport remain in
+  // CSS pixels. Calibrate against the same body's live DOM rect rather than
+  // guessing from devicePixelRatio (which does not always describe CDP's
+  // coordinate space).
+  const liveBodyWidth = await contents.executeJavaScript('document.body.getBoundingClientRect().width') as number
+  const doc = snapshot.documents[0]
+  const bodyIndex = doc?.nodes.nodeName?.findIndex((name) => snapshot.strings[name]?.toLowerCase() === 'body') ?? -1
+  const bodyLayoutIndex = doc?.layout.nodeIndex.indexOf(bodyIndex) ?? -1
+  const snapshotBodyWidth = bodyLayoutIndex >= 0 ? doc?.layout.bounds[bodyLayoutIndex]?.[2] : undefined
+  const ratio = snapshotBodyWidth && liveBodyWidth > 0 ? snapshotBodyWidth / liveBodyWidth : 1
+  const coordinateScale = Number.isFinite(ratio) && ratio > 0 ? ratio : 1
+  const root = reconstructSnapshotTree(snapshot, CAPTURED_STYLE_PROPERTIES, viewport, coordinateScale)
+  const canvases = (await contents.executeJavaScript(CANVAS_SCRIPT)) as {
+    captureSelector: string
+    dataUrl: string
+  }[]
+  if (canvases.length)
+    spliceCanvasFallback(root, new Map(canvases.map((c) => [c.captureSelector, c.dataUrl])))
+  return normalizeCaptureScale(root)
+}

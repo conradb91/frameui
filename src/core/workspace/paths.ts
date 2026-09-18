@@ -74,6 +74,16 @@ export function getCaptureScreenshotsDir(userDataPath: string, projectId: string
   return dir
 }
 
+/** Stage 2 of the capture-engine rebuild (docs/CAPTURE_ENGINE_REBUILD_SPEC.md):
+ * one directory per project for `StructuredDesignDocument` debug dumps —
+ * diagnostic-only, not read by anything yet. One file per route+viewport,
+ * overwritten on each recapture, so this doesn't grow unbounded. */
+export function getStructuredCapturesDir(userDataPath: string, projectId: string): string {
+  const dir = path.join(getWorkspaceRoot(userDataPath), 'structured-captures', projectId)
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
 /** Same one-file-per-project shape, for Feature Pages (spec Phase 16). */
 export function getFeaturePagesFile(userDataPath: string, projectId: string): string {
   const dir = path.join(getWorkspaceRoot(userDataPath), 'feature-pages')

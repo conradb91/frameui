@@ -19,7 +19,7 @@ export const projectIdSchema = idSchema
 // used to build a filesystem path directly (always a value *inside* a
 // `<projectId>.json` array, where `idSchema`'s path-traversal concern
 // doesn't apply), so a plain shape+length check is enough here.
-const stableIdSchema = z.string().min(1).max(300).regex(/^[a-z0-9_]+(\.[a-z0-9_]+)+(-\d+)?$/)
+const stableIdSchema = z.string().min(1).max(300).regex(/^(?:app:(?:\.|[a-z0-9]+(?:\.[a-z0-9]+)*\.?)\/)?[a-z0-9_]+(\.[a-z0-9_]+)+(-\d+)?$/)
 
 export const createFlowInputSchema = z.object({
   projectId: idSchema,

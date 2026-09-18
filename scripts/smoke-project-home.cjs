@@ -1,0 +1,100 @@
+const { _electron } = require('playwright-core')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+;(async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'frameui-home-'))
+  const folders = ['Atlas', 'Orbit', 'Studio'].map(name => {
+    const folder = path.join(root, name)
+    fs.mkdirSync(folder)
+    fs.writeFileSync(path.join(folder, 'index.html'), `<h1>${name}</h1>`)
+    return folder
+  })
+  const env = { ...process.env, FRAMEUI_ALLOW_MULTIPLE_INSTANCES: '1' }
+  delete env.ELECTRON_RUN_AS_NODE
+  let app, reviewProfile
+  try {
+    const executable = process.env.FRAMEUI_PACKAGED_APP
+    app = await _electron.launch({ executablePath: executable || require('electron'), args: executable ? [] : ['.', `--user-data-dir=${path.join(root, 'profile')}`], env })
+    if (executable) {
+      reviewProfile = await app.evaluate(({ app }) => app.getPath('userData'))
+      assert(path.basename(reviewProfile).startsWith('review-'))
+    }
+    const page = await app.firstWindow()
+    page.setDefaultTimeout(20000)
+    const errors = []
+    page.on('pageerror', error => errors.push(String(error)))
+    await page.getByRole('button', { name: 'Skip introduction', exact: true }).click()
+    await page.evaluate(async folders => {
+      for (const folder of folders) await window.frameui.project.openPath(folder)
+      await window.frameui.project.close()
+      await window.frameui.design.save({ version: 1, id: crypto.randomUUID(), name: 'Notes', updatedAt: new Date().toISOString(), pages: [], components: [], variables: [] })
+    }, folders)
+    await page.reload()
+    await page.getByRole('button', { name: 'Open Atlas', exact: true }).waitFor()
+    assert.equal(await page.locator('.project-card').count(), 4, 'all registered codebases and independent designs must appear')
+    await page.getByLabel('Sort projects').selectOption('name')
+    assert.deepEqual(await page.locator('.project-card h3').allTextContents(), ['Atlas','Notes','Orbit','Studio'])
+    await page.getByLabel('Search projects').fill('orbit')
+    assert.equal(await page.locator('.project-card').count(), 1)
+    await page.getByLabel('Clear project search').click()
+    await page.getByRole('navigation', { name: 'Project filters' }).getByRole('button', { name: /Blank designs/ }).click()
+    assert.deepEqual(await page.locator('.project-card h3').allTextContents(), ['Notes'])
+    await page.getByRole('navigation', { name: 'Project filters' }).getByRole('button', { name: /All projects/ }).click()
+    await page.getByRole('button', { name: 'List view', exact: true }).click()
+    assert.equal(await page.locator('.project-cards--list').count(), 1)
+    await page.getByRole('button', { name: 'Grid view', exact: true }).click()
+    fs.mkdirSync('docs/verification', { recursive: true })
+    await page.getByLabel('light appearance').click()
+    await page.screenshot({ path: 'docs/verification/project-home-light.png' })
+    await page.getByLabel('dark appearance').click()
+    await page.waitForTimeout(200)
+    await page.screenshot({ path: 'docs/verification/project-home-dark.png' })
+    await page.getByRole('button', { name: 'Open Atlas', exact: true }).click()
+    const setup = page.getByRole('dialog', { name: 'Prepare Atlas for FrameUI' })
+    await setup.waitFor()
+    await setup.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await setup.waitFor({ state: 'detached' })
+    assert.equal(await page.locator('.project-card').count(), 4)
+    fs.rmSync(folders[1], { recursive: true })
+    await page.getByRole('button', { name: 'Open Orbit', exact: true }).click()
+    await page.getByRole('alert').filter({ hasText: 'This project folder is unavailable' }).waitFor()
+    assert(await page.getByRole('button', { name: 'Open Codebase', exact: true }).isEnabled())
+    // Registering a new folder via the actual picker must also update the hub after cancel.
+    const fresh = path.join(root, 'Fresh')
+    fs.mkdirSync(fresh)
+    fs.writeFileSync(path.join(fresh, 'index.html'), '<h1>Fresh</h1>')
+    await app.evaluate(({ dialog }, folder) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [folder] }) }, fresh)
+    await page.getByRole('button', { name: 'Open Codebase', exact: true }).click()
+    const freshSetup = page.getByRole('dialog', { name: 'Prepare Fresh for FrameUI' })
+    await freshSetup.waitFor()
+    await freshSetup.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('button', { name: 'Open Fresh', exact: true }).waitFor()
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(960, 680))
+    await page.getByLabel('light appearance').click()
+    await page.getByRole('button', { name: 'Getting started', exact: true }).click()
+    const onboarding = page.getByRole('dialog', { name: 'Welcome to FrameUI' })
+    for (let step = 1; step <= 4; step++) {
+      const layout = await onboarding.evaluate(node => {
+        const copy = node.querySelector('.frame-onboarding-copy').getBoundingClientRect()
+        const art = node.querySelector('.frame-onboarding-demo').getBoundingClientRect()
+        const footer = node.querySelector('.frame-onboarding-navigation').getBoundingClientRect()
+        return { copy: copy.width, art: art.width, footer: footer.bottom, bottom: node.getBoundingClientRect().bottom }
+      })
+      assert(Math.abs(layout.copy-layout.art)<1)
+      assert(layout.footer < layout.bottom)
+      await page.screenshot({ path: `docs/verification/onboarding-compact-${step}.png` })
+      await onboarding.getByRole('button', { name: step < 4 ? 'Continue' : 'Open FrameUI', exact: true }).click()
+    }
+    await page.screenshot({ path: 'docs/verification/project-home-compact.png' })
+    await page.getByRole('button', { name: 'Create Blank Design', exact: true }).click()
+    await page.locator('.project-home').waitFor({ state: 'detached' })
+    assert.deepEqual(errors, [])
+    console.log('PASS: all projects, search/filter/sort, grid/list, themes, missing folder recovery, setup cancellation refresh, compact onboarding, blank design.')
+  } finally {
+    if (app) await app.close()
+    if (reviewProfile && path.basename(reviewProfile).startsWith('review-')) fs.rmSync(reviewProfile, { recursive: true, force: true })
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})().catch(error => { console.error(error); process.exitCode = 1 })

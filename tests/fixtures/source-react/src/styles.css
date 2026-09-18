@@ -1,0 +1,5 @@
+body { margin: 0; font: 16px Arial; color: #172554; background: #f8fafc; }
+main { padding: 24px; }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.user-card { background: white; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; }
+@media (max-width: 600px) { .cards { grid-template-columns: 1fr; } }

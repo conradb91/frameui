@@ -1,0 +1,19 @@
+{
+  "timings": {
+    "withControlStatesMs": 1480,
+    "defaultCaptureMs": 1167
+  },
+  "cancellation": {
+    "ms": 7.299999982118607,
+    "kept": 1
+  },
+  "checks": [
+    "settings password field",
+    "visible notifications",
+    "404 reason",
+    "retry same plan",
+    "cancel preserves completed",
+    "isolated super-admin",
+    "responsive capture"
+  ]
+}

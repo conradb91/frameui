@@ -1,0 +1,48 @@
+import type { BrowserWindow } from 'electron'
+import type { Protocol } from 'devtools-protocol'
+import { withDebugger } from '../cdp/withDebugger'
+import { raceAbort } from './raceAbort'
+
+/**
+ * A true full-page screenshot via CDP's `captureBeyondViewport`, meant to be
+ * taken after `scrollToSettle` so all lazy content is already visible.
+ * Electron's own `webContents.capturePage()` (used everywhere else in this
+ * pipeline for the page thumbnail) is strictly viewport-bound and cannot do
+ * this. Purely a reference asset for later visual-comparison work — not
+ * wired into the canvas.
+ *
+ * Races against `signal` for the same reason `scrollToSettle` does:
+ * destroying `win` mid-call (exactly what cancellation does) doesn't
+ * reliably reject an in-flight CDP call in Electron.
+ */
+export async function captureFullPageScreenshot(
+  win: BrowserWindow,
+  signal: AbortSignal,
+): Promise<string> {
+  return raceAbort(
+    withDebugger(win.webContents, '1.3', async (send) => {
+      await send('Page.enable')
+      const { cssContentSize } = await send<Protocol.Page.GetLayoutMetricsResponse>(
+        'Page.getLayoutMetrics',
+      )
+      // Retina full-page captures otherwise exceed Chromium's GPU texture
+      // limit (e.g. a 14k CSS-pixel page becomes a 28k-pixel render target).
+      // Bound only the reference image; editable geometry stays full size.
+      const pixelRatio = await win.webContents.executeJavaScript('devicePixelRatio') as number
+      const ratio = Math.max(1, pixelRatio || 1)
+      const scale = Math.min(1, 8192 / (Math.max(cssContentSize.width, cssContentSize.height) * ratio),
+        Math.sqrt(16000000 / (cssContentSize.width * cssContentSize.height * ratio * ratio)))
+      const request: Protocol.Page.CaptureScreenshotRequest = {
+        format: 'png',
+        captureBeyondViewport: true,
+        clip: { ...cssContentSize, scale },
+      }
+      const { data } = await send<Protocol.Page.CaptureScreenshotResponse>(
+        'Page.captureScreenshot',
+        request,
+      )
+      return `data:image/png;base64,${data}`
+    }),
+    signal,
+  )
+}

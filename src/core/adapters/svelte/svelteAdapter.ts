@@ -9,6 +9,8 @@ import type { SourceAdapter } from '../types'
  * markup scanner today; a real `.svelte` parser is Phase 2 follow-up work. */
 export const svelteAdapter: SourceAdapter = {
   id: 'svelte',
+  assetRoots: ['static', 'public'],
+  ownsFile: (file) => /\.svelte$/i.test(file),
 
   detect(ctx) {
     if (!ctx.pkg || !(hasDependency(ctx.pkg, 'svelte') || hasDependency(ctx.pkg, '@sveltejs/kit'))) return null

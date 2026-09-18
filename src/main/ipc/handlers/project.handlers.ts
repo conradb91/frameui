@@ -1,22 +1,27 @@
+import { readProjectVisuals } from '@core/design-system/projectVisuals'
 import electron from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import type { OpenProjectResult, OpenRecentResult, ProjectLibraryEntry } from '@shared/types/project'
 import type { ProjectIndex } from '@shared/types/projectIndex'
 import type { PageStructureItem } from '@shared/types/pageStructure'
-import { clearRecentProjects, deleteProjectFromDisk, getRegisteredProject, listAllProjects, recordProjectOpened, removeProjectFromFrameUi, removeProjectFromRecent } from '@core/workspace/models/recentProjectsStore'
+import { renameProject, clearRecentProjects, deleteProjectFromDisk, getRegisteredProject, listAllProjects, recordProjectOpened, removeProjectFromFrameUi, removeProjectFromRecent } from '@core/workspace/models/recentProjectsStore'
 import * as captureStore from '@core/workspace/models/captureStore'
 import { extractPageStructureFromSource } from '@core/adapters/markup/extractPageStructure'
 import { attachComponentPaths, componentKey } from '@core/design-model/buildProjectModel'
-import { PathScope, PathScopeError } from '../../security/pathScope'
+import { PathScope, PathScopeError, resolveWithinBoundary } from '../../security/pathScope'
 import { activateProject, closeActiveProject, getActiveProject, getCachedIndex, getIndexService, setCachedIndex } from '../../state/activeProject'
 import { deleteProjectFromDiskInputSchema, openDialogInputSchema, openPathInputSchema, getPageStructureInputSchema, projectIdInputSchema, selectApplicationInputSchema } from '../schemas/project.schema'
 import { broadcast } from '../rendererEvents'
-import { previewProcess } from '../../security/spawnPreview'
 
 const { app, ipcMain, dialog, BrowserWindow, shell } = electron
 
 export function registerProjectHandlers(): void {
+  ipcMain.handle('project:rename', (_event, projectId, name) => {
+    if (typeof name !== 'string') throw new Error('Invalid project name.')
+    renameProject(app.getPath('userData'), projectIdInputSchema.parse(projectId), name)
+    return { ok: true }
+  })
   ipcMain.handle('project:listLibrary', (): ProjectLibraryEntry[] => listAllProjects(app.getPath('userData')))
 
   ipcMain.handle('project:removeFromRecent', (_event, rawProjectId): { ok: true } => {
@@ -31,14 +36,14 @@ export function registerProjectHandlers(): void {
 
   ipcMain.handle('project:removeFromFrameUi', (_event, rawProjectId): { ok: true } => {
     const projectId = projectIdInputSchema.parse(rawProjectId)
-    if (getActiveProject()?.projectId === projectId) { previewProcess.stop(); closeActiveProject() }
+    if (getActiveProject()?.projectId === projectId) { closeActiveProject() }
     removeProjectFromFrameUi(app.getPath('userData'), projectId)
     return { ok: true }
   })
 
   ipcMain.handle('project:deleteFromDisk', (_event, raw): { ok: true } => {
     const { projectId, confirmationName } = deleteProjectFromDiskInputSchema.parse(raw)
-    if (getActiveProject()?.projectId === projectId) { previewProcess.stop(); closeActiveProject() }
+    if (getActiveProject()?.projectId === projectId) { closeActiveProject() }
     deleteProjectFromDisk(app.getPath('userData'), projectId, confirmationName)
     return { ok: true }
   })
@@ -48,6 +53,20 @@ export function registerProjectHandlers(): void {
     if (!project || !fs.existsSync(project.path)) return { ok: false }
     shell.showItemInFolder(project.path)
     return { ok: true }
+  })
+
+  ipcMain.handle('project:revealFile', (_event, rawProjectId, rawRelativePath): { ok: boolean } => {
+    const project = getRegisteredProject(app.getPath('userData'), projectIdInputSchema.parse(rawProjectId))
+    if (!project || !fs.existsSync(project.path) || typeof rawRelativePath !== 'string' || !rawRelativePath) return { ok: false }
+    try {
+      const target = resolveWithinBoundary(project.path, rawRelativePath)
+      if (!fs.existsSync(target)) return { ok: false }
+      shell.showItemInFolder(target)
+      return { ok: true }
+    } catch (err) {
+      if (err instanceof PathScopeError) return { ok: false }
+      throw err
+    }
   })
 
   ipcMain.handle('project:getLibraryCover', (_event, rawProjectId): string | null => {
@@ -90,39 +109,45 @@ export function registerProjectHandlers(): void {
     return { ok: true, project }
   })
 
-  ipcMain.handle('project:getIndex', (): ProjectIndex | null => {
+  ipcMain.handle('project:getIndex', async (): Promise<ProjectIndex | null> => {
     const active = getActiveProject()
     if (!active) return null
     let index = getCachedIndex()
     if (!index) {
-      index = getIndexService()!.load((step) => broadcast('project:onIndexProgress', { step }))
-      setCachedIndex(index)
+      index = await getIndexService()!.load((step) => broadcast('project:onIndexProgress', { step }))
+      if (getActiveProject()?.projectId === index.projectId) setCachedIndex(index)
     }
     return index
   })
 
-  ipcMain.handle('project:reindex', (): ProjectIndex | null => {
+  ipcMain.handle('project:reindex', async (): Promise<ProjectIndex | null> => {
     const active = getActiveProject()
     if (!active) return null
-    const index = getIndexService()!.rebuild((step) => broadcast('project:onIndexProgress', { step }))
-    setCachedIndex(index)
+    const index = await getIndexService()!.rebuild((step) => broadcast('project:onIndexProgress', { step }))
+    if (getActiveProject()?.projectId === index.projectId) setCachedIndex(index)
     return index
   })
 
-  ipcMain.handle('project:selectApplication', (_event, rawId): ProjectIndex | null => {
+  ipcMain.handle('project:selectApplication', async (_event, rawId): Promise<ProjectIndex | null> => {
     if (!getActiveProject()) return null
-    const index = getIndexService()!.selectApplication(selectApplicationInputSchema.parse(rawId))
-    setCachedIndex(index)
+    const index = await getIndexService()!.selectApplication(selectApplicationInputSchema.parse(rawId))
+    if (getActiveProject()?.projectId === index.projectId) setCachedIndex(index)
     return index
   })
 
   ipcMain.handle('project:close', (): { ok: true } => {
-    previewProcess.stop()
     closeActiveProject()
     return { ok: true }
   })
 
-  ipcMain.handle('project:getPageStructure', (_event, rawPath): PageStructureItem[] => {
+  ipcMain.handle('project:getVisuals', async () => {
+    const active = getActiveProject()
+    if (!active) throw new Error('No active project')
+    const index = getCachedIndex() ?? await getIndexService()!.load()
+    return readProjectVisuals(active.rootPath, Object.keys(index.files ?? {}), index.projectModel.assetRoots)
+  })
+
+  ipcMain.handle('project:getPageStructure', async (_event, rawPath): Promise<PageStructureItem[]> => {
     const relativePath = getPageStructureInputSchema.parse(rawPath)
     const active = getActiveProject()
     if (!active) return []
@@ -137,8 +162,8 @@ export function registerProjectHandlers(): void {
 
     if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) return []
 
-    const index = getCachedIndex() ?? getIndexService()!.load()
-    if (!getCachedIndex()) setCachedIndex(index)
+    const index = getCachedIndex() ?? await getIndexService()!.load()
+    if (!getCachedIndex() && getActiveProject()?.projectId === index.projectId) setCachedIndex(index)
     const components = index.projectModel.components
     const knownComponentNames = new Set(components.map((c) => c.name))
     const componentPathsByName = new Map(components.map((component) => [componentKey(component.name), component.source.filePath]))

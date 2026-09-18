@@ -77,3 +77,16 @@ describe('preview executable resolution', () => {
     preview.stop()
   })
 })
+
+test('stopping and immediately restarting keeps the new process registered', async () => {
+  const preview = new PreviewProcess()
+  const events = { onOutput: () => {}, onStatus: () => {}, onUrlDetected: () => {} }
+  try {
+    expect(preview.start(process.execPath, ['-e', 'setInterval(()=>{}, 1000)'], process.cwd(), events).ok).toBe(true)
+    preview.stop()
+    expect(preview.start(process.execPath, ['-e', 'setInterval(()=>{}, 1000)'], process.cwd(), events).ok).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(preview.isRunning).toBe(true)
+    expect(preview.getSnapshot().status).toBe('running')
+  } finally { preview.stop() }
+})

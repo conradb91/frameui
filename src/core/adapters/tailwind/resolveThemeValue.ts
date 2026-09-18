@@ -25,6 +25,20 @@ function resolveExpressionToLiteral(expr: Expression, sourceFile: SourceFile, de
     const resolved = resolveLocalIdentifier(expr.getText(), sourceFile)
     return resolved ? resolveExpressionToLiteral(resolved, sourceFile, depth + 1) : null
   }
+  // Tailwind theme values are frequently arrays — a font stack
+  // (`fontFamily: { sans: ['Inter', 'sans-serif'] }`) or a fontSize tuple
+  // (`fontSize: { sm: ['0.875rem', { lineHeight: '1.25rem' }] }` or
+  // `['0.875rem', '1.25rem']`). A stack of all-string elements is joined
+  // into one CSS-ready value; anything else (a tuple with a trailing
+  // line-height object) resolves to just its first element, with the
+  // line-height companion deliberately left unresolved rather than guessed.
+  if (Node.isArrayLiteralExpression(expr)) {
+    const elements = expr.getElements().filter(Node.isExpression)
+    if (!elements.length) return null
+    const literals = elements.map((el) => resolveExpressionToLiteral(el, sourceFile, depth))
+    if (literals.every((l) => l !== null)) return literals.join(', ')
+    return literals[0]
+  }
   return null
 }
 

@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { closeActiveProject } from './state/activeProject'
+import { shutdownHosting } from './hosting/service'
 // Named imports from 'electron' break the ESM cjs-module-lexer interop for
 // Electron's synthetic built-in module (a real, documented Electron/Node
 // gap) — default-import + destructure is the working pattern.
@@ -10,6 +14,18 @@ import { installCaptureWebviewGuard } from './security/captureWebviewGuard'
 
 const { app } = electron
 
+// Review builds are isolated from installed FrameUI data and from each other.
+// An explicit smoke-test profile always takes precedence.
+if (app.isPackaged && !app.commandLine.hasSwitch('user-data-dir')) {
+  const metadata = JSON.parse(fs.readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')) as { frameuiReviewProfile?: string }
+  if (metadata.frameuiReviewProfile && /^review-[0-9]+-[a-f0-9-]+$/.test(metadata.frameuiReviewProfile)) {
+    const profile = path.join(app.getPath('appData'), 'FrameUI Reviews', metadata.frameuiReviewProfile)
+    fs.mkdirSync(profile, { recursive: true })
+    app.setPath('userData', profile)
+    app.setPath('sessionData', profile)
+  }
+}
+
 // A second launch should focus the existing window rather than open a
 // second instance — relevant once a project is open and has file watchers.
 // Automated desktop smoke tests need an isolated second instance while a
@@ -20,12 +36,18 @@ if (!gotSingleInstanceLock) {
   app.quit()
 } else {
   let mainWindow: BrowserWindow | null = null
+  let hostingStopped = false
+  app.on('before-quit', (event) => {
+    if (hostingStopped) return
+    event.preventDefault()
+    void shutdownHosting().finally(() => { hostingStopped = true; app.quit() })
+  })
 
   app.on('second-instance', () => {
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
-    }
+    } else { app.emit('activate') }
   })
 
   app.whenReady().then(() => {
@@ -37,6 +59,8 @@ if (!gotSingleInstanceLock) {
   })
 
   app.on('window-all-closed', () => {
+    mainWindow = null
+    closeActiveProject()
     if (process.platform !== 'darwin') {
       app.quit()
     }

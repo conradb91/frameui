@@ -9,26 +9,43 @@
 {
   appId: 'com.frameui.app',
   productName: 'FrameUI',
+  artifactName: 'FrameUI-${version}-${arch}.${ext}',
+  beforePack: './scripts/review-build.cjs',
   directories: {
     output: 'release',
     buildResources: 'build',
   },
+  extraResources: [
+    { from: 'build/icon.png', to: 'icon.png' },
+    { from: 'integrations/figma-importer', to: 'frameui-figma-importer' },
+  ],
   files: [
     'dist/**/*',
     'dist-electron/**/*',
+    'hosting/stacker/**/*',
     'package.json',
   ],
   mac: {
+    icon: 'icon.icns',
     target: [{ target: 'dmg', arch: ['arm64', 'x64'] }],
     category: 'public.app-category.developer-tools',
     sign: false,
     hardenedRuntime: false,
   },
   win: {
+    extraResources: [{ from: 'build/windows-crt', to: 'windows-crt' }],
+    icon: 'icon.ico',
     target: [{ target: 'nsis', arch: ['x64'] }],
     sign: null,
   },
+  dmg: { icon: 'icon.icns' },
   nsis: {
+    installerIcon: 'icon.ico',
+    uninstallerIcon: 'icon.ico',
+    installerHeaderIcon: 'icon.ico',
+    installerHeader: 'installer-header.bmp',
+    installerSidebar: 'installer-sidebar.bmp',
+    uninstallerSidebar: 'installer-sidebar.bmp',
     oneClick: false,
     allowToChangeInstallationDirectory: true,
   },

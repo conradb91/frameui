@@ -35,6 +35,7 @@ export const capturedElementSchema: z.ZodType<unknown> = z.lazy(() =>
     tag: z.string().min(1).max(50),
     id: z.string().max(200).optional(),
     classes: z.string().max(2000).optional(),
+    attributes: boundedRecord(20, 50, 4000).optional(),
     textPreview: z.string().max(200).optional(),
     rect: rectSchema,
     styles: stylesSchema,

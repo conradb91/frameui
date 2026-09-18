@@ -24,6 +24,8 @@ export function previewSearchPath(cwd: string, environment: NodeJS.ProcessEnv = 
   const candidates = [
     path.join(cwd, 'node_modules', '.bin'),
     path.join(home, '.bun', 'bin'),
+    path.join(home, '.dotnet'),
+    '/usr/local/share/dotnet',
     path.join(home, '.volta', 'bin'),
     path.join(home, '.local', 'bin'),
     path.join(home, 'Library', 'pnpm'),
@@ -31,7 +33,7 @@ export function previewSearchPath(cwd: string, environment: NodeJS.ProcessEnv = 
     path.join(home, '.config', 'herd-lite', 'bin'),
     '/Applications/XAMPP/xamppfiles/bin',
     '/opt/homebrew/bin', '/usr/local/bin', '/opt/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin',
-    ...(environment.PATH ?? '').split(path.delimiter),
+    ...(environment.PATH ?? environment.Path ?? '').split(path.delimiter),
   ]
   const versionRoots = [
     path.join(home, '.nvm', 'versions', 'node'),
@@ -60,7 +62,7 @@ export function previewSearchPath(cwd: string, environment: NodeJS.ProcessEnv = 
   return [...new Set(candidates.filter(Boolean))]
 }
 
-export function resolvePreviewExecutable(command: string, cwd: string, environment: NodeJS.ProcessEnv = process.env): { executable: string; env: NodeJS.ProcessEnv } | null {
+export function resolvePreviewExecutable(command: string, cwd: string, environment: NodeJS.ProcessEnv = process.env): { executable: string; env: NodeJS.ProcessEnv; prefixArgs?: string[] } | null {
   const searchPath = previewSearchPath(cwd, environment)
   const env = { ...environment, PATH: searchPath.join(path.delimiter) }
   const direct = path.isAbsolute(command) ? command : command.includes(path.sep) ? path.resolve(cwd, command) : null
@@ -68,8 +70,29 @@ export function resolvePreviewExecutable(command: string, cwd: string, environme
     try { fs.accessSync(direct, fs.constants.X_OK); return { executable: direct, env } } catch { return null }
   }
   for (const directory of searchPath) {
-    const candidate = path.join(directory, command)
-    try { fs.accessSync(candidate, fs.constants.X_OK); return { executable: candidate, env } } catch { /* try next PATH entry */ }
+    const names = process.platform === 'win32' ? [command + '.exe', command + '.com', command] : [command]
+    for (const name of names) {
+      const candidate = path.join(directory, name)
+      try {
+        fs.accessSync(candidate, fs.constants.X_OK)
+        if (!fs.statSync(candidate).isFile()) continue
+        // Windows package managers ship shell shims. Invoke their JS entry
+        // through Node so argv stays literal and shell:false remains valid.
+        if (process.platform === 'win32' && !/\.(exe|com)$/i.test(candidate)) continue
+        return { executable: candidate, env }
+      } catch { /* try next PATH entry */ }
+    }
+    if (process.platform === 'win32') {
+      const manager = command.toLowerCase().replace(/\.cmd$/, '')
+      const entries: Record<string, string> = { npm: 'npm/bin/npm-cli.js', npx: 'npm/bin/npx-cli.js', pnpm: 'pnpm/bin/pnpm.cjs', yarn: 'yarn/bin/yarn.js' }
+      if (entries[manager]) {
+        const entry = path.join(directory, 'node_modules', entries[manager])
+        if (fs.existsSync(entry)) {
+          const node = resolvePreviewExecutable('node', cwd, environment)
+          if (node) return { ...node, prefixArgs: [entry] }
+        }
+      }
+    }
   }
   return null
 }
@@ -142,6 +165,7 @@ export class PreviewProcess {
   private child: ChildProcess | null = null
   private lastStatus: PreviewStatus = 'idle'
   private lastUrl: string | null = null
+  private events: PreviewProcessEvents | null = null
 
   get isRunning(): boolean {
     return this.child !== null
@@ -170,7 +194,7 @@ export class PreviewProcess {
     let child: ChildProcess
     try {
       const launchArgs = codeIgniterServeArgs(command, args, cwd)
-      child = spawn(resolved.executable, launchArgs, { cwd, shell: false, env: previewEnvironment(command, launchArgs, resolved.env) })
+      child = spawn(resolved.executable, [...(resolved.prefixArgs ?? []), ...launchArgs], { cwd, shell: false, detached: process.platform !== 'win32', env: previewEnvironment(command, launchArgs, resolved.env) })
     } catch (err) {
       this.lastStatus = 'error'
       const message = err instanceof Error ? err.message : String(err)
@@ -178,12 +202,14 @@ export class PreviewProcess {
       return { ok: false, message }
     }
     this.child = child
+    this.events = events
     this.lastStatus = 'running'
     this.lastUrl = null
     events.onStatus('running')
 
     let urlAlreadyDetected = false
     const handleChunk = (stream: 'stdout' | 'stderr') => (data: Buffer) => {
+      if (this.child !== child) return
       const text = data.toString('utf-8').replace(ANSI_PATTERN, '')
       for (const line of text.split(/\r?\n/)) {
         if (!line) continue
@@ -204,11 +230,15 @@ export class PreviewProcess {
     child.stderr?.on('data', handleChunk('stderr'))
 
     child.on('exit', (code) => {
+      if (this.child !== child) return
+      this.lastUrl = null
       this.child = null
       this.lastStatus = code === 0 || code === null ? 'stopped' : 'error'
       events.onStatus(this.lastStatus, code !== null ? `exit code ${code}` : undefined)
     })
     child.on('error', (err) => {
+      if (this.child !== child) return
+      this.lastUrl = null
       this.child = null
       this.lastStatus = 'error'
       events.onStatus('error', err.message)
@@ -218,9 +248,17 @@ export class PreviewProcess {
 
   stop(): void {
     if (!this.child) return
-    this.child.kill()
+    const child = this.child
     this.child = null
+    this.lastUrl = null
     this.lastStatus = 'stopped'
+    if (process.platform === 'win32' && child.pid) {
+      const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { shell: false, windowsHide: true })
+      killer.on('error', () => { child.kill() })
+    } else {
+      try { if (child.pid) process.kill(-child.pid, 'SIGTERM'); else child.kill() } catch { child.kill() }
+    }
+    this.events?.onStatus('stopped')
   }
 }
 

@@ -42,9 +42,9 @@ export default defineConfig({
             // its own real extension so the (unused) ES copy doesn't
             // clobber the CJS one Electron actually loads.
             lib: {
-              entry: path.join(root, 'src/main/index.ts'),
+              entry: { index: path.join(root, 'src/main/index.ts'), indexWorker: path.join(root, 'src/main/indexer/indexWorker.ts') },
               formats: ['cjs'],
-              fileName: (format) => (format === 'cjs' ? 'index.cjs' : 'index.mjs'),
+              fileName: (format, entryName) => `${entryName}.${format === 'cjs' ? 'cjs' : 'mjs'}`,
             },
             rollupOptions: {
               // Source parsers are Node-side dependencies and must remain

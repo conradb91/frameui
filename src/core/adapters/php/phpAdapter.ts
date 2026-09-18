@@ -13,13 +13,6 @@ function isLaravel(rootPath: string, composer: ComposerJsonInfo | null): boolean
   return !!composer && ('laravel/framework' in composer.dependencies || fs.existsSync(path.join(rootPath, 'artisan')))
 }
 
-function hasPhpMarker(rootPath: string): boolean {
-  return fs.existsSync(path.join(rootPath, 'index.php'))
-    || fs.existsSync(path.join(rootPath, 'app', 'Views'))
-    || fs.existsSync(path.join(rootPath, 'application', 'views'))
-    || fs.existsSync(path.join(rootPath, 'resources', 'views'))
-}
-
 /** PHP — CodeIgniter (route + view discovery), Laravel, and generic PHP
  * (view-directory discovery via the markup scanner) all live under one
  * adapter since they share the same fallback shape; `match.phpFramework`
@@ -29,12 +22,13 @@ function hasPhpMarker(rootPath: string): boolean {
  * a formal adapter seam. */
 export const phpAdapter: SourceAdapter = {
   id: 'php',
+  ownsFile: (file) => /\.(?:php|phtml)$/i.test(file),
 
   detect(ctx) {
     const isCodeIgniter = detectCodeIgniter(ctx.rootPath, ctx.composer)
     const laravel = isLaravel(ctx.rootPath, ctx.composer)
     const hasPhpViews = ctx.candidateFiles.some((file) => /\.(?:php|phtml)$/i.test(file))
-    const isPhp = isCodeIgniter || laravel || (!!ctx.composer && hasPhpViews) || (hasPhpViews && (hasPhpMarker(ctx.rootPath) || !ctx.pkg))
+    const isPhp = isCodeIgniter || laravel || hasPhpViews
     if (!isPhp) return null
 
     const phpFramework: AdapterMatch['phpFramework'] = isCodeIgniter ? 'codeigniter' : laravel ? 'laravel' : null
@@ -43,7 +37,7 @@ export const phpAdapter: SourceAdapter = {
       ? getCodeIgniterDevCommand(ctx.rootPath)
       : laravel
         ? { command: 'php', args: ['artisan', 'serve'] }
-        : resolveGenericBundler(ctx.rootPath, ctx.pkg, false).devCommand
+        : { command: 'php', args: ['-S', '127.0.0.1:8080', '-t', fs.existsSync(path.join(ctx.rootPath, 'public', 'index.php')) ? 'public' : '.'] }
     const bundler = resolveGenericBundler(ctx.rootPath, ctx.pkg, false).bundler
 
     return { framework: 'php', phpFramework, bundler, routerStyle, routesDir: null, devCommand }
@@ -60,7 +54,14 @@ export const phpAdapter: SourceAdapter = {
       // available for source/design rendering, but never ask the running
       // PHP router to open a filesystem-derived guess such as
       // app/Views/admin/admin_accounts -> /admin/admin_accounts.
-      .map((page) => match.phpFramework ? { ...page, route: null } : page)
+      .map((page) => {
+        if (match.phpFramework) return { ...page, route: null }
+        const publicRoot = fs.existsSync(path.join(ctx.rootPath, 'public', 'index.php')) ? 'public/' : ''
+        // PHP's built-in server serves real scripts, not extensionless route guesses.
+        const relative = page.filePath.startsWith(publicRoot) ? page.filePath.slice(publicRoot.length) : null
+        const isView = /^(?:resources|app|application|views|templates)\//.test(page.filePath)
+        return { ...page, route: relative && !isView ? `/${relative}`.replace(/index\.php$/i, '') : null }
+      })
     // Route-derived pages carry real route/prefix/parameter semantics;
     // the generic markup scanner only guesses a route from the view file's
     // own path. On a collision (the same view reachable both ways) the
