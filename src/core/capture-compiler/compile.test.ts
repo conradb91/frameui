@@ -246,15 +246,15 @@ describe('compileStructuredNodes — synthetic DOMSnapshot leaf tags', () => {
 })
 
 describe('compileStructuredNodes — semantic text-owner collapsing', () => {
-  test('keeps differently styled inline amounts as separate editable text', () => {
+  test('keeps differently styled inline amounts in one editable text layer', () => {
     const heading = el({ tag: 'h2', rect: { x: 0, y: 0, width: 400, height: 60 }, styles: { fontSize: '24px', fontWeight: '700' }, children: [
       el({ tag: 'span', rect: { x: 0, y: 0, width: 120, height: 60 }, styles: { fontSize: '48px', fontWeight: '700' }, children: [el({ tag: 'frameui-text', rect: { x: 0, y: 0, width: 120, height: 60 }, textPreview: 'R 8 450', styles: { fontSize: '48px', fontWeight: '700' } })] }),
       el({ tag: 'span', rect: { x: 130, y: 18, width: 260, height: 30 }, styles: { fontSize: '24px', fontWeight: '700' }, children: [el({ tag: 'frameui-text', rect: { x: 130, y: 18, width: 260, height: 30 }, textPreview: 'available', styles: { fontSize: '24px', fontWeight: '700' } })] }),
     ] })
     const nodes = compileStructuredNodes(heading)
     const text = (nodes: typeof nodes): typeof nodes => nodes.flatMap((node) => node.type === 'Text' ? [node] : text(node.children))
-    expect(text(nodes).map((node) => node.typography?.text)).toEqual(['R 8 450', 'available'])
-    expect(text(nodes).map((node) => node.typography?.fontSize)).toEqual([48, 24])
+    expect(text(nodes).map((node) => node.typography?.text)).toEqual(['R 8 450 available'])
+    expect(text(nodes)[0].typography?.textRuns?.map(run=>run.fontSize)).toEqual([48,24])
   })
   test('an <h1> wrapping inline spans compiles to ONE Text node using the heading\'s own bounds/style, not one node per span', () => {
     const heading = el({
@@ -372,4 +372,50 @@ describe('makeStructuredFrame / makeStructuredDocument', () => {
     expect(doc.sources).toEqual([])
     expect(doc.frames).toHaveLength(1)
   })
+})
+
+test('padded text retains its container and exact text spacing', () => {
+  const root = el({ tag: 'p', rect: { x: 0, y: 0, width: 200, height: 50 }, styles: { padding: '12px', borderWidth: '2px', borderStyle: 'solid', borderColor: 'black' }, children: [
+    el({ tag: 'frameui-text', textPreview: 'HelloWorld!  Next', attributes: { 'data-frameui-exact-text': 'true' }, rect: { x: 14, y: 14, width: 150, height: 20 } }),
+  ] })
+  const [container] = compileStructuredNodes(root)
+  expect(container.type).not.toBe('Text')
+  expect(container.children[0].bounds.x).toBe(12)
+  expect(container.children[0].typography?.text).toBe('HelloWorld!  Next')
+})
+
+test('headings preserve adjacent spans without inventing spaces and retain balanced wrapping', () => {
+  const leaf = (text: string) => el({ tag: 'frameui-text', textPreview: text, attributes: { 'data-frameui-exact-text': 'true' } })
+  const [heading] = compileStructuredNodes(el({ tag: 'h1', styles: { textWrap: 'balance', fontStyle: 'normal' }, children: [leaf('Hello'), leaf('World!')] }))
+  expect(heading.typography?.text).toBe('HelloWorld!')
+  expect(heading.typography?.textWrap).toBe('balance')
+})
+
+test('structured frame retains matched local source files', () => {
+  const frame = makeStructuredFrame(el({ tag: 'button', styles: { backgroundColor: 'red' } }), { file: 'app/Views/dashboard.php', name: 'Dashboard', route: '/dashboard', width: 390, height: 844, durationMs: 0 })
+  expect(frame.children[0].source.file).toBe('app/Views/dashboard.php')
+})
+
+ test('mixed-axis clipping retains the clipping wrapper and native controls retain current state', () => {
+  const [wrapper] = compileStructuredNodes(el({ styles: { overflow: 'hidden auto' }, children: [el({tag: 'input', attributes: { type: 'range', min: '1', max: '9', controlValue: '7' }})] }))
+  expect(wrapper.appearance.clipX).toBe(true)
+  expect(wrapper.appearance.clipY).toBe(true)
+  expect(wrapper.children[0].source.control).toMatchObject({ type: 'range', min: '1', max: '9', value: '7' })
+  const [oneAxis] = compileStructuredNodes(el({ styles: { overflowX: 'clip', overflowY: 'visible' } }))
+  expect(oneAxis.appearance.clipX).toBe(true)
+  expect(oneAxis.appearance.clipY).toBe(false)
+ })
+
+test('zero-height overflow-visible wrappers retain absolutely positioned controls and typography',()=>{
+ const root=el({tag:'body',rect:{x:0,y:0,width:1280,height:0},styles:{display:'block',overflow:'visible'},children:[el({tag:'button',componentHint:'Button',rect:{x:800,y:300,width:240,height:48},styles:{backgroundColor:'#148b82',borderTopLeftRadius:'14px',borderTopRightRadius:'14px',borderBottomLeftRadius:'14px',borderBottomRightRadius:'14px'},children:[el({tag:'frameui-text',textPreview:'Continue securely',rect:{x:824,y:314,width:180,height:20},styles:{fontSize:'16px',lineHeight:'20px',fontWeight:'600',fontFamily:'Arial',color:'#ffffff'}})]})]})
+ const nodes=compileStructuredNodes(root)
+ expect(nodes).toHaveLength(1);expect(nodes[0].source.component).toBe('Button')
+ expect(nodes[0].appearance.radius).toEqual([14,14,14,14]);expect(nodes[0].children[0].typography?.fontSize).toBe(16)
+ expect(nodes[0].children[0].typography?.text).toBe('Continue securely')
+ const clipped=compileStructuredNodes({...root,styles:{...root.styles,overflow:'hidden'}})
+ expect(clipped).toHaveLength(0)
+})
+test('percentage corner radii retain circular controls instead of becoming literal pixel values',()=>{
+ const nodes=compileStructuredNodes(el({rect:{x:0,y:0,width:40,height:40},styles:{backgroundColor:'#148b82',borderRadius:'50%'}}))
+ expect(nodes[0].appearance.radius).toEqual([20,20,20,20])
 })

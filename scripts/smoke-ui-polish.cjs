@@ -12,7 +12,7 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),asse
   const errors=[];page.on('pageerror',e=>errors.push(String(e)))
   const output='docs/verification/ide-polish';fs.mkdirSync(output,{recursive:true})
   const shot=async name=>{await page.screenshot({path:`${output}/${name}.png`,animations:'disabled'})}
-  await page.getByRole('button',{name:'Skip introduction',exact:true}).click()
+  assert.equal(await page.getByRole('dialog').count(),0,'startup must open directly into the workspace')
   await page.getByLabel('light appearance').click()
   await page.getByRole('button',{name:'Create Blank Design',exact:true}).click()
   await page.evaluate(()=>window.frameuiFlushSaves())

@@ -64,9 +64,12 @@ export async function renderAndCompareStructuredCapture(params: {
   slug: string
   signal?: AbortSignal
 }): Promise<RenderAndCompareResult | undefined> {
-  const { frame, originalPng, dir, slug, signal } = params
+  const { frame, dir, slug, signal } = params
+  let originalPng=params.originalPng
   let originalSize: PNG
   try { originalSize = PNG.sync.read(originalPng) } catch { return undefined }
+  const contentPixels=Math.min(originalSize.height,Math.ceil(frame.height*originalSize.width/frame.width))
+  if(contentPixels<originalSize.height){const cropped=new PNG({width:originalSize.width,height:contentPixels});PNG.bitblt(originalSize,cropped,0,0,originalSize.width,contentPixels,0,0);originalPng=PNG.sync.write(cropped);originalSize=cropped}
   const viewportHeight = Math.round(originalSize.height * frame.width / originalSize.width)
   const renderPng = await renderFrameToScreenshotPng(frame, dir, slug, signal, '', viewportHeight)
   if (!renderPng) return undefined
@@ -192,13 +195,15 @@ async function attemptRasterFallbackCorrection(params: {
   signal?: AbortSignal
 }): Promise<RenderAndCompareResult | undefined> {
   const { frame, originalPng, original, render, dir, slug, signal } = params
-  const mask = buildDiffMask(original, render)
+  const pixelMask = buildDiffMask(original, render)
+  const pixelScale=original.width/frame.width
+  const mask:DiffMask={width:frame.width,height:original.height/pixelScale,hasDiff:(x,y)=>pixelMask.hasDiff(Math.floor(x*pixelScale),Math.floor(y*pixelScale))}
   const candidates = selectRasterFallbackCandidates(frame, mask)
   if (!candidates.length || candidates.length > MAX_CANDIDATES) return undefined
 
   const patches: { id: string; imageSrc: string }[] = []
   for (const candidate of candidates) {
-    const rect = clipRectToViewport(candidate.rect, { width: original.width, height: original.height })
+    const rect = clipRectToViewport({x:candidate.rect.x*pixelScale,y:candidate.rect.y*pixelScale,width:candidate.rect.width*pixelScale,height:candidate.rect.height*pixelScale}, { width: original.width, height: original.height })
     const width = Math.round(rect.width)
     const height = Math.round(rect.height)
     if (width <= 0 || height <= 0) continue

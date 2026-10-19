@@ -20,7 +20,7 @@ const mime: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg'
 const safeAttributes = /^(?:id|class|style|title|role|type|name|value|placeholder|alt|src|width|height|viewBox|d|fill|stroke|stroke-width|cx|cy|r|rx|ry|x|y|x1|x2|y1|y2|points|transform|opacity|disabled|checked|selected|colspan|rowspan|aria-[\w-]+)$/
 
 /** A deliberately bounded interpreter, not a bundler/evaluator of user code. */
-export function compileRepositoryPage(root: string, page: Page, model: ProjectModel, state = 'Populated'): DesignIR {
+export function compileRepositoryPage(root: string, page: Page, model: ProjectModel, state = 'Populated', propsOverride:Record<string,string> = {}): DesignIR {
   const canonicalRoot = fs.realpathSync(root)
   const dependencies = new Map<string, Buffer>()
   const warnings = new Set<string>()
@@ -231,7 +231,7 @@ export function compileRepositoryPage(root: string, page: Page, model: ProjectMo
       const truth = resolveValue(expr.getLeft(), scope)
       return jsx(expr.getOperatorToken().getText() === '&&' ? truth ? expr.getRight() : undefined : truth ? expr.getLeft() : expr.getRight(), file, scope, slot, depth + 1)
     }
-    if (expr.getText() === 'children' || expr.getText() === 'props.children') return structuredClone(slot)
+    if ((expr.getText() === 'children' || expr.getText() === 'props.children') && slot.length) return structuredClone(slot)
     if (Node.isCallExpression(expr) && Node.isPropertyAccessExpression(expr.getExpression()) && expr.getExpression().getText().endsWith('.map')) {
       const access = expr.getExpression() as import('ts-morph').PropertyAccessExpression
       const callback = expr.getArguments()[0]
@@ -351,7 +351,7 @@ export function compileRepositoryPage(root: string, page: Page, model: ProjectMo
     const known = model.components.find(c=>c.id===page.id)
     const fixture = known && model.designSystem?.components.find(c=>c.componentId===known.id)?.fixtures[0]
     const props: Scope = {}
-    for (const [name,value] of Object.entries(fixture?.props??{})) {try{props[name]=JSON.parse(value) as Value}catch{props[name]=value}}
+    for (const [name,value] of Object.entries({...fixture?.props,...propsOverride})) {try{props[name]=JSON.parse(value) as Value}catch{props[name]=value}}
     nodes = component(entry, known?.exportKind==='named'?known.name:'default', props, [], 0)
     if (/^page\.[jt]sx?$/.test(path.basename(entry))) {
       let folder = path.dirname(entry)

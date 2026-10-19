@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-19",
+  "checks": {
+    "tests": 427,
+    "assertions": 1469,
+    "failures": 0,
+    "build": "passed",
+    "targetedLint": "passed",
+    "packagedHtmlZipImport": "passed",
+    "nativeLayerEditing": "passed",
+    "importedPrototypePlayback": "passed",
+    "saveAndReopen": "passed",
+    "regularAppCapture": "passed",
+    "richTextAndGradients": "passed",
+    "existingPrototypeStudio": "passed",
+    "dmgChecksum": "valid",
+    "mountedDmgMatchesTestedApp": true,
+    "packagedBuildFilesMatched": 26
+  },
+  "limits": [
+    "Desktop capture defaults to 1440 px.",
+    "Automatic exploration is bounded to 40 screens, 60 control attempts, 16 controls per screen and four actions per path.",
+    "Data-dependent and unsupported interactions may require manual capture.",
+    "Dialogs and drawers are full-screen state captures, not inferred overlay implementations."
+  ],
+  "regressionTestedAsarSha256": "03f56848eee229fb7f1909389e76631d35091db2d50641f4f380407eae37721f",
+  "reviewProfile": "review-1792424062617-3faa122f-0dff-4dd8-af00-3f83dbfc4fc5",
+  "dmgSha256": "553d0626cad3bd092ae61bc3ff41532f1da9e6e0a57ca869a62ffacc8e008509",
+  "asarSha256": "f9fbdd60ad3b66d31d0827f86462689d39c4a750397052d96d34219b3e44a59f"
+}

@@ -1,0 +1,457 @@
+{
+  "format": "sketch",
+  "schemaVersion": 121,
+  "structuralValidation": "passed",
+  "xdValidation": "unverified",
+  "artboards": 1,
+  "layers": 28,
+  "editableText": 15,
+  "editableVectors": 0,
+  "images": 0,
+  "groups": 13,
+  "components": 0,
+  "fallbackEffects": 0,
+  "unconvertedInteractions": 0,
+  "unsupportedFeatures": 12,
+  "missingAssets": 0,
+  "failedElements": 0,
+  "fontCheck": "unverified",
+  "missingFonts": [],
+  "fontsToCheck": [
+    "Arial"
+  ],
+  "warnings": [
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "nav-0",
+      "layerName": "Overview"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "nav-0",
+      "layerName": "Overview"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "nav-0",
+      "layerName": "Overview"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "nav-1",
+      "layerName": "Projects"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "nav-1",
+      "layerName": "Projects"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "nav-1",
+      "layerName": "Projects"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "nav-2",
+      "layerName": "Reports"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "nav-2",
+      "layerName": "Reports"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "nav-2",
+      "layerName": "Reports"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-0",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-0",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-0",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-0",
+      "layerName": "Metric 0"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-1",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-1",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-1",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-1",
+      "layerName": "Metric 1"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-2",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-2",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-2",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-2",
+      "layerName": "Metric 2"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-3",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-3",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-3",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-3",
+      "layerName": "Metric 3"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-4",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-4",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-4",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-4",
+      "layerName": "Metric 4"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-5",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-5",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-5",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-5",
+      "layerName": "Metric 5"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-6",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-6",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-6",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-6",
+      "layerName": "Metric 6"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-7",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-7",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-7",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-7",
+      "layerName": "Metric 7"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-8",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-8",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-8",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-8",
+      "layerName": "Metric 8"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-9",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-9",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-9",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-9",
+      "layerName": "Metric 9"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-10",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-10",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-10",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-10",
+      "layerName": "Metric 10"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "dashboard",
+      "layerId": "metric-11",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "dashboard",
+      "layerId": "metric-11",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "dashboard",
+      "layerId": "metric-11",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-group-shadow",
+      "message": "Adobe XD may omit group shadows.",
+      "artboard": "dashboard",
+      "layerId": "card-11",
+      "layerName": "Metric 11"
+    }
+  ],
+  "idMap": {
+    "fixture-dashboard:artboard-dashboard:artboard": "F530BEBC-02A1-FC5F-2BCD-BFB53D2EE254",
+    "navigation": "5C7EDDE2-8BC3-21D7-7236-C20B9380E7FB",
+    "nav-0": "E5732D4B-937F-B88E-8937-9DF5886852D1",
+    "nav-1": "8D74CEFC-15DE-CFBC-567B-D13221E52F75",
+    "nav-2": "D923CF2A-C868-009B-CF19-98E0EABE168F",
+    "card-0": "B1EE68F5-0A15-D5F5-35E7-34BD84614827",
+    "metric-0": "9B85E334-36CC-1039-02A7-59DFCC66D6E8",
+    "card-1": "9A159283-CC86-49C1-C6A6-E0984175975F",
+    "metric-1": "4004386F-2130-FD3C-EA33-742B744A7191",
+    "card-2": "94F8220F-671A-6DB3-8851-FCDFD61B82B6",
+    "metric-2": "90A486A6-D049-1C8D-303B-DE226D1DCF71",
+    "card-3": "73E04ED0-6B20-8394-BF26-7C7CD03569E9",
+    "metric-3": "C3BBC11F-F9FC-BF3B-56AD-DE816DA1FAE5",
+    "card-4": "7490643F-9CE2-F857-D282-5B9ADE6372BA",
+    "metric-4": "18A37769-AA4F-6334-57BB-F54C9E887189",
+    "card-5": "BDD3B888-6135-D698-19C2-DCF17E3DB041",
+    "metric-5": "A397B74B-2BC3-3C11-0BF7-92F982B5C005",
+    "card-6": "CC2DBC01-56CB-AD15-16A4-488B24EF76BB",
+    "metric-6": "0833E6DC-75AE-054B-4F38-1D0A37CD2C9E",
+    "card-7": "1F426C6B-E85A-94E1-A1A1-F28276D6ACBD",
+    "metric-7": "B19F4922-81C3-3BB2-C289-28818A74A86D",
+    "card-8": "CAF01CD6-C9F8-2793-FEAC-73ABF51DBBAD",
+    "metric-8": "DCDFF4FB-708A-EB6A-5E4E-98DBEC3128DC",
+    "card-9": "A8951AAC-492F-1102-2A9E-6607B3A8972C",
+    "metric-9": "6BB72919-A3B5-54C4-978F-EFC0472CFF69",
+    "card-10": "48BA53A0-BBC3-0553-A281-5B73FC67715C",
+    "metric-10": "02F5A847-35D6-94FF-4807-D9B4F4B8E082",
+    "card-11": "47C015D5-0D9E-9DEF-1EC8-0C8A12A32176",
+    "metric-11": "CEF41633-6895-50B6-6237-926056C4AFB9",
+    "artboard-dashboard": "F530BEBC-02A1-FC5F-2BCD-BFB53D2EE254",
+    "fixture-dashboard:page": "7D8DEAA2-AFE9-8455-4CD2-403980C795B3"
+  }
+}

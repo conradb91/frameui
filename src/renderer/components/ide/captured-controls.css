@@ -1,0 +1,3 @@
+/* Captured fields keep their own placeholder paint inside canvas and prototype modals. */
+[data-captured-control]::placeholder {color:var(--frameui-placeholder-color,#757575);opacity:var(--frameui-placeholder-opacity,1);}
+[data-captured-control]:focus-visible {outline:2px solid Highlight!important;outline-offset:2px!important;}

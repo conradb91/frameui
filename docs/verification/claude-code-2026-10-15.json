@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-15",
+  "scope": "Official unmodified Claude Code integration; local only",
+  "authentication": "Claude Code auth login / auth status; FrameUI never extracts Claude subscription credentials",
+  "transport": "Official CLI print mode with a private loopback HTTP MCP server exposing FrameUI design tools",
+  "controls": [
+    "Built-in CLI tools disabled",
+    "Only FrameUI MCP server enabled",
+    "User/project settings and hooks disabled for design runs",
+    "Source proposals and commands retain FrameUI review controls",
+    "Disconnect preserves external Claude Code authentication"
+  ],
+  "verification": {
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "focusedTests": "12 passed",
+    "existingApiSmoke": "passed",
+    "claudeCodeSmoke": "passed",
+    "packagedAppSmoke": "passed",
+    "mountedDmgSmoke": "passed",
+    "dmgChecksum": "valid"
+  },
+  "testTransport": "Deterministic simulated CLI; real Electron, subprocess, IPC, MCP, native design tools, screenshot exchange and UI",
+  "limitations": [
+    "Official Claude Code is not installed on the test machine. Real browser authentication and a live model request have not been verified.",
+    "Review DMG targets Intel x64 macOS and remains unsigned, consistent with existing packaging."
+  ],
+  "reviewProfile": "review-1792066899899-751298cd-294e-48cb-898e-1fd06a96685c",
+  "artifact": "release/FrameUI-0.1.0-x64.dmg",
+  "sha256": "d43ae65a067e455769560ae9bcf42f80a261b91823a04eb7261e1302eecf9ed0",
+  "sources": [
+    "https://code.claude.com/docs/en/legal-and-compliance#can-customers-offer-claude-code-in-their-products",
+    "https://code.claude.com/docs/en/cli-reference",
+    "https://code.claude.com/docs/en/mcp"
+  ]
+}

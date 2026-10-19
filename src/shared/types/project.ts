@@ -30,3 +30,13 @@ export interface ProjectRecentEntry {
 export type OpenProjectResult = { cancelled: true } | { cancelled: false; project: RecentProject }
 
 export type OpenRecentResult = { ok: true; project: RecentProject } | { ok: false; reason: 'missing' }
+
+export type RuntimeSource = 'local' | 'staging' | 'production'
+export interface RuntimeConnection {
+  url: string
+  origin: string
+  source: RuntimeSource
+  token: string
+  connectedAt?: string
+  verifiedAt?: string
+}

@@ -1,0 +1,61 @@
+{
+  "format": "sketch",
+  "schemaVersion": 121,
+  "structuralValidation": "passed",
+  "xdValidation": "unverified",
+  "artboards": 1,
+  "layers": 3,
+  "editableText": 1,
+  "editableVectors": 1,
+  "images": 0,
+  "groups": 1,
+  "components": 1,
+  "fallbackEffects": 0,
+  "unconvertedInteractions": 0,
+  "unsupportedFeatures": 0,
+  "missingAssets": 0,
+  "failedElements": 0,
+  "fontCheck": "unverified",
+  "missingFonts": [],
+  "fontsToCheck": [
+    "Arial"
+  ],
+  "warnings": [
+    {
+      "code": "component-expanded",
+      "message": "Component exported as editable layers; reusable master/instance relationship is retained as metadata.",
+      "artboard": "components",
+      "layerId": "instance",
+      "layerName": "Button instance"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "components",
+      "layerId": "instance-label",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "components",
+      "layerId": "instance-label",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "components",
+      "layerId": "instance-label",
+      "layerName": "Text"
+    }
+  ],
+  "idMap": {
+    "fixture-components:artboard-components:artboard": "64BA14F6-B0AB-086F-2270-5B5F16ED21EF",
+    "instance": "D05ED0E8-1D82-80D4-2FB8-80147BE9CE80",
+    "instance-bg": "39EF3CBB-9DB0-639D-BE26-9A95B3CCE454",
+    "instance-label": "4D478730-0A94-76E3-9D60-C456A415A2B6",
+    "artboard-components": "64BA14F6-B0AB-086F-2270-5B5F16ED21EF",
+    "fixture-components:page": "11523E56-442E-A958-49EC-526F094675D6"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "width": 390,
+  "zooms": [
+    {
+      "zoom": 0.5,
+      "diffPercent": 0.30025641025641026
+    },
+    {
+      "zoom": 1,
+      "diffPercent": 0.09294871794871795
+    },
+    {
+      "zoom": 2,
+      "diffPercent": 0.14608974358974358
+    }
+  ],
+  "movedDiffPercent": 0.09294871794871795,
+  "nativeNodes": 22
+}

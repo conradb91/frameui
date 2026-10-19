@@ -1,0 +1,34 @@
+[
+  {
+    "width": 390,
+    "diffPercent": 0,
+    "fonts": 1,
+    "warnings": [],
+    "texts": [
+      "Design with clarity.",
+      "Native gradients, clipped decoration and editable text.",
+      "Your workspace",
+      "Save changes",
+      "designer@example.com",
+      "on",
+      " Keep me informed",
+      "Sharp type at every zoom level."
+    ]
+  },
+  {
+    "width": 1440,
+    "diffPercent": 0,
+    "fonts": 1,
+    "warnings": [],
+    "texts": [
+      "Design with clarity.",
+      "Native gradients, clipped decoration and editable text.",
+      "Your workspace",
+      "Save changes",
+      "designer@example.com",
+      "on",
+      " Keep me informed",
+      "Sharp type at every zoom level."
+    ]
+  }
+]

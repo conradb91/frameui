@@ -22,10 +22,10 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),http
   app=await _electron.launch({executablePath:executable||require('electron'),args:executable?[]:['.',`--user-data-dir=${path.join(root,'profile')}`],env})
   if(executable){reviewProfile=await app.evaluate(({app})=>app.getPath('userData'));assert(path.basename(reviewProfile).startsWith('review-'))}
   const page=await app.firstWindow();page.setDefaultTimeout(90000);const errors=[];page.on('pageerror',e=>errors.push(String(e)))
-  await page.getByRole('button',{name:'Skip introduction',exact:true}).click()
+  assert.equal(await page.getByRole('dialog').count(),0,'startup must open directly into the workspace')
   await app.evaluate(({dialog},folder)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[folder]})},source)
   await page.getByRole('button',{name:'Open Codebase',exact:true}).click()
-  await page.getByLabel('Local preview',{exact:true}).fill(url)
+  await page.getByLabel('App address',{exact:true}).fill(url)
   await page.getByRole('button',{name:'Prepare project',exact:true}).click()
   await page.getByRole('button',{name:'Review project',exact:true}).click()
   await page.evaluate(()=>window.frameuiFlushSaves())

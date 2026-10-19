@@ -13,9 +13,9 @@ export function makeStructuredFrame(
   /** `durationMs` is the caller's own end-to-end timer (CDP capture +
    * compile) — this function doesn't re-measure, since the CDP capture
    * itself happens before it's called. */
-  ctx: { name: string; route: string; state?: string; width: number; height: number; durationMs: number },
+  ctx: { file?: string; name: string; route: string; state?: string; width: number; height: number; durationMs: number },
 ): StructuredFrame {
-  const children = compileStructuredNodes(root, { route: ctx.route })
+  const children = compileStructuredNodes(root, { route: ctx.route, file: ctx.file })
   return {
     id: crypto.randomUUID(),
     name: ctx.name,
@@ -23,7 +23,7 @@ export function makeStructuredFrame(
     sourceRoute: ctx.route,
     sourceState: ctx.state,
     width: ctx.width,
-    height: Math.max(ctx.height, Math.ceil(root.rect.y + root.rect.height)),
+    height: Math.max(1, Math.ceil(root.rect.y + root.rect.height)),
     children,
     captureMetadata: {
       capturedAt: new Date().toISOString(),

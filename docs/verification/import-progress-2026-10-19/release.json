@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-19",
+  "tests": 431,
+  "assertions": 1480,
+  "failures": 0,
+  "build": "passed",
+  "targetedLint": "passed",
+  "packagedBuildFilesMatched": 26,
+  "dmgChecksum": "valid",
+  "mountedDmgMatchesApp": true,
+  "reviewProfile": "review-1792427017594-1f6c5f0a-86a1-4e00-b1f1-4601c48639df",
+  "packagedProgress": "passed",
+  "dmgSha256": "6666727aedb1aff56157f33204cbeccb1379fe03d4e5a8f286ae479b22cd73cd",
+  "asarSha256": "eeb7f731d1f05764a4c35a6b1ff070beec473a56024cec68ce3cbcbd71e1d50c",
+  "packagedImport": "passed",
+  "packagedCapture": "passed"
+}

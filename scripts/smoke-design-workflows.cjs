@@ -5,7 +5,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
  const env={...process.env,FRAMEUI_ALLOW_MULTIPLE_INSTANCES:'1'};delete env.ELECTRON_RUN_AS_NODE
  let app
  try{
-  app=await _electron.launch({executablePath:process.env.FRAMEUI_ELECTRON||'/tmp/frameui-electron-x64/Electron.app/Contents/MacOS/Electron',args:['.',`--user-data-dir=${root}`],env})
+  app=await _electron.launch({executablePath:process.env.FRAMEUI_ELECTRON||require('electron'),args:['.',`--user-data-dir=${root}`],env})
 	  const page=await app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(String(e)))
 	  const skipIntroduction=page.getByRole('button',{name:'Skip introduction',exact:true});if(await skipIntroduction.isVisible().catch(()=>false))await skipIntroduction.click()
 	  await page.getByRole('button',{name:'light appearance',exact:true}).click()
@@ -17,7 +17,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
   assert.equal(await page.getByRole('button',{name:'Compare',exact:true}).count(),0)
   assert.equal(await page.getByText('A place for your next screen',{exact:true}).count(),0,'a blank artboard must not open an onboarding card over the canvas')
   const sidebarBoundary=await page.locator('.ide-sidebar').evaluate(el=>{const style=getComputedStyle(el);return {border:style.borderRightStyle,shadow:style.boxShadow}})
-  assert.notEqual(sidebarBoundary.border,'none');assert.notEqual(sidebarBoundary.shadow,'none')
+  assert.notEqual(sidebarBoundary.border,'none');assert.equal(sidebarBoundary.shadow,'none','panels use a quiet divider instead of raised shadows')
   const darkEdgeToggle=await page.locator('.ide-panel-edge-toggle-right').evaluate(el=>{const style=getComputedStyle(el);return {background:style.backgroundColor,shadow:style.boxShadow,width:style.width}})
   assert.equal(darkEdgeToggle.background,await page.locator('.ide-inspector').evaluate(el=>getComputedStyle(el).backgroundColor));assert.equal(darkEdgeToggle.shadow,'none');assert.equal(darkEdgeToggle.width,'18px')
   await page.getByRole('button',{name:'Frame (F)',exact:true}).click();await page.getByRole('heading',{name:'Frame presets',exact:true}).waitFor()
@@ -62,11 +62,11 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
   // A saved prototype can run after all live-app connections are absent.
   saved=await page.evaluate(id=>window.frameui.design.load(id),id);saved.pages[0].objects[0].interaction={targetPageId:saved.pages[1].id,transition:'Dissolve',trigger:'Click'}
   await page.evaluate(doc=>window.frameui.design.save(doc),saved);await page.reload();await page.getByRole('button',{name:/Untitled/}).first().click()
-  await page.getByRole('button',{name:'Present',exact:true}).click();await page.getByLabel('Present page').selectOption(saved.pages[0].id)
-  assert.equal(await page.locator('.ide-sidebar:visible,.ide-inspector:visible,.ide-tools:visible').count(),0);assert(await page.locator('.ide-present-bar').isVisible());assert.equal(await page.getByLabel('Layout columns').count(),0,'editor layout grids must not leak into Present');await page.screenshot({path:'docs/verification/workspace-present.png',animations:'disabled'})
-  const obj=page.locator(`[data-object-id="${saved.pages[0].objects[0].id}"]`).first();await obj.click()
-  assert.equal(await page.getByLabel('Present page').inputValue(),saved.pages[1].id)
-  await page.getByRole('button',{name:/Exit presentation/}).click()
+  await page.getByRole('button',{name:'Prototype',exact:true}).first().click();await page.getByLabel('Starting screen').selectOption(saved.pages[0].id)
+  const runner=page.getByRole('dialog',{name:'Prototype preview',exact:true});assert(await runner.isVisible());assert.equal(await runner.getByLabel('Layout columns').count(),0,'editor layout grids must not leak into prototype');await page.screenshot({path:'docs/verification/workspace-present.png',animations:'disabled'})
+  const obj=runner.locator(`[data-object-id="${saved.pages[0].objects[0].id}"]`).first();await obj.click()
+  await runner.locator('header strong').filter({hasText:saved.pages[1].name}).waitFor()
+  await page.getByRole('button',{name:'Exit preview',exact:true}).click()
   const previous=await page.locator('.ide-sidebar').evaluate(el=>el.getBoundingClientRect().width)
   const splitter=await page.locator('.ide-panel-resizer').first().boundingBox();await page.mouse.move(splitter.x+2,splitter.y+150);await page.mouse.down();await page.mouse.move(splitter.x+52,splitter.y+150);await page.mouse.up()
   const resized=await page.locator('.ide-sidebar').evaluate(el=>el.getBoundingClientRect().width);assert(resized>previous+30)

@@ -1,0 +1,7 @@
+{
+  "discoveryStopMs": 85,
+  "captureStopMs": 109,
+  "slowRequests": 1,
+  "retrySucceeded": true,
+  "stoppedImportsPublished": false
+}

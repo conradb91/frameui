@@ -1,3 +1,5 @@
+import { userFacingError } from '../../lib/userFacingError'
+import type { RuntimeConnection } from '@shared/types/project'
 import { PagesWorkspace } from './PagesWorkspace'
 import { useEffect, useMemo, useState } from 'react'
 import { FolderOpen, FilePlus2, ChevronRight, RefreshCcw, MoreHorizontal, Search, Archive, ArrowRight } from 'lucide-react'
@@ -22,6 +24,8 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
   onSectionChange?: (section: ProjectSection) => void; notice?: string
   onRender: (route: string) => void
 }) {
+  const [runtime,setRuntime]=useState<RuntimeConnection|null>(null)
+  useEffect(()=>{let alive=true;void window.frameui.project.getRuntime().then(r=>{if(alive)setRuntime(r)}).catch(()=>{});const update=(event:Event)=>setRuntime((event as CustomEvent<RuntimeConnection>).detail);window.addEventListener('frameui:runtime-updated',update);return()=>{alive=false;window.removeEventListener('frameui:runtime-updated',update)}},[document.projectId])
   const [captureBusy, setCaptureBusy] = useState(false)
   const [files,setFiles] = useState<Awaited<ReturnType<FrameUiApi['design']['list']>>>([])
   const [section,setSectionState] = useState<ProjectSection>(initialSection)
@@ -50,8 +54,8 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
   function onImport(route?: string) {
     setCaptureSession({ route })
   }
-  useEffect(() => {void window.frameui.design.list().then(items => setFiles(items.filter(i => i.libraryId===document.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))).catch(e=>setError(String(e)))},[document.id])
-  useEffect(() => {void window.frameui.project.getIndex().then(setIndex).catch(()=>{})},[document.projectId])
+  useEffect(() => {let alive=true;void window.frameui.design.list().then(items => {if(alive)setFiles(items.filter(i => i.libraryId===document.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))}).catch(e=>{if(alive)setError(userFacingError(e))});return()=>{alive=false}},[document.id])
+  useEffect(() => {let alive=true;void window.frameui.project.getIndex().then(next=>{if(alive)setIndex(next)}).catch(e=>{if(alive)setError(userFacingError(e))});return()=>{alive=false}},[document.projectId])
   function archive(id: string) {const next=archived.includes(id)?archived.filter(i=>i!==id):[...archived,id];setArchived(next);localStorage.setItem(`frameui:archive:${document.id}`,JSON.stringify(next))}
   function archivePage(pattern: string) {setArchivedPages(archivedPages.includes(pattern)?archivedPages.filter(p=>p!==pattern):[...archivedPages,pattern])}
   const pagesCount = document.pageRegistry?.length ?? 0
@@ -63,14 +67,15 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
   const application = index?.applications?.[0]
   const savedAppUrl = document.appUrl && !/^about:blank\/?$/i.test(document.appUrl.trim()) ? document.appUrl : undefined
   const resolvedAppUrl = savedAppUrl || application?.url || undefined
-  const runtimeLabel = application ? (application.capabilities.runtimePreview ? 'Application connected' : 'Source-only preview') : ''
+  const appOnly=!!index?.rootPath.replace(/\\/g,'/').includes('/application-projects/')
+  const runtimeLabel = (runtime?.connectedAt||runtime?.verifiedAt) ? 'App connected' : 'App connection pending'
   const lastCapture = document.pages.reduce((latest,p)=>(p.capturedAt||'')>latest?p.capturedAt!:latest,'')
   const heading = section==='Styles' ? 'Design Tokens & Styles' : section
   const namedCollections = ['Colours','Typography','Spacing','Radius','Shadows']
   const styleCategories = [...namedCollections,'Variables'].map(label=>({label,items:document.variables.filter(v=>(label==='Variables'?!namedCollections.includes(v.collection):v.collection===label) && `${v.collection} ${v.name}`.toLowerCase().includes(query.toLowerCase()))})).filter(c=>c.items.length)
   const sectionDescriptions: Record<ProjectSection, string> = {
-    Designs: 'Pick up where you left off. Or start something new.',
-    Pages: 'Choose a page. Capture it. Make it yours.',
+    Designs: 'Explore ideas with your product’s components. Build flows and test before approval.',
+    Pages: 'Capture the screens you need as editable design layers.',
     Components: 'Reusable pieces from your codebase, ready for your next design.',
     Styles: 'The colours, typography and design values that make your product yours.',
     Assets: 'Images and visual resources collected from your project.',
@@ -96,15 +101,21 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
       <ProjectNav disabled={captureBusy} name={document.name} section={section} onSelect={setSection} onBack={()=>{if(!captureBusy)onBack()}} counts={{Designs:active.length,Pages:pagesCount,Components:componentsCount,Styles:stylesCount,Assets:assets.length,Archive:archived.length+archivedPages.length}}/>
 
       <main className={`ide-library-main ${section==='Pages'?'pages-library-main':''}`}>
-        <header className="ide-section-heading"><div><span className="ide-section-eyebrow">PROJECT WORKSPACE</span><h1>{heading}</h1><p>{sectionDescriptions[section]}</p></div>{(section==='Designs'||section==='Pages') && <div className="ide-library-heading-actions"><button aria-label="View archive" disabled={captureBusy} onClick={()=>setSection('Archive')}><Archive size={15}/>Archive</button>{section === 'Designs' && <button className="primary" onClick={() => setNewDesign({})}><FilePlus2 size={16}/> New Design</button>}</div>}</header>
+        <header className="ide-section-heading"><div><h1>{heading}</h1><p>{sectionDescriptions[section]}</p></div>{(section==='Designs'||section==='Pages') && <div className="ide-library-heading-actions"><button aria-label="View archive" disabled={captureBusy} onClick={()=>setSection('Archive')}><Archive size={15}/>Archive</button>{section === 'Designs' && <button className="primary" onClick={() => setNewDesign({})}><FilePlus2 size={16}/> New Design</button>}</div>}</header>
+        {(section==='Designs'||section==='Pages')&&<nav className="studio-journey" aria-label="Project workflow">
+          <div data-complete="true"><span>✓</span><div><strong>{appOnly?'Running app':'Repository'}</strong><small>{appOnly?'No source mapping':'Indexed & ready'}</small></div></div>
+          <button disabled={captureBusy} onClick={()=>{setSection('Pages');requestAnimationFrame(()=>window.dispatchEvent(new Event('frameui:show-connection')))}} data-complete={!!(runtime?.connectedAt||runtime?.verifiedAt)}><span>{(runtime?.connectedAt||runtime?.verifiedAt)?'✓':'2'}</span><div><strong>Connect app</strong><small>{(runtime?.connectedAt||runtime?.verifiedAt)?'Connected':'Localhost or hosted domain'}</small></div></button>
+          <button disabled={captureBusy} onClick={()=>setSection('Pages')} data-complete={document.pages.length>0}><span>{document.pages.length?'✓':'3'}</span><div><strong>Capture pages</strong><small>{document.pages.length?`${document.pages.length} screen${document.pages.length===1?'':'s'} ready`:'Choose your starting screens'}</small></div></button>
+          <button disabled={captureBusy} onClick={()=>setNewDesign({})}><span>4</span><div><strong>Design &amp; prototype</strong><small>Flows, AI drafts &amp; approval</small></div></button>
+        </nav>}
         {section==='Designs' && <>
-          <div className="ide-workspace-resources"><button onClick={()=>setSection('Pages')}><strong>Start from your app</strong><span>{document.pages.length ? `${document.pages.length} captured screens` : `${pagesCount} pages to explore`}</span><ArrowRight size={16}/></button><button onClick={()=>setSection('Components')}><strong>Components</strong><span>{componentsCount} reusable pieces</span><ArrowRight size={16}/></button><details className="ide-project-details"><summary>Project details</summary><div><strong>{document.name}</strong>{application&&<span>Framework: {application.framework}</span>}{runtimeLabel&&<span>{runtimeLabel}</span>}{index?.rootPath&&<span>{index.rootPath}</span>}{lastCapture&&<span>Page previews updated {new Date(lastCapture).toLocaleDateString()}</span>}</div></details></div>
+          <div className="ide-workspace-resources"><button onClick={()=>setSection('Pages')}><strong>Start from your app</strong><span>{document.pages.length ? `${document.pages.length} captured screens` : `${pagesCount} pages to explore`}</span><ArrowRight size={16}/></button><button onClick={()=>setSection('Components')}><strong>Components</strong><span>{componentsCount} reusable pieces</span><ArrowRight size={16}/></button><details className="ide-project-details"><summary>Project details</summary><div><strong>{document.name}</strong>{application&&<span>Framework: {application.framework}</span>}{runtimeLabel&&<span>{runtimeLabel}</span>}{appOnly?<span>URL capture · No repository connected</span>:index?.rootPath&&<span>{index.rootPath}</span>}{lastCapture&&<span>Page previews updated {new Date(lastCapture).toLocaleDateString()}</span>}</div></details></div>
           <div className="ide-designs-toolbar"><label><Search size={15}/><input aria-label="Search designs" placeholder="Search designs…" value={query} onChange={e=>setQuery(e.target.value)}/></label><select aria-label="Sort designs" value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently edited</option><option value="name">Name A–Z</option></select><span>{matchingDesigns.length} design{matchingDesigns.length===1?'':'s'}</span></div>
           {!active.length ? <div className="ide-overview-empty">
-            <span className="ide-empty-emblem"><FilePlus2 size={26}/></span><h2>Your next design starts here.</h2><p>Start with a blank canvas, capture your running application, or choose a page from this project.</p>
+            <span className="ide-empty-emblem"><FilePlus2 size={26}/></span><h2>Create your first design</h2><p>Capture a page to start with your real interface, or open a blank canvas to explore an idea.</p>
             <div>
-              <button onClick={()=>setSection('Pages')}>Browse pages</button>
-              <button onClick={()=>setSection('Components')}>Browse components</button>
+              <button onClick={()=>setSection('Pages')}>Capture pages</button>
+              <button onClick={()=>setSection('Components')}>Explore components</button>
               {application?.url && <button onClick={()=>onImport()}>Open application</button>}
             </div>
           </div> : (
@@ -114,7 +125,7 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
               </div>
               {!matchingDesigns.length && <EmptyState title="No matching designs">Try a different name.</EmptyState>}
               <div className="ide-design-grid">{matchingDesigns.map(file=><article className="ide-design-card" key={file.id}>
-                <button className="ide-design-thumbnail" onClick={()=>onOpen(file.id)} aria-label={`Open ${file.name}`}>{file.thumbnail ? <img src={file.thumbnail} alt=""/> : <FolderOpen size={22}/>}</button>
+                <button className="ide-design-thumbnail" onClick={()=>onOpen(file.id)} aria-label={`Open ${file.name}`}>{file.thumbnail ? <img src={file.thumbnail} alt="" loading="lazy"/> : <FolderOpen size={22}/>}</button>
                 <div><strong>{file.name}</strong><small>{file.pageCount} frame{file.pageCount===1?'':'s'} · Edited {new Date(file.updatedAt).toLocaleDateString()}</small></div>
                 <footer className="ide-design-card-actions"><button onClick={()=>onOpen(file.id)}>Open design <ArrowRight size={13}/></button><button aria-label={`Archive ${file.name}`} title="Archive design" onClick={()=>archive(file.id)}><Archive size={14}/></button></footer>
                 <button className="ide-design-more" aria-label={`More actions for ${file.name}`} title="More" onClick={e=>setMenu({x:e.clientX,y:e.clientY,fileId:file.id})}><MoreHorizontal size={14}/></button>

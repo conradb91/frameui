@@ -1,3 +1,6 @@
+import {connectApplication} from '../../lib/connectApplication'
+import { userFacingError } from '../../lib/userFacingError'
+import { RuntimeSettings } from './RuntimeSettings'
 import { normalizeVisual } from '@core/visual/normalize'
 import type { FrameUiWebviewElement } from '../../types/webview'
 import {
@@ -146,6 +149,7 @@ export function CaptureWorkspace({
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [batchOpen, setBatchOpen] = useState(false)
+  useEffect(()=>{if(document.appUrl)void connectApplication(document.appUrl).catch(e=>setError(userFacingError(e)))},[document.projectId])
   const [sidebarCollapsed, setSidebarCollapsed] = useStoredValue('frameui:capture-sidebar-collapsed', false)
 
   function renameSessionCapture(id: string, name: string) {
@@ -167,7 +171,7 @@ export function CaptureWorkspace({
     setAddressDraft(withScheme)
     if (!stateNameEdited.current) setStateName(stateNameFromAddress(withScheme))
     setError('')
-    stateBrowser.current?.loadURL(withScheme).catch(() => {
+    void connectApplication(withScheme).then(url=>stateBrowser.current?.loadURL(url)).catch(() => {
       setError(`Could not load ${withScheme}. Check the URL and that the app is running.`)
     })
   }
@@ -274,7 +278,7 @@ export function CaptureWorkspace({
       }
       stateBrowser.current?.reload()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(userFacingError(e))
     } finally {
       setBusy('')
     }
@@ -307,7 +311,7 @@ export function CaptureWorkspace({
         id: crypto.randomUUID(), name: capturedName,
         route, authProfile: profile, folder: parent?.folder || 'Application', pinned: false,
         state: capturedState,
-        width: metadata.width, height: Math.max(metadata.height, root.rect.y + root.rect.height), objects,
+        width: metadata.width, height: Math.max(1,Math.ceil(root.rect.y + root.rect.height)), objects,
         // The real, live-canvas-rendered content — `objects` above stays
         // populated regardless (SVG export, the Layers panel, and
         // rendering any page without `structured` all still need it).
@@ -329,7 +333,7 @@ export function CaptureWorkspace({
       setError(warnings.length ? `State captured. ${warnings.join(' ')}` : matchedComponents ? `State captured. ${matchedComponents} component${matchedComponents === 1 ? '' : 's'} matched to source.` : '')
       stateNameEdited.current = false
       setStateName(stateNameFromAddress(capturedUrl))
-    } catch (e) { setError(`Could not capture this state: ${String(e)}`) }
+    } catch (e) { setError(`Could not capture this state: ${userFacingError(e)}`) }
     finally { setBusy(''); setCaptureStage(null); offStage() }
   }
 
@@ -337,8 +341,9 @@ export function CaptureWorkspace({
     <div className="ide-capture-workspace ide-capture-shell">
     <div className="ide-capture-main">
       <Guidance id="capture-workspace">
-        Enter your app&apos;s local URL and press Go, sign in with saved credentials if the screen needs it, then click Capture screen to save this view.
+        Open a page, adjust its state, then capture an editable screen.
       </Guidance>
+      <RuntimeSettings url={addressDraft} onChange={setAddressDraft} />
       <div className="ide-capture-toolbar">
         <button type="button" title="Back" disabled={!canGoBack} onClick={() => stateBrowser.current?.goBack()}>
           <ChevronLeft size={15} />
@@ -437,7 +442,7 @@ export function CaptureWorkspace({
         )}
       </div>
       <details className="ide-connect-optional">
-        <summary><h3>Sign in with saved credentials</h3></summary>
+        <summary><h3>Sign-in options</h3></summary>
         <label>
           Username or email
           <input autoComplete="off" value={username} onChange={(e) => setUsername(e.target.value)} />
@@ -467,7 +472,7 @@ export function CaptureWorkspace({
     </div>
     <aside className="ide-capture-sidebar" aria-label="Capture controls and history">
       <div className="ide-capture-controls">
-        <h3>Capture</h3>
+        <h3>Capture screen</h3><p className="studio-capture-hint">Save this page as editable layers, using your project’s fonts and assets.</p>
         <label>
           Session
           <select value={profile} disabled={!!busy} onChange={(e) => setProfile(e.target.value as typeof profile)}>

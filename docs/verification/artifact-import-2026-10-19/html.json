@@ -1,0 +1,116 @@
+{
+  "pages": [
+    {
+      "id": "52c4202a-2209-4e8e-8e91-9c702c90aa4d",
+      "name": "Welcome back",
+      "route": "/artifact.html"
+    },
+    {
+      "id": "200d0194-0a9e-4782-a484-1682bcc5bf26",
+      "name": "Need help?",
+      "route": "/__prototype_state_1"
+    },
+    {
+      "id": "0e332277-cedf-4b61-8d1d-e96e665c477e",
+      "name": "Sign in",
+      "route": "/__prototype_state_2"
+    },
+    {
+      "id": "d922d052-591e-41a8-9930-cbe7078a07dc",
+      "name": "Need help?",
+      "route": "/__prototype_state_3"
+    }
+  ],
+  "prototype": {
+    "version": 1,
+    "flows": [
+      {
+        "id": "cce2218b-7ade-4d7a-8ab8-def12181d001",
+        "name": "artifact",
+        "description": "Imported from the runnable HTML prototype. Connections reflect observed navigation and visible state changes.",
+        "startArtboardId": "52c4202a-2209-4e8e-8e91-9c702c90aa4d",
+        "artboardIds": [
+          "52c4202a-2209-4e8e-8e91-9c702c90aa4d",
+          "200d0194-0a9e-4782-a484-1682bcc5bf26",
+          "0e332277-cedf-4b61-8d1d-e96e665c477e",
+          "d922d052-591e-41a8-9930-cbe7078a07dc"
+        ],
+        "positions": {
+          "52c4202a-2209-4e8e-8e91-9c702c90aa4d": {
+            "x": 0,
+            "y": 0
+          },
+          "200d0194-0a9e-4782-a484-1682bcc5bf26": {
+            "x": 340,
+            "y": 0
+          },
+          "0e332277-cedf-4b61-8d1d-e96e665c477e": {
+            "x": 340,
+            "y": 280
+          },
+          "d922d052-591e-41a8-9930-cbe7078a07dc": {
+            "x": 680,
+            "y": 0
+          }
+        },
+        "createdAt": "2026-10-19T17:06:11.163Z",
+        "updatedAt": "2026-10-19T17:06:11.163Z"
+      }
+    ],
+    "interactions": [
+      {
+        "id": "177bd3bf-6ba8-41ba-b73c-c14a1dce9269",
+        "sourceArtboardId": "52c4202a-2209-4e8e-8e91-9c702c90aa4d",
+        "sourceElementId": "79dbc2cf-9d11-4d09-a0ef-1837db807aa5",
+        "trigger": "click",
+        "action": "navigate",
+        "destinationId": "200d0194-0a9e-4782-a484-1682bcc5bf26",
+        "transition": "instant",
+        "label": "Need help?"
+      },
+      {
+        "id": "2625f2b2-baa2-4002-87e1-67d82f1c584c",
+        "sourceArtboardId": "52c4202a-2209-4e8e-8e91-9c702c90aa4d",
+        "sourceElementId": "5c36094e-21db-45c7-90ed-eadb7504a5a7",
+        "trigger": "click",
+        "action": "navigate",
+        "destinationId": "0e332277-cedf-4b61-8d1d-e96e665c477e",
+        "transition": "instant",
+        "label": "Sign in"
+      },
+      {
+        "id": "55b2adde-a6a1-478c-be3a-563b9cb0b5c7",
+        "sourceArtboardId": "200d0194-0a9e-4782-a484-1682bcc5bf26",
+        "sourceElementId": "126bb7e8-9f5d-4e95-b62d-a380976087d8",
+        "trigger": "click",
+        "action": "navigate",
+        "destinationId": "52c4202a-2209-4e8e-8e91-9c702c90aa4d",
+        "transition": "instant",
+        "label": "Close help"
+      },
+      {
+        "id": "c5bc3494-f646-40c6-9013-0d40626411ae",
+        "sourceArtboardId": "0e332277-cedf-4b61-8d1d-e96e665c477e",
+        "sourceElementId": "653d6377-6838-4a5b-bab8-c007c891271a",
+        "trigger": "click",
+        "action": "navigate",
+        "destinationId": "d922d052-591e-41a8-9930-cbe7078a07dc",
+        "transition": "instant",
+        "label": "Need help?"
+      },
+      {
+        "id": "e052d885-d60c-4da2-9dfe-152198a21ac1",
+        "sourceArtboardId": "d922d052-591e-41a8-9930-cbe7078a07dc",
+        "sourceElementId": "610581c1-7b1f-4a45-877f-98e34fe560ce",
+        "trigger": "click",
+        "action": "navigate",
+        "destinationId": "0e332277-cedf-4b61-8d1d-e96e665c477e",
+        "transition": "instant",
+        "label": "Close help"
+      }
+    ],
+    "variables": {},
+    "scenarios": [],
+    "imports": []
+  }
+}

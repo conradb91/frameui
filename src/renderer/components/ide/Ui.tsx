@@ -273,8 +273,9 @@ export function ActionMenu({
     const close = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) onClose()
     }
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
+    // Canvas gestures stop propagation, so observe outside presses before they do.
+    document.addEventListener('pointerdown', close, true)
+    return () => document.removeEventListener('pointerdown', close, true)
   }, [onClose])
   return (
     <div
@@ -556,10 +557,12 @@ export function ColorField({
     </div>
   )
 }
-export function Welcome({ recents, projects, onOpen, onOpenProject, onBlank, onRecent, onDuplicate, onRemove, onReveal, status, error, onGettingStarted }: {
+export function Welcome({ recents, projects, onOpen, onConnectApplication, onImportPrototype, onOpenProject, onBlank, onRecent, onDuplicate, onRemove, onReveal, status, error, onGettingStarted }: {
   recents: (Pick<VisualDocument, 'id' | 'name' | 'projectId' | 'updatedAt'> & { designCount?: number })[]
   projects: ProjectLibraryEntry[]
   onOpen: () => void
+  onConnectApplication: () => void
+  onImportPrototype: () => void
   onOpenProject: (path: string) => void
   onBlank: () => void
   onRecent: (id: string) => void
@@ -571,11 +574,11 @@ export function Welcome({ recents, projects, onOpen, onOpenProject, onBlank, onR
   onGettingStarted: () => void
 }) {
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<'all' | 'codebases' | 'designs'>('all')
+  const [filter, setFilter] = useState<'all' | 'codebases' | 'designs' | 'prototypes'>('all')
   const [archivedProjects, setArchivedProjects] = useStoredValue<string[]>('frameui:archived-projects', [])
   const [showArchived, setShowArchived] = useState(false)
   function toggleArchived(key: string) { setArchivedProjects(archivedProjects.includes(key) ? archivedProjects.filter(id=>id!==key) : [...archivedProjects,key]) }
-  const [view, setView] = useState<'grid' | 'list'>('grid')
+  const [view, setView] = useState<'grid' | 'list'>('list')
   const [sort, setSort] = useState('recent')
   const [opening, setOpening] = useState<string | null>(null)
   useEffect(() => { if (!status) setOpening(null) }, [status])
@@ -590,10 +593,11 @@ export function Welcome({ recents, projects, onOpen, onOpenProject, onBlank, onR
       key: `design:${document.id}`, project: undefined, document, name: document.name, date: document.updatedAt,
     })),
   ]
-  const shown = rows.filter(row => archivedProjects.includes(row.key) === showArchived && (filter === 'all' || (filter === 'codebases' ? !!row.project || !!row.document?.projectId : !row.project && !row.document?.projectId)) &&
+  const shown = rows.filter(row => archivedProjects.includes(row.key) === showArchived && (filter === 'all' || (filter === 'prototypes' ? !!row.project?.path.includes('/artifact-projects/') : filter === 'codebases' ? !row.project?.path.includes('/artifact-projects/') && (!!row.project || !!row.document?.projectId) : !row.project && !row.document?.projectId)) &&
     `${row.name} ${row.project?.path ?? ''} ${row.project?.framework ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()))
     .sort((a,b) => sort === 'name' ? a.name.localeCompare(b.name) : b.date.localeCompare(a.date))
-  const codebaseCount = rows.filter(row => row.project || row.document?.projectId).length
+  const prototypeCount = rows.filter(row => row.project?.path.includes('/artifact-projects/')).length
+  const codebaseCount = rows.filter(row => !row.project?.path.includes('/artifact-projects/') && (row.project || row.document?.projectId)).length
   const openRow = (row: typeof rows[number]) => {
     if (busy) return
     if (row.project) { setOpening(row.key); onOpenProject(row.project.path) }
@@ -606,31 +610,34 @@ export function Welcome({ recents, projects, onOpen, onOpenProject, onBlank, onR
     </header>
     <div className="project-home-layout">
       <aside className="project-home-nav">
-        <div className="project-workspace-avatar"><span>F</span><div><strong>Your workspace</strong><small>Ideas live here.</small></div></div>
+        <div className="project-workspace-avatar"><span>F</span><div><strong>Your workspace</strong><small>Design with context.</small></div></div>
         <small className="project-nav-label">LIBRARY</small>
         <nav aria-label="Project filters">
-          {([{id:'all',label:'All projects',Icon:LayoutGrid,count:rows.length},{id:'codebases',label:'Codebases',Icon:Code2,count:codebaseCount},{id:'designs',label:'Blank designs',Icon:PanelsTopLeft,count:rows.length-codebaseCount}] as const).map(item => <button key={item.id} aria-current={filter===item.id?'page':undefined} onClick={()=>setFilter(item.id)}><item.Icon size={16}/><span>{item.label}</span><small>{item.count}</small></button>)}
+          {([{id:'all',label:'All projects',Icon:LayoutGrid,count:rows.length},{id:'codebases',label:'Codebases',Icon:Code2,count:codebaseCount},{id:'prototypes',label:'Prototypes',Icon:PanelsTopLeft,count:prototypeCount},{id:'designs',label:'Blank designs',Icon:FilePlus2,count:rows.length-codebaseCount-prototypeCount}] as const).map(item => <button key={item.id} aria-current={filter===item.id?'page':undefined} onClick={()=>setFilter(item.id)}><item.Icon size={16}/><span>{item.label}</span><small>{item.count}</small></button>)}
         </nav>
-        <div className="project-nav-bottom"><div className="project-guide"><BookOpen size={19}/><strong>A little orientation.</strong><p>From your codebase to your first editable canvas.</p><button onClick={onGettingStarted}>Getting started <ArrowRight size={14}/></button></div><span><HardDrive size={13}/> Stored on this computer</span></div>
+        <div className="project-nav-bottom"><div className="project-guide"><BookOpen size={19}/><strong>New to FrameUI?</strong><p>From your codebase to your first editable canvas.</p><button onClick={onGettingStarted}>Getting started <ArrowRight size={14}/></button></div><span><HardDrive size={13}/> Stored on this computer</span></div>
       </aside>
       <main className="project-home-main">
-        <div className="project-home-heading"><div><span className="project-kicker">YOUR CREATIVE SPACE</span><h1>Make something<br className="project-heading-break"/> worth opening.</h1><p>Pick up where you left off, or give your next idea a place to start.</p></div><button className="primary" onClick={onOpen} disabled={busy}><Plus size={17}/> Open Codebase</button></div>
+        <div className="project-home-heading"><div><span className="project-kicker">FRAMEUI</span><h1>Your design workspace</h1><p>Start from your product. Capture real pages, explore ideas and test what comes next.</p></div><button className="primary" onClick={onOpen} disabled={busy}><Plus size={17}/> Open Codebase</button></div>
         <section className="project-launch-strip" aria-label="Start creating">
-          <button onClick={onOpen} disabled={busy}><span className="project-launch-icon"><FolderOpen size={23}/></span><span><strong>Start with your code.</strong><small>Bring your existing project into FrameUI.</small></span><ArrowRight size={18}/></button>
-          <button onClick={onBlank} disabled={busy} aria-label="Create Blank Design"><span className="project-launch-icon"><FilePlus2 size={23}/></span><span><strong>Or, a blank canvas.</strong><small>A fresh space for something entirely new.</small></span><ArrowRight size={18}/></button>
+          <button className="prototype-quick-start" onClick={onImportPrototype} disabled={busy}><span className="project-launch-icon"><PanelsTopLeft size={23}/></span><span><strong>Import HTML prototype</strong><small>HTML or ZIP from ChatGPT, Claude or other tools. Capture editable pages and linked flows. No repository needed.</small></span><ArrowRight size={18}/></button>
+          <button onClick={onOpen} disabled={busy}><span className="project-launch-icon"><FolderOpen size={23}/></span><span><strong>Open an existing repository</strong><small>Recommended. Add localhost or a hosted app, or explore the repository first.</small></span><ArrowRight size={18}/></button>
+          <button onClick={onConnectApplication} disabled={busy}><span className="project-launch-icon"><Monitor size={23}/></span><span><strong>Connect a running app</strong><small>Capture by URL. Repository component mapping unavailable.</small></span><ArrowRight size={18}/></button>
+          <button onClick={onBlank} disabled={busy} aria-label="Create Blank Design"><span className="project-launch-icon"><FilePlus2 size={23}/></span><span><strong>Start a blank design</strong><small>Explore an idea on an empty canvas.</small></span><ArrowRight size={18}/></button>
         </section>
+        {!rows.length&&<ol className="studio-start-path" aria-label="Your first project"><li><span>1</span><strong>Start</strong><small>Prototype, app or repository</small></li><li><span>2</span><strong>Capture</strong><small>Only the pages you need</small></li><li><span>3</span><strong>Explore</strong><small>Design, flows and AI drafts</small></li><li><span>4</span><strong>Approve</strong><small>Test before importing</small></li></ol>}
         <section className="project-collection" aria-label="Saved projects">
-          <div className="project-collection-heading"><h2>{showArchived?'Archived projects':filter==='all'?'All projects':filter==='codebases'?'Codebases':'Blank designs'} <span>{shown.length}</span></h2><span>Yours. Saved locally.</span></div>
-          <div className="project-collection-controls"><label className="project-search"><Search size={16}/><input aria-label="Search projects" placeholder="Search projects…" value={query} onChange={e=>setQuery(e.target.value)}/>{query && <button aria-label="Clear project search" onClick={()=>setQuery('')}><X size={14}/></button>}</label><select aria-label="Sort projects" value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently opened</option><option value="name">Name A–Z</option></select><button aria-label="View archived projects" aria-pressed={showArchived} onClick={()=>setShowArchived(!showArchived)}><Archive size={15}/>{showArchived?'Back to projects':'Archive'}</button><div className="project-view-switch"><button aria-label="Grid view" aria-pressed={view==='grid'} onClick={()=>setView('grid')}><LayoutGrid size={16}/></button><button aria-label="List view" aria-pressed={view==='list'} onClick={()=>setView('list')}><List size={16}/></button></div></div>
+          <div className="project-collection-heading"><h2>{showArchived?'Archived projects':filter==='all'?'All projects':filter==='codebases'?'Codebases':filter==='prototypes'?'Prototypes':'Blank designs'} <span>{shown.length}</span></h2><span>Saved on this computer</span></div>
+          {!!rows.length&&<div className="project-collection-controls"><label className="project-search"><Search size={16}/><input aria-label="Search projects" placeholder="Search projects…" value={query} onChange={e=>setQuery(e.target.value)}/>{query && <button aria-label="Clear project search" onClick={()=>setQuery('')}><X size={14}/></button>}</label><select aria-label="Sort projects" value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently opened</option><option value="name">Name A–Z</option></select><button aria-label="View archived projects" aria-pressed={showArchived} onClick={()=>setShowArchived(!showArchived)}><Archive size={15}/>{showArchived?'Back to projects':'Archive'}</button><div className="project-view-switch"><button aria-label="Grid view" aria-pressed={view==='grid'} onClick={()=>setView('grid')}><LayoutGrid size={16}/></button><button aria-label="List view" aria-pressed={view==='list'} onClick={()=>setView('list')}><List size={16}/></button></div></div>}
           {shown.length ? <div className={`project-cards project-cards--${view}`}>{shown.map((row,index)=><article className="project-card" key={row.key}>
             <button className="project-card-open" aria-label={`Open ${row.name}`} disabled={busy} onClick={()=>openRow(row)}>
-              <div className={`project-card-art project-card-art--${index%4}`} aria-hidden="true"><div className="project-card-orbit"/><span>{row.project || row.document?.projectId ? <Code2 size={32} strokeWidth={1.3}/> : <PanelsTopLeft size={32} strokeWidth={1.3}/>}</span><small>{row.project?.framework || (row.project || row.document?.projectId ? 'Codebase' : 'Design file')}</small><ArrowRight size={16}/></div>
-              <div className="project-card-copy"><div><h3>{row.name}</h3><span className={`project-card-status ${row.project?.missing?'is-missing':''}`}>{row.project?.missing?'Folder unavailable':row.project?.repositoryStatus==='not-indexed'?'Ready to set up':row.document ? `${row.document.designCount ?? 0} designs` : 'Codebase'}</span></div><p title={row.project?.path}>{row.project?.path || 'Independent design workspace'}</p><footer><span><Clock3 size={12}/>{new Date(row.date).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</span><span>{opening===row.key?'Opening…':row.project?.pageCount != null ? `${row.project.pageCount} pages` : 'Local'}</span></footer></div>
+              <div className={`project-card-art project-card-art--${index%4}`} aria-hidden="true"><div className="project-card-orbit"/><span>{row.project || row.document?.projectId ? <Code2 size={32} strokeWidth={1.3}/> : <PanelsTopLeft size={32} strokeWidth={1.3}/>}</span><small>{(row.project?.path?.includes('/artifact-projects/')?'HTML prototype':row.project?.framework) || (row.project || row.document?.projectId ? 'Codebase' : 'Design file')}</small><ArrowRight size={16}/></div>
+              <div className="project-card-copy"><div><h3>{row.name}</h3><span className={`project-card-status ${row.project?.missing?'is-missing':''}`}>{row.project?.missing?'Folder unavailable':row.project?.path.includes('/artifact-projects/')?'Prototype':row.project?.repositoryStatus==='not-indexed'?'Ready to set up':row.document ? `${row.document.designCount ?? 0} designs` : 'Codebase'}</span></div><p title={row.project?.path}>{row.project?.path?.includes('/artifact-projects/')?'HTML prototype · No repository needed':row.project?.path?.includes('/application-projects/')?'Running app · No repository connected':row.project?.path || 'Independent design workspace'}</p><footer><span><Clock3 size={12}/>{new Date(row.date).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</span><span>{opening===row.key?'Opening…':row.project?.pageCount != null ? `${row.project.pageCount} pages` : 'Local'}</span></footer></div>
             </button>
             <div className="project-card-actions"><button title={showArchived?'Restore project':'Archive project'} aria-label={`${showArchived?'Restore':'Archive'} ${row.name}`} onClick={()=>toggleArchived(row.key)}><Archive size={14}/></button>{row.project && <button title="Reveal project folder" aria-label={`Reveal ${row.name} folder`} onClick={()=>onReveal(row.project!.id)}><FolderOpen size={14}/></button>}{row.document && <><button title="Duplicate design file" aria-label={`Duplicate ${row.name}`} onClick={()=>onDuplicate(row.document!.id)}><Copy size={14}/></button>{!row.project && <button title="Remove from Recent · Keeps the design file" aria-label={`Remove ${row.name} from recent`} onClick={()=>onRemove(row.document!.id)}><Trash2 size={14}/></button>}</>}</div>
-          </article>)}</div> : <div className="project-empty"><span><FolderOpen size={27} strokeWidth={1.4}/></span><h3>{rows.length?'No projects found.':'A home for your next idea.'}</h3><p>{rows.length?'Try a different search or choose another collection.':'Open a codebase or create a blank design. Every project you add will be right here.'}</p>{rows.length ? <button onClick={()=>{setQuery('');setFilter('all')}}>Show all projects <ArrowRight size={14}/></button> : <button onClick={onOpen}>Open your first codebase <ArrowRight size={14}/></button>}</div>}
+          </article>)}</div> : <div className="project-empty"><span><FolderOpen size={27} strokeWidth={1.4}/></span><h3>{rows.length?'No projects found.':'Your projects will appear here'}</h3><p>{rows.length?'Try a different search or choose another collection.':'Import a prototype, connect your app, or open a repository to get started.'}</p>{rows.length ? <button onClick={()=>{setQuery('');setFilter('all')}}>Show all projects <ArrowRight size={14}/></button> : null}</div>}
         </section>
-        <div className="project-home-footer"><span>Designed for your flow.</span><span>FrameUI · Local by design</span></div>
+        <div className="project-home-footer"><span>Capture → Design → Prototype</span><span>FrameUI · Local by design</span></div>
         {status && <p role="status" className="project-home-status">{status}</p>}{error && <p className="ide-error" role="alert">{error}</p>}
       </main>
     </div>

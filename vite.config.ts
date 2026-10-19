@@ -31,6 +31,7 @@ export default defineConfig({
         vite: {
           build: {
             outDir: path.join(root, 'dist-electron/main'),
+            emptyOutDir: true,
             // The plugin builds main via Vite's `build.lib` mode, where the
             // OUTPUT FORMAT is decided by `lib.formats`, defaulted to
             // `['es']` here (package.json has "type":"module") — a
@@ -42,7 +43,7 @@ export default defineConfig({
             // its own real extension so the (unused) ES copy doesn't
             // clobber the CJS one Electron actually loads.
             lib: {
-              entry: { index: path.join(root, 'src/main/index.ts'), indexWorker: path.join(root, 'src/main/indexer/indexWorker.ts') },
+              entry: { index: path.join(root, 'src/main/index.ts'), indexWorker: path.join(root, 'src/main/indexer/indexWorker.ts'), sketchWorker: path.join(root, 'src/main/export/sketchWorker.ts') },
               formats: ['cjs'],
               fileName: (format, entryName) => `${entryName}.${format === 'cjs' ? 'cjs' : 'mjs'}`,
             },
@@ -68,6 +69,7 @@ export default defineConfig({
         vite: {
           build: {
             outDir: path.join(root, 'dist-electron/preload'),
+            emptyOutDir: true,
             rollupOptions: {
               external: ['electron'],
               output: {

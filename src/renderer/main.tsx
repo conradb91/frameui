@@ -4,6 +4,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './app/App'
 import './styles/globals.css'
+import './styles/studio.css'
 
 import { applyAppearance, usePreferencesStore } from './state/preferencesStore'
 
@@ -17,6 +18,8 @@ window.addEventListener('beforeunload', (event) => {
   reloading = true
   void pendingWorkspaceSaves.flush().then(() => window.location.reload()).catch((error: unknown) => { reloading = false; reportSaveError(error) })
 })
+
+document.documentElement.dataset.platform = navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
 
 const themeStyle = document.createElement('style')
 themeStyle.dataset.frameuiTheme = ''

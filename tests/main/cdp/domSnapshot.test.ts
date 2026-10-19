@@ -8,6 +8,7 @@ describe('toCssPropertyName', () => {
     expect(toCssPropertyName('boxSizing')).toBe('box-sizing')
     expect(toCssPropertyName('borderTopLeftRadius')).toBe('border-top-left-radius')
     expect(toCssPropertyName('zIndex')).toBe('z-index')
+    expect(toCssPropertyName('WebkitFontSmoothing')).toBe('-webkit-font-smoothing')
     // Already-lowercase, single-word properties pass through unchanged.
     expect(toCssPropertyName('display')).toBe('display')
     expect(toCssPropertyName('color')).toBe('color')
@@ -19,7 +20,7 @@ describe('toCssPropertyName', () => {
   test('every entry in CAPTURED_STYLE_PROPERTIES converts to a plausible kebab-case CSS property', () => {
     for (const prop of CAPTURED_STYLE_PROPERTIES) {
       const kebab = toCssPropertyName(prop)
-      expect(kebab).toMatch(/^[a-z]+(-[a-z]+)*$/)
+      expect(kebab).toMatch(/^-?[a-z]+(-[a-z]+)*$/)
     }
   })
 })

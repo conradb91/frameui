@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "date": "2026-10-16",
+  "release": "FrameUI-0.1.0-x64.dmg",
+  "profile": "review-1792132101698-f74831dc-d9dd-40f6-b6f3-e39aefa12825",
+  "sha256": "ad0cc8d7fb3d878cd9b1e3e686c78a7eaf26651344a68c1787e361f4c78ec6e9",
+  "asarSha256": "25b14acba6ff3f39f888aa68a1df361f8f14d957b7107e13c5e5a4712952d58a",
+  "unit": {
+    "passed": 397,
+    "failed": 0,
+    "assertions": 1331,
+    "files": 71
+  },
+  "checks": [
+    "Production TypeScript and Vite build",
+    "Two-area default layout at 1100\u00d7760 and 1280\u00d7800; light and dark themes",
+    "Resizable/collapsible chat; optional structure drawer does not cover conversation",
+    "Single toolbar, real native thumbnails, contextual version controls",
+    "Packaged official CLI protocol: login, effort, pasted/uploaded reference bytes, transcript images, cancellation and errors",
+    "Packaged Studio: five-screen navigation, input state, targeted revisions, immutable approved versions, restart recovery",
+    "Packaged atomic import failure recovery, editable artboards, single-step undo/redo",
+    "Packaged repository capture, design approach versioning, actual component candidate enforcement, font bounds, developer handoff ZIP",
+    "DMG checksum verified; mounted app.asar matches tested app",
+    "Live signed-in Claude generation: repository Button/Brand components, complete reminder form, success screen, no reported text overflow, editable import and developer handoff"
+  ],
+  "limitations": [
+    "Protocol and process regression tests use deterministic Claude fixtures; live-generation results are recorded separately.",
+    "No production backend authentication or actual user Budget repository was tested.",
+    "Repository source implementation remains the developer team\u2019s responsibility."
+  ],
+  "liveEvidence": "live/live.json"
+}

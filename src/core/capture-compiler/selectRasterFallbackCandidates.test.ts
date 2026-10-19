@@ -13,7 +13,7 @@ function node(overrides: Partial<StructuredNode> = {}): StructuredNode {
     bounds: { x: 0, y: 0, width: 40, height: 40 },
     layout: { mode: 'free' },
     appearance: { radius: [0, 0, 0, 0], opacity: 1, rotation: 0, clip: false },
-    source: { tag: 'img' },
+    source: { tag: 'video' },
     constraints: { position: 'static' },
     visibility: true,
     locked: false,
@@ -96,3 +96,7 @@ describe('selectRasterFallbackCandidates', () => {
     expect(selectRasterFallbackCandidates(frame([smallNode]), ALL_DIFF, { minArea: 100 })).toHaveLength(1)
   })
 })
+
+test('visual differences never flatten supported gradients, controls, images or vectors',()=>{
+ const nodes=[node({id:'gradient',type:'Group',source:{tag:'div'},appearance:{radius:[0,0,0,0],opacity:1,rotation:0,clip:false,backgroundImage:'radial-gradient(red, transparent)'}}),node({id:'input',type:'Container',source:{tag:'input',control:{type:'text'}}}),node({id:'image',source:{tag:'img'}}),node({id:'svg',type:'SVG',source:{tag:'svg'}})];expect(selectRasterFallbackCandidates(frame(nodes),ALL_DIFF)).toHaveLength(0);
+});

@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "date": "2026-10-16",
+  "profile": "review-1792134134032-86e9ffeb-293e-4119-8dc8-a6eba8422723",
+  "sha256": "1e20b465579b2cf0023c51daca007c95a442ea0f2997b55db72d089822453e10",
+  "asarSha256": "46d03bd378e60bbdf4344ec53433691d152ca17d14d2b6d12a7278f545bf0b4d",
+  "tests": {
+    "passed": 399,
+    "failed": 0,
+    "assertions": 1337,
+    "files": 71
+  },
+  "checks": [
+    "Production TypeScript/Vite build",
+    "Installer source, preload method and IPC endpoint removed",
+    "Packaged main/preload contain no installer endpoint or official installer URL",
+    "Official CLI authentication/login, model effort, image reference, cancellation, editable import and source boundary regression in development and packaged app",
+    "DMG checksum valid; mounted app.asar matches tested app"
+  ],
+  "authentication": "User-installed unmodified Claude Code auth login opens Anthropic own authentication; existing login is supported. FrameUI does not read credentials or subscription tokens.",
+  "note": "Removing installation does not itself resolve applicable Anthropic product integration terms."
+}

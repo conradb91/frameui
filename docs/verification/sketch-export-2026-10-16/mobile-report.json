@@ -1,0 +1,82 @@
+{
+  "format": "sketch",
+  "schemaVersion": 121,
+  "structuralValidation": "passed",
+  "xdValidation": "unverified",
+  "artboards": 2,
+  "layers": 2,
+  "editableText": 2,
+  "editableVectors": 0,
+  "images": 0,
+  "groups": 0,
+  "components": 0,
+  "fallbackEffects": 0,
+  "unconvertedInteractions": 0,
+  "unsupportedFeatures": 0,
+  "missingAssets": 0,
+  "failedElements": 0,
+  "fontCheck": "unverified",
+  "missingFonts": [],
+  "fontsToCheck": [
+    "Arial"
+  ],
+  "warnings": [
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "mobile",
+      "layerId": "mobile-title",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "mobile",
+      "layerId": "mobile-title",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "mobile",
+      "layerId": "mobile-title",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "Success",
+      "layerId": "success-title",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "Success",
+      "layerId": "success-title",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "Success",
+      "layerId": "success-title",
+      "layerName": "Text"
+    },
+    {
+      "code": "prototype-unverified",
+      "artboard": "mobile",
+      "layerId": "mobile-title",
+      "message": "Navigation wire written to Sketch; verify it in Adobe XD."
+    }
+  ],
+  "idMap": {
+    "fixture-mobile:artboard-mobile:artboard": "D43554EF-8386-5F5D-2E05-3118CDAE1947",
+    "mobile-title": "6DB72924-7340-A198-F4F3-A8DEB3A81FAC",
+    "artboard-mobile": "D43554EF-8386-5F5D-2E05-3118CDAE1947",
+    "fixture-mobile:mobile-success:artboard": "E3BD1714-2D62-7A92-022D-4DBACD64C0DE",
+    "success-title": "DE777B89-17BF-425E-31AD-B284AA5AAFFF",
+    "mobile-success": "E3BD1714-2D62-7A92-022D-4DBACD64C0DE",
+    "fixture-mobile:page": "6C24ADB6-3E77-B6D8-D5E7-D4EBDFCCAFE6"
+  }
+}

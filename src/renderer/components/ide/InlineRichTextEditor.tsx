@@ -1,3 +1,4 @@
+import {textRunStyle} from '@core/capture-compiler/textPaint'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type CSSProperties } from 'react'
 import { applyTextStyle, normalizeTextRuns, restoreTextRange, textRangeWithin, textSegments } from '@core/visual/richText'
 import type { TextStyleRun } from '@shared/types/richText'
@@ -63,11 +64,11 @@ export const InlineRichTextEditor = forwardRef<InlineRichTextEditorHandle, {
     // browser owns typing mutations; we only rebuild safe text/span nodes
     // when a formatting command changes the run model.
     node.replaceChildren(...textSegments(draft.current, runs).map((segment) => {
-      if (!segment.fontWeight && !segment.color) return document.createTextNode(segment.text)
+      if (Object.keys(textRunStyle(segment)).every(key=>textRunStyle(segment)[key]===undefined)) return document.createTextNode(segment.text)
       const span = document.createElement('span')
       span.textContent = segment.text
       if (segment.fontWeight) span.style.fontWeight = segment.fontWeight
-      if (segment.color) span.style.color = segment.color
+      for(const [key,value] of Object.entries(textRunStyle(segment)))if(value!==undefined)(span.style as unknown as Record<string,string>)[key]=typeof value==='number'?value+(key==='fontWeight'?'':'px'):value
       return span
     }))
     const selected = restoreSelection.current ?? { start: 0, end: draft.current.length }

@@ -1,3 +1,5 @@
+import {connectApplication} from '../../lib/connectApplication'
+import { RuntimeSettings } from './RuntimeSettings'
 import { mergeCapturedPage } from '@core/visual/refresh'
 import {
   Monitor,
@@ -93,7 +95,7 @@ export function ImportApplication({
     setTestResult(null)
     setError('')
     try {
-      const result = await window.frameui.design.testConnection(address.trim())
+      const result = await window.frameui.design.testConnection(await connectApplication(address))
       setTestResult(result)
     } catch (e) {
       setTestResult({ ok: false, message: e instanceof Error ? e.message : String(e) })
@@ -114,6 +116,7 @@ export function ImportApplication({
     setTechnical('')
     setFinished(null)
     try {
+      await connectApplication(address)
       if (loginMode === 'credentials') {
         if (!username.trim() || !password) {
           setError(
@@ -137,7 +140,7 @@ export function ImportApplication({
         }
         setLoginMode('manual')
       }
-      const result = await window.frameui.design.discover(address.trim(), profile)
+      const result = await window.frameui.design.discover(await connectApplication(address), profile)
       setPlan(result)
       const first = result.routes.find(r => !r.needsSample && r.pattern === '/') || result.routes.find(r => !r.needsSample)
       setSelected(first ? [first.pattern] : [])
@@ -358,8 +361,9 @@ export function ImportApplication({
                   ))}
                 </div>
               )}
+              <RuntimeSettings showUrl={false} url={address} onChange={setAddress} />
               <label>
-                Application address
+                Runtime URL
                 <input
                   aria-label="Application address"
                   placeholder="http://budget.localhost:4180/dashboard"

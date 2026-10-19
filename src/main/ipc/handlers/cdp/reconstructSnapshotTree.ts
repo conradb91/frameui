@@ -17,6 +17,7 @@ const ATTRIBUTE_SECRET_PATTERN =
   /(?:bearer\s+[a-z0-9._-]+|api[_-]?key\s*[:=]|password\s*[:=]|secret\s*[:=]|\b\d{13,19}\b)/i
 const MAX_TEXT_PREVIEW = 20000
 const NON_VISUAL_TAGS = new Set([
+  'defs','symbol','lineargradient','radialgradient','clippath','mask','filter','stop',
   'script',
   'style',
   'noscript',
@@ -26,10 +27,13 @@ const NON_VISUAL_TAGS = new Set([
   'title',
 ])
 const ATTRIBUTE_ALLOWLIST = new Set([
-  'src',
+  'src', 'href', 'xlink:href', 'filter', 'mask', 'clip-path',
   'alt',
   'placeholder',
   'type',
+  'min',
+  'max',
+  'step',
   'viewBox',
   'd',
   'fill',
@@ -44,6 +48,11 @@ const ATTRIBUTE_ALLOWLIST = new Set([
   'y1',
   'y2',
   'stroke-width',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-dasharray',
+  'stroke-dashoffset',
+  'fill-rule',
   'transform',
   'x',
   'y',
@@ -52,7 +61,7 @@ const ATTRIBUTE_ALLOWLIST = new Set([
   'points',
   'data-frameui-source',
 ])
-const SELECTOR_TAGS = new Set(['button', 'input', 'select', 'iframe', 'frame'])
+const SELECTOR_TAGS = new Set(['span','strong','b','em','i','h1','h2','h3','h4','p','label','a','svg', 'button', 'input', 'select', 'summary', 'iframe', 'frame'])
 
 type Rect = { x: number; y: number; width: number; height: number }
 
@@ -125,6 +134,8 @@ export function reconstructSnapshotTree(
   }
   const shadowRootTypeOf = rareStringMap(nodes.shadowRootType)
   const pseudoTypeOf = rareStringMap(nodes.pseudoType)
+  const inputValueOf = rareStringMap(nodes.inputValue)
+  const checkedInputs = new Set(nodes.inputChecked?.index ?? [])
   const currentSourceURLOf = rareStringMap(nodes.currentSourceURL)
 
   const tagOf = (i: number): string => str(nodeNameArr[i]).toLowerCase()
@@ -156,10 +167,10 @@ export function reconstructSnapshotTree(
   // in-page walk relied on. Getting this subtraction wrong is the easiest
   // way to silently misplace every element, so it's centralized here.
   const documentRectToViewport = (rect: Rect): Rect => ({
-    x: Math.round((rect.x - scrollOffsetX) / coordinateScale),
-    y: Math.round((rect.y - scrollOffsetY) / coordinateScale),
-    width: Math.round(rect.width / coordinateScale),
-    height: Math.round(rect.height / coordinateScale),
+    x: (rect.x - scrollOffsetX) / coordinateScale,
+    y: (rect.y - scrollOffsetY) / coordinateScale,
+    width: rect.width / coordinateScale,
+    height: rect.height / coordinateScale,
   })
   const rectAt = (layoutIdx: number): Rect =>
     documentRectToViewport(rectFromArray(layout.bounds[layoutIdx]))
@@ -186,16 +197,20 @@ export function reconstructSnapshotTree(
   function textLeavesFor(domIndex: number): CapturedElement[] {
     const layoutIdx = layoutIndexOf.get(domIndex)
     if (layoutIdx === undefined) return []
-    const styles = stylesAt(layoutIdx)
+    const inherited = stylesAt(layoutIdx)
+    const styles = Object.fromEntries(Object.entries(inherited).filter(([key]) => ['color', 'fontSize', 'fontWeight', 'fontFamily', 'fontStyle', 'textWrap', 'fontFeatureSettings', 'fontVariationSettings', 'fontOpticalSizing', 'fontKerning', 'fontStretch', 'wordSpacing', 'WebkitFontSmoothing', 'whiteSpace', 'lineHeight', 'textAlign', 'letterSpacing', 'textDecoration', 'visibility', ...(inherited.backgroundClip?.includes('text')||inherited.WebkitBackgroundClip?.includes('text')?['backgroundImage','backgroundClip','backgroundSize','backgroundPosition','backgroundRepeat','WebkitTextFillColor']:[])].includes(key)))
     const layoutText = str(layout.text[layoutIdx])
     const source = layoutText !== '' ? layoutText : str(nodeValueArr[domIndex])
-    if (!source.trim()) return []
+    if (!source) return []
+    const text = /^(pre|pre-wrap|break-spaces)$/.test(styles.whiteSpace) ? source : source.replace(/[\t\r\n ]+/g, ' ')
+    const preservedText = redactText(text).slice(0, MAX_TEXT_PREVIEW)
     const boxes = textBoxesByLayoutIndex.get(layoutIdx)
     if (!boxes || !boxes.length)
       return [
         {
           tag: 'frameui-text',
-          textPreview: redactText(source.replace(/\s+/g, ' ').trim()).slice(0, MAX_TEXT_PREVIEW),
+          textPreview: preservedText,
+          attributes: { 'data-frameui-exact-text': 'true' },
           rect: rectAt(layoutIdx),
           styles,
           children: [],
@@ -214,14 +229,18 @@ export function reconstructSnapshotTree(
     // as one wrapping run, preserving the existing paragraph behavior.
     if (lineRects.every((rect) => Math.abs(rect.y - lineRects[0].y) < 1)) styles.whiteSpace = 'pre'
     const x = Math.min(...lineRects.map((r) => r.x))
-    const y = Math.min(...lineRects.map((r) => r.y))
+    const glyphTop = Math.min(...lineRects.map((r) => r.y))
+    const lineHeight = Number.parseFloat(styles.lineHeight) || lineRects[0].height
+    const leading = (lineHeight - lineRects[0].height) / 2
+    const y = glyphTop - leading
     const right = Math.max(...lineRects.map((r) => r.x + r.width))
     const bottom = Math.max(...lineRects.map((r) => r.y + r.height))
     return [
       {
         tag: 'frameui-text',
-        textPreview: redactText(source.replace(/\s+/g, ' ').trim()).slice(0, MAX_TEXT_PREVIEW),
-        rect: { x, y, width: right - x, height: bottom - y },
+        textPreview: preservedText,
+          attributes: { 'data-frameui-exact-text': 'true', 'data-frameui-leading': String(leading), 'data-frameui-glyph-height': String(lineRects[0].height), ...(lineRects.length>1&&preservedText===text?{'data-frameui-text-lines':JSON.stringify(boxes.map((k,i)=>({start:/^(pre|pre-wrap|break-spaces)$/.test(inherited.whiteSpace)?textBoxes.start[k]:source.slice(0,textBoxes.start[k]).replace(/[\t\r\n ]+/g,' ').length,text:source.slice(textBoxes.start[k],textBoxes.start[k]+textBoxes.length[k]),x:lineRects[i].x-x,y:lineRects[i].y-glyphTop,width:lineRects[i].width,height:lineHeight})))}:{}) },
+        rect: { x, y, width: right - x, height: bottom - y + leading },
         styles,
         children: [],
       } satisfies CapturedElement,
@@ -239,20 +258,37 @@ export function reconstructSnapshotTree(
     if (pseudoType !== 'before' && pseudoType !== 'after') return []
     const layoutIdx = layoutIndexOf.get(domIndex)
     if (layoutIdx === undefined) return []
-    const content = childrenOf[domIndex]
-      .filter((c) => nodeTypeArr[c] === 3)
-      .map((c) => str(nodeValueArr[c]))
-      .join('')
-      .trim()
-    return [
-      {
-        tag: 'frameui-visual',
-        textPreview: content ? redactText(content) : undefined,
-        rect: rectAt(layoutIdx),
-        styles: stylesAt(layoutIdx),
-        children: [],
-      },
-    ]
+    const styles = stylesAt(layoutIdx)
+    const rawContent = styles.content
+    let content = str(layout.text[layoutIdx]) || childrenOf[domIndex].filter(c => nodeTypeArr[c] === 3).map(c => str(nodeValueArr[c])).join('')
+    if (!content && rawContent?.startsWith('"')) {
+      try { content = JSON.parse(rawContent) } catch { /* unsupported CSS content */ }
+    }
+    let rect = rectAt(layoutIdx)
+    // Chromium can report an empty bounds rect for filtered negative-z-index
+    // pseudo-elements even while they visibly paint. Recover their used box
+    // from computed pixel dimensions and the actual containing block.
+    if((!rect.width||!rect.height)&&styles.position==='absolute'&&/px$/.test(styles.width||'')&&/px$/.test(styles.height||'')){
+      let owner=parentIndex[domIndex],ownerLayout=layoutIndexOf.get(owner)
+      while(owner>=0&&ownerLayout!==undefined){const style=stylesAt(ownerLayout);if(style.position!=='static'||style.transform&&style.transform!=='none')break;owner=parentIndex[owner];ownerLayout=layoutIndexOf.get(owner)}
+      const box=ownerLayout===undefined?{x:0,y:0,width:viewport.width,height:viewport.height}:rectAt(ownerLayout)
+      const padding=(styles.padding||'0').split(/\s+/).map(v=>parseFloat(v)||0),[pt,pr=pt,pb=pt,pl=pr]=padding
+      const border=Number.parseFloat(styles.borderWidth)||0,extra=styles.boxSizing==='border-box'?0:2*border
+      const width=parseFloat(styles.width)+extra+(styles.boxSizing==='border-box'?0:pl+pr),height=parseFloat(styles.height)+extra+(styles.boxSizing==='border-box'?0:pt+pb)
+      const x=box.x+(/px$/.test(styles.left||'')?parseFloat(styles.left):box.width-(parseFloat(styles.right)||0)-width),y=box.y+(/px$/.test(styles.top||'')?parseFloat(styles.top):box.height-(parseFloat(styles.bottom)||0)-height)
+      if(Number.isFinite(x+y+width+height))rect={x,y,width,height}
+    }
+    const parts = (styles.padding || '0').split(/\s+/).map(value => Number.parseFloat(value) || 0)
+    const [top, right = top, bottom = top, left = right] = parts
+    const inline = styles.display === 'inline'
+    const lineHeight = Number.parseFloat(styles.lineHeight) || rect.height
+    const childStyles = Object.fromEntries(Object.entries(styles).filter(([key]) => ['color', 'fontSize', 'fontWeight', 'fontFamily', 'fontStyle', 'textWrap', 'fontFeatureSettings', 'fontVariationSettings', 'fontOpticalSizing', 'fontKerning', 'fontStretch', 'wordSpacing', 'WebkitFontSmoothing', 'lineHeight', 'letterSpacing', 'textDecoration'].includes(key)))
+    return [{
+      tag: 'frameui-visual',
+      rect: inline ? { x: rect.x - left, y: rect.y - top, width: rect.width + left + right, height: rect.height + top + bottom } : rect,
+      styles,
+      children: content ? [{ tag: 'frameui-text', textPreview: redactText(content), attributes: { 'data-frameui-exact-text': 'true' }, rect: { ...rect, y: rect.y - Math.max(0, lineHeight - rect.height) / 2, height: lineHeight }, styles: { ...childStyles, whiteSpace: 'pre' }, children: [] }] : [],
+    }]
   }
 
   function hasDisabledFieldsetAncestor(domIndex: number): boolean {
@@ -302,7 +338,7 @@ export function reconstructSnapshotTree(
   function needsCaptureSelector(tag: string, attrs: Record<string, string>): boolean {
     return (
       SELECTOR_TAGS.has(tag) ||
-      attrs.role === 'button' ||
+      attrs.role === 'button' || attrs.role === 'tab' ||
       attrs['data-component'] !== undefined ||
       attrs['data-frameui-component'] !== undefined
     )
@@ -374,12 +410,32 @@ export function reconstructSnapshotTree(
     if (attrsAll.disabled !== undefined || hasDisabledFieldsetAncestor(domIndex))
       attributes.visualState = 'Disabled'
 
+    if (tag === 'input') {
+      attributes.controlValue = attrsAll.type==='password'?'':redactText(inputValueOf.has(domIndex) ? str(inputValueOf.get(domIndex)) : attrsAll.value || '')
+      attributes.controlChecked = String(checkedInputs.has(domIndex))
+    }
+
+    if (tag === 'input' && !['password', 'hidden', 'checkbox', 'radio', 'file', 'range', 'color'].includes(attrsAll.type || 'text') && !childDescendants.length) {
+      const currentValue = inputValueOf.has(domIndex) ? str(inputValueOf.get(domIndex)) : attrsAll.value || ''
+      const value = currentValue || attrsAll.placeholder || ''
+      if (!currentValue && attrsAll.placeholder) attributes['data-frameui-placeholder'] = 'true'
+      if (value) {
+        const border = Number.parseFloat(styles.borderLeftWidth) || 0
+        const padding = (styles.padding || '0').split(/\s+/).map(value => Number.parseFloat(value) || 0)
+        const left = padding[3] ?? padding[1] ?? padding[0]
+        const height = Number.parseFloat(styles.lineHeight) || (Number.parseFloat(styles.fontSize) || 16) * 1.2
+        const typography = Object.fromEntries(Object.entries(styles).filter(([key]) => ['color', 'fontSize', 'fontWeight', 'fontFamily', 'fontStyle', 'textWrap', 'fontFeatureSettings', 'fontVariationSettings', 'fontOpticalSizing', 'fontKerning', 'fontStretch', 'wordSpacing', 'WebkitFontSmoothing', 'letterSpacing'].includes(key)))
+        childDescendants.push({ tag: 'frameui-text', textPreview: redactText(value), attributes: { 'data-frameui-exact-text': 'true' }, rect: { x: rect.x + border + left, y: rect.y + (rect.height - height) / 2, width: Math.max(0, rect.width - 2 * (border + left)), height }, styles: { ...typography, lineHeight: height + 'px', whiteSpace: 'pre' }, children: [] })
+      }
+    }
+
     const componentHint =
       attrsAll['data-component'] || attrsAll['data-frameui-component'] || undefined
 
     return [
       {
         tag,
+        id: attrsAll.id || undefined,
         classes: attrsAll.class || undefined,
         attributes,
         rect,
@@ -401,10 +457,7 @@ export function reconstructSnapshotTree(
 
   const [captured] = convert(bodyIndex)
   if (!captured) return emptyRoot()
-  // Matches the old script's `Math.max(captured.rect.height, innerHeight)`
-  // guard — the root box is never smaller than the viewport, even when the
-  // page's own content is shorter.
-  captured.rect.height = Math.max(captured.rect.height, Math.round(viewport.height))
-  captured.rect.width = Math.max(captured.rect.width, Math.round(viewport.width))
-  return captured
+  // A viewport-origin wrapper keeps body margins and fractional bounds
+  // intact without shifting every descendant or shrinking the artboard.
+  return { tag: 'frameui-root', rect: { x: 0, y: 0, width: viewport.width, height: Math.max(viewport.height, captured.rect.y + captured.rect.height) }, styles: { backgroundColor: captured.styles.backgroundColor || 'white' }, children: [captured] }
 }

@@ -109,7 +109,7 @@ function convertVisual(node: VisualObject, parentId: string | null, index: numbe
     visible: !node.hidden, locked: node.locked, clipContent: node.clip,
     layout: { mode, wrap: node.layout.wrap, gap: finite(node.layout.gap), padding: { top: finite(node.layout.padding), right: finite(node.layout.padding), bottom: finite(node.layout.padding), left: finite(node.layout.padding) }, align: node.layout.alignment, justify: node.layout.distribution, constraints: node.layout.constraints, minWidth: node.layout.minWidth, maxWidth: node.layout.maxWidth },
     fills: paint(node.gradient ?? node.fill, node.fillOpacity), strokes: paint(node.stroke, node.strokeOpacity), strokeWidth: finite(node.strokeWidth), radius: node.radius.map((value) => finite(value)) as [number, number, number, number], effects: visualEffects(node, ctx),
-    text: node.kind === 'Text' ? { characters: node.text ?? '', fontFamily: node.fontFamily, fontStyle: 'Regular', fontWeight: node.fontWeight, fontSize: finite(node.fontSize, 16), lineHeight: finite(node.lineHeight, 24), letterSpacing: finite(node.letterSpacing), alignment: node.textAlign, decoration: node.textDecoration, runs: node.textRuns } : undefined,
+    text: node.kind === 'Text' ? { color: node.fill, characters: node.text ?? '', fontFamily: node.fontFamily, fontStyle: 'Regular', fontWeight: node.fontWeight, fontSize: finite(node.fontSize, 16), lineHeight: finite(node.lineHeight, 24), letterSpacing: finite(node.letterSpacing), alignment: node.textAlign, decoration: node.textDecoration, runs: node.textRuns } : undefined,
     vector: (node.kind === 'Vector' || node.kind === 'Polygon' || node.kind === 'Icon') ? { path: node.path, viewBox: node.viewBox } : undefined,
     image: assetId ? { assetId, fit: node.imageFit === 'contain' ? 'CONTAIN' : node.imageFit === 'fill' ? 'FILL' : 'COVER' } : undefined,
     component: node.kind === 'Component' ? {
@@ -142,6 +142,7 @@ function svgMarkup(node: StructuredNode): string | undefined {
 }
 
 function convertStructured(node: StructuredNode, parentId: string | null, index: number, ctx: BuildContext): FrameUiExportNode {
+  if(node.type==='RasterFallback')ctx.warnings.push({code:'existing-raster-fallback',message:`${node.name} was already stored as an image; recapture its source to recover supported editable layers.`,nodeId:node.id,severity:'warning'})
   const children = node.children
     .filter((child) => ctx.options.includeHiddenLayers || child.visibility)
     .map((child, childIndex) => convertStructured(child, node.id, childIndex, ctx))
@@ -159,11 +160,12 @@ function convertStructured(node: StructuredNode, parentId: string | null, index:
     childIds: children.map((child) => child.id), children,
     x: finite(node.bounds.x), y: finite(node.bounds.y), width: finite(node.bounds.width), height: finite(node.bounds.height), rotation: finite(node.appearance.rotation), opacity: finite(node.appearance.opacity, 1), visible: node.visibility, locked: node.locked, clipContent: node.appearance.clip,
     layout: { mode: node.layout.mode === 'stack' ? (node.layout.direction === 'horizontal' ? 'HORIZONTAL' : 'VERTICAL') : node.layout.mode === 'grid' ? 'GRID' : 'FREE', wrap: !!node.layout.wrap, gap: finite(node.layout.gap ?? 0), padding: node.layout.padding ?? { top: 0, right: 0, bottom: 0, left: 0 }, align: node.layout.align ?? 'start', justify: node.layout.justify ?? 'start', constraints: node.constraints.position, minWidth: node.layout.minWidth, maxWidth: node.layout.maxWidth },
-    fills: paint(node.appearance.backgroundImage ?? node.appearance.backgroundColor ?? node.appearance.fill), strokes: paint(node.appearance.stroke ?? node.appearance.border?.color), strokeWidth: finite(node.appearance.strokeWidth ?? node.appearance.border?.width ?? 0), radius: node.appearance.radius, effects,
-    text: node.typography ? { characters: node.typography.text, fontFamily: node.typography.fontFamily, fontStyle: 'Regular', fontWeight: node.typography.fontWeight, fontSize: finite(node.typography.fontSize, 16), lineHeight: finite(node.typography.lineHeight, 24), letterSpacing: finite(node.typography.letterSpacing), alignment: node.typography.textAlign, decoration: node.typography.textDecoration, runs: node.typography.textRuns } : undefined,
-    vector: ['SVG', 'Shape', 'Icon'].includes(node.type) ? { path: node.source.svgGeometry?.d, viewBox: node.source.svgGeometry?.viewBox, svg: svgMarkup(node) } : undefined,
+    fills: paint(node.type==='Text' ? node.typography?.gradient?.image ?? node.typography?.color ?? node.appearance.fill : node.appearance.backgroundImage ?? node.appearance.backgroundColor ?? node.appearance.fill), strokes: paint(node.appearance.stroke ?? node.appearance.border?.color), strokeWidth: finite(node.appearance.strokeWidth ?? node.appearance.border?.width ?? 0), radius: node.appearance.radius, effects,
+    text: node.typography ? { gradient: node.typography.gradient, color: node.typography.color, captureLines: node.typography.captureLines, characters: node.typography.text, fontFamily: node.typography.fontFamily, fontStyle: node.typography.fontStyle ?? 'Regular', fontWeight: node.typography.fontWeight, fontSize: finite(node.typography.fontSize, 16), lineHeight: finite(node.typography.lineHeight, 24), letterSpacing: finite(node.typography.letterSpacing), alignment: node.typography.textAlign, decoration: node.typography.textDecoration, runs: node.typography.textRuns } : undefined,
+    vector: ['SVG', 'Shape', 'Icon'].includes(node.type) ? { path: node.source.svgGeometry?.d, viewBox: node.source.svgGeometry?.viewBox, svg: svgMarkup(node), tag: node.source.tag, geometry: node.source.svgGeometry } : undefined,
     image: assetId ? { assetId, fit: node.appearance.objectFit === 'contain' ? 'CONTAIN' : node.appearance.objectFit === 'fill' ? 'FILL' : 'COVER' } : undefined,
     component: node.componentBinding ? { componentId: node.componentBinding.componentId, variant: node.componentBinding.variant } : undefined,
+    captureAppearance: node.appearance, control: node.source.control,
     tokenBindings, source: { component: node.source.component, selector: node.source.selector },
   }
 }
@@ -172,7 +174,7 @@ function selectedVisualObjects(objects: VisualObject[], ids: Set<string>): Visua
   const result: VisualObject[] = []
   const walk = (node: VisualObject): boolean => {
     if (ids.has(node.id)) { result.push(node); return true }
-    return node.children.some(walk)
+    let found = false; for (const child of node.children) found = walk(child) || found; return found
   }
   objects.forEach(walk)
   return result
@@ -182,15 +184,14 @@ function selectedStructuredNodes(nodes: StructuredNode[], ids: Set<string>): Str
   const result: StructuredNode[] = []
   const walk = (node: StructuredNode): boolean => {
     if (ids.has(node.id)) { result.push(node); return true }
-    return node.children.some(walk)
+    let found = false; for (const child of node.children) found = walk(child) || found; return found
   }
   nodes.forEach(walk)
   return result
 }
 
 function shouldUseStructured(page: VisualPage): boolean {
-  const match = page.structured?.captureMetadata.visualMatch
-  return !!page.structured && !!match && match.diffPercent <= 5
+  return !!page.structured
 }
 
 function pageRoot(documentId: string, page: VisualPage, ctx: BuildContext, selection: Set<string>, structuredSelection: Set<string>, selectionOnly: boolean): FrameUiExportNode {

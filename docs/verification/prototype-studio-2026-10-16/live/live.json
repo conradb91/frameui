@@ -1,0 +1,255 @@
+{
+  "status": "PASS",
+  "live": true,
+  "approachMode": false,
+  "checks": [
+    "real localhost capture and component resolution",
+    "actual project component context",
+    "new composition using bound repository components",
+    "source component variant props and readable label",
+    "rendered text measurement, correction and visual warnings",
+    "explicit editable import",
+    "source files preserved",
+    "Low to High effort reaches the CLI",
+    "developer handoff ZIP including full native design and Claude Code brief"
+  ],
+  "designReview": {
+    "design": {
+      "approach": "redesign"
+    },
+    "approach": "explore",
+    "pages": [
+      {
+        "id": "617cadb7-1995-43f1-997a-7ef82e8f77d8",
+        "name": "Create Reminder",
+        "reusedElements": 0,
+        "components": [
+          "Brand",
+          "Button"
+        ],
+        "warnings": [],
+        "newElements": [
+          {
+            "id": "4844360e-7f3c-4171-9cf5-8ca7edc0567b",
+            "name": "Header",
+            "type": "Container"
+          },
+          {
+            "id": "00a84f52-14f1-47a9-af29-f52947b1a72a",
+            "name": "Harbour",
+            "type": "Text"
+          },
+          {
+            "id": "029b3e47-8009-43a2-adbd-c42cf8b50b0e",
+            "name": "Title",
+            "type": "Text"
+          },
+          {
+            "id": "c594494c-e062-4443-99d8-5f7c092536e6",
+            "name": "Subtitle",
+            "type": "Text"
+          },
+          {
+            "id": "b2e46557-da5f-4edd-b5cf-cc575a070cde",
+            "name": "Form card",
+            "type": "Container"
+          },
+          {
+            "id": "022c3ba3-aabd-46d1-a3ab-c893e49ef72c",
+            "name": "Title label",
+            "type": "Text"
+          },
+          {
+            "id": "cb93bba7-946d-4916-9922-6b3dbe7cf40a",
+            "name": "Title input",
+            "type": "Container"
+          },
+          {
+            "id": "c6b016a9-efc7-4684-9549-edf5e07c062b",
+            "name": "Description label",
+            "type": "Text"
+          },
+          {
+            "id": "a13db83b-ef00-4e71-b31a-64069683e28a",
+            "name": "Description input",
+            "type": "Container"
+          },
+          {
+            "id": "cd05b727-0ffc-4735-9da9-55b51f640623",
+            "name": "Date label",
+            "type": "Text"
+          },
+          {
+            "id": "8fd8f9d2-43dd-4f51-a051-524a7c8fab86",
+            "name": "Due date input",
+            "type": "Container"
+          },
+          {
+            "id": "b38ebf4e-1986-456f-8754-1a36dbf34bce",
+            "name": "Time label",
+            "type": "Text"
+          },
+          {
+            "id": "1fdf838d-906e-4fbd-9c0e-8dec4dfd2766",
+            "name": "Time input",
+            "type": "Container"
+          },
+          {
+            "id": "6b69a971-15f7-4df8-8c0c-2e066a08d0e6",
+            "name": "Date hint",
+            "type": "Text"
+          },
+          {
+            "id": "d2df2b0a-9cae-46ba-8ce8-71372ed2df2b",
+            "name": "Recurrence label",
+            "type": "Text"
+          },
+          {
+            "id": "a353998f-0ac6-4e7f-b630-bef3a0141eeb",
+            "name": "Chip Once (selected)",
+            "type": "Container"
+          },
+          {
+            "id": "9ccd0b80-394b-48bd-bfef-2667c2054901",
+            "name": "Once",
+            "type": "Text"
+          },
+          {
+            "id": "907cd4e1-8fc8-4515-8644-ca98b04dfb94",
+            "name": "Chip Daily",
+            "type": "Container"
+          },
+          {
+            "id": "1577ad78-48d0-4a3a-b624-c31e5ff7caba",
+            "name": "Daily",
+            "type": "Text"
+          },
+          {
+            "id": "c38b3d51-0755-45e4-b061-05ff4e6589c1",
+            "name": "Chip Weekly",
+            "type": "Container"
+          },
+          {
+            "id": "095c117c-0580-4d0e-a7a2-db4ddcc03fec",
+            "name": "Weekly",
+            "type": "Text"
+          },
+          {
+            "id": "0f1aef41-aa33-4cd2-a17f-bc6641344899",
+            "name": "Chip Monthly",
+            "type": "Container"
+          },
+          {
+            "id": "f8103c22-b008-4c1c-a0e0-4b48ea34206c",
+            "name": "Monthly",
+            "type": "Text"
+          },
+          {
+            "id": "cd02a7ff-5a38-4a18-9c6d-52ef2cf73ffc",
+            "name": "Repeat hint",
+            "type": "Text"
+          },
+          {
+            "id": "a2591ff1-48f0-43cb-b099-6aaac5f44a50",
+            "name": "Save reminder",
+            "type": "Text"
+          },
+          {
+            "id": "13d68f49-427d-47f1-8893-c2cd16cdfd45",
+            "name": "Cancel",
+            "type": "Text"
+          }
+        ],
+        "decisions": [
+          {
+            "id": "a353998f-0ac6-4e7f-b630-bef3a0141eeb",
+            "name": "Chip Once (selected)",
+            "kind": "new",
+            "reason": "No input, select or segmented control exists in the repository (searched). The recurrence chips follow Button conventions: 14px radius, Arial 600, teal primary for the selected state and a 1px neutral border otherwise.",
+            "componentId": "component.button"
+          }
+        ]
+      },
+      {
+        "id": "8b7e897e-674b-4694-9a4b-43d6c39da144",
+        "name": "Reminder Saved",
+        "reusedElements": 0,
+        "components": [
+          "Brand",
+          "Button"
+        ],
+        "warnings": [],
+        "newElements": [
+          {
+            "id": "4494a116-541c-4cba-8889-4ba1eeb3e92a",
+            "name": "Header",
+            "type": "Container"
+          },
+          {
+            "id": "9ddeccf1-48cc-4c9c-b013-f2c1c6872cb5",
+            "name": "Harbour",
+            "type": "Text"
+          },
+          {
+            "id": "6e52de5f-8c03-491c-92a9-03e009e33fb4",
+            "name": "Success card",
+            "type": "Container"
+          },
+          {
+            "id": "9ab32c5d-2ffd-415e-ab03-d97185647fe5",
+            "name": "Success icon",
+            "type": "Container"
+          },
+          {
+            "id": "de81edb9-afc5-491d-a046-2f32cc7d97ca",
+            "name": "Check",
+            "type": "SVG"
+          },
+          {
+            "id": "7dd08fbc-8060-4962-94a2-ddc22b62bc14",
+            "name": "Check",
+            "type": "Shape"
+          },
+          {
+            "id": "b274d0ad-b59b-4c71-b719-c1fb1012faaa",
+            "name": "Success title",
+            "type": "Text"
+          },
+          {
+            "id": "af33eb23-9674-47c3-9092-cd898e39ed18",
+            "name": "Success body",
+            "type": "Text"
+          },
+          {
+            "id": "3543f236-c028-4264-a737-b02c8a22da0c",
+            "name": "Next steps panel",
+            "type": "Container"
+          },
+          {
+            "id": "ab3a18ff-75df-4204-ad2a-875168d4db85",
+            "name": "Panel title",
+            "type": "Text"
+          },
+          {
+            "id": "acf595fe-0332-41a7-8cf0-3ad25eaf82ae",
+            "name": "Panel body",
+            "type": "Text"
+          },
+          {
+            "id": "92cdffd1-836b-438f-85df-50aa16381ffa",
+            "name": "Add another reminder",
+            "type": "Text"
+          },
+          {
+            "id": "86bd0647-1215-4fd9-9976-b58ef2f9e801",
+            "name": "Done",
+            "type": "Text"
+          }
+        ],
+        "decisions": []
+      }
+    ],
+    "errors": [],
+    "reference": "Login"
+  }
+}

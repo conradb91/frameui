@@ -1,13 +1,18 @@
+import './captured-controls.css'
+import {inheritedTextPaint,childTextPaint} from '@core/capture-compiler/textPaint'
+import {StructuredTextContent} from './StructuredTextContent'
+import { renderSvgDefinitions, scopeSvgValue } from '@core/capture-compiler/svgDefinitions'
 import { memo, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import type { StructuredFrame, StructuredNode } from '@shared/types/structuredDesign'
-import { appearanceStyleFor, capturedPositionStyleFor, containerStyleFor, typographyStyleFor } from '@core/capture-compiler/structuredNodeStyle'
+import { controlStyleFor, appearanceStyleFor, capturedPositionStyleFor, containerStyleFor, typographyStyleFor } from '@core/capture-compiler/structuredNodeStyle'
 import { FontDefinitions } from './VisualSvg'
 import { InlineRichTextEditor } from './InlineRichTextEditor'
-import { textSegments } from '@core/visual/richText'
 import type { TextStyleRun } from '@shared/types/richText'
 
 interface TextEditProps {
+  inheritedGradient?:import('@shared/types/richText').TextGradient
+  prototype?: {state: import('@core/prototype/runtime').RuntimeState; onInput:(id:string,value:string|boolean)=>void}
   /** The `StructuredNode.id` currently in inline text-edit mode, if any. */
   editingId?: string | null
   /** Double-click (or Enter, from `DesignIde.tsx`'s keyboard handling) on a
@@ -55,12 +60,12 @@ interface TextEditProps {
  * `<textarea>`-in-`<foreignObject>` has. See `DesignIde.tsx` for how
  * `editingId`/`onEnterTextEdit`/`onCommitText` get set.
  */
-export const StructuredFrameView = memo(function StructuredFrameView({ frame, editingId, onEnterTextEdit, onCommitText }: { frame: StructuredFrame } & TextEditProps) {
+export const StructuredFrameView = memo(function StructuredFrameView({ frame, editingId, onEnterTextEdit, onCommitText, prototype }: { frame: StructuredFrame } & TextEditProps) {
   return (
     <div data-structured-frame={frame.id} style={{ position: 'relative', width: frame.width, height: frame.height, overflow: 'hidden', background: '#fff' }}>
       <FontDefinitions fonts={frame.fonts} />
       {frame.children.map((child) => (
-        <StructuredNodeView key={child.id} node={child} parentMode="free" editingId={editingId} onEnterTextEdit={onEnterTextEdit} onCommitText={onCommitText} />
+        <StructuredNodeView key={child.id} node={child} parentMode="free" editingId={editingId} onEnterTextEdit={onEnterTextEdit} onCommitText={onCommitText} prototype={prototype} />
       ))}
     </div>
   )
@@ -68,16 +73,18 @@ export const StructuredFrameView = memo(function StructuredFrameView({ frame, ed
 
 const StructuredNodeView = memo(function StructuredNodeView({
   node,
-  parentMode,
   editingId,
   onEnterTextEdit,
   onCommitText,
+  prototype,
+  inheritedGradient,
 }: {
   node: StructuredNode
   parentMode: StructuredNode['layout']['mode']
 } & TextEditProps) {
-  const positionStyle = capturedPositionStyleFor(node)
+  const positionStyle = { ...capturedPositionStyleFor(node), ...((prototype?.state.hidden[node.id]??!node.visibility)?{display:'none' as const}:{}), ...(prototype?.state.states[node.id]==='selected'?{outline:'2px solid #6366f1'}:{}), ...(prototype?.state.states[node.id]==='disabled'?{pointerEvents:'none' as const,opacity:0.45}:{}) }
   const appearanceStyle = appearanceStyleFor(node.appearance)
+  if(node.type==='SVG')for(const [key,value] of Object.entries(appearanceStyle))if(typeof value==='string')appearanceStyle[key]=scopeSvgValue(value,node.id)
   const draggable = !node.locked
   const identity = { 'data-structured-id': node.id, ...(draggable ? { 'data-structured-draggable': 'true' } : {}) }
 
@@ -86,7 +93,10 @@ const StructuredNodeView = memo(function StructuredNodeView({
   // focus/caret, so this does it imperatively once, the instant editing
   // begins; select-all on entry is a standard "ready to retype" design-tool
   // convention (double-click or Enter both land here the same way).
-  const isEditing = node.type === 'Text' && node.id === editingId
+  const paint=inheritedTextPaint(node,inheritedGradient)
+  const typography=node.typography?{...node.typography,gradient:node.typography.gradient===null?undefined:node.typography.gradient??paint}:undefined
+  const isText = node.type === 'Text'||!!node.typography&&!node.children.length&&!node.source.control
+  const isEditing = isText && node.id === editingId
   const textRef = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     if (!isEditing || !textRef.current) return
@@ -98,10 +108,10 @@ const StructuredNodeView = memo(function StructuredNodeView({
     selection?.addRange(range)
   }, [isEditing])
 
-  if (node.type === 'Text') {
+  if (isText&&!node.source.control) {
     const textStyle = {
       ...appearanceStyle,
-      ...typographyStyleFor(node.typography ?? { text: '', fontFamily: 'sans-serif', fontSize: 16, fontWeight: '400', lineHeight: 19, letterSpacing: 0, textAlign: 'left' }),
+      ...typographyStyleFor(typography ?? { text: '', fontFamily: 'sans-serif', fontSize: 16, fontWeight: '400', lineHeight: 19, letterSpacing: 0, textAlign: 'left' }),
       display: 'block',
       width: '100%',
       height: '100%',
@@ -136,7 +146,7 @@ const StructuredNodeView = memo(function StructuredNodeView({
         suppressContentEditableWarning={isEditing}
         onDoubleClick={(e) => { e.stopPropagation(); onEnterTextEdit?.(node.id) }}
       >
-        {textSegments(node.typography?.text ?? '', node.typography?.textRuns).map((segment) => <span key={`${segment.start}-${segment.end}`} style={{ fontWeight: segment.fontWeight, color: segment.color }}>{segment.text}</span>)}
+        {typography&&<StructuredTextContent typography={typography}/>}
       </span>
     )
   }
@@ -145,6 +155,13 @@ const StructuredNodeView = memo(function StructuredNodeView({
   // node carries the exact same already-spliced `source.imageSrc` an
   // `Image` node would — same render path, just a different reason it
   // exists.
+  if (node.source.control) {
+    const {placeholderColor:_placeholderColor,placeholderOpacity:_placeholderOpacity,...control} = node.source.control
+    if(prototype)return <div style={positionStyle as CSSProperties} {...identity}><input data-captured-control="true" {...control} aria-label={node.name} disabled={prototype.state.states[node.id]==='disabled'||control.disabled} value={String(prototype.state.inputs[node.id]??control.value??'')} checked={Boolean(prototype.state.inputs[node.id]??control.checked)} onChange={e=>prototype.onInput(node.id,['checkbox','radio'].includes(control.type??'')?e.target.checked:e.target.value)} style={controlStyleFor(node) as CSSProperties}/></div>
+    if(node.id===editingId&&!node.locked&&!['checkbox','radio','range'].includes(control.type))return <InlineRichTextEditor text={control.placeholder??control.value??''} shellStyle={positionStyle as CSSProperties} style={{...appearanceStyle,...(node.typography?typographyStyleFor(node.typography):{}),width:'100%',height:'100%'} as CSSProperties} className="ide-structured-inline-text" onCommit={text=>onCommitText?.(node.id,text)} onCancel={()=>onCommitText?.(node.id,control.placeholder??control.value??'')}/>
+    return <div onDoubleClick={e=>{if(!node.locked){e.stopPropagation();onEnterTextEdit?.(node.id)}}} style={positionStyle as CSSProperties} {...identity}><input data-captured-control="true" {...control} readOnly tabIndex={-1} style={{...controlStyleFor(node),pointerEvents:'none'} as CSSProperties} /></div>
+  }
+
   if (node.type === 'Image' || node.type === 'RasterFallback') {
     if (node.source.imageSrc)
       return <img src={node.source.imageSrc} alt="" style={{ ...positionStyle, ...appearanceStyle } as CSSProperties} {...identity} />
@@ -157,7 +174,7 @@ const StructuredNodeView = memo(function StructuredNodeView({
   if (node.type === 'Divider') {
     const thickness = node.appearance.strokeWidth ?? node.appearance.border?.width ?? Math.max(1, node.bounds.height)
     const color = node.appearance.stroke ?? node.appearance.border?.color ?? 'currentColor'
-    const linePosition = parentMode === 'free' ? { ...positionStyle, top: Number(positionStyle.top ?? 0) + (node.bounds.height - thickness) / 2, height: thickness } : { ...positionStyle, height: thickness }
+    const linePosition = { ...positionStyle, height: thickness }
     return (
       <div style={{ ...linePosition, background: 'transparent', border: 0, boxShadow: 'none' } as CSSProperties} {...identity}>
         <div
@@ -179,9 +196,10 @@ const StructuredNodeView = memo(function StructuredNodeView({
 
   if (node.type === 'SVG')
     return (
-      <svg style={positionStyle as CSSProperties} viewBox={node.source.svgGeometry?.viewBox} width={node.bounds.width} height={node.bounds.height} {...identity}>
+      <svg style={{ ...positionStyle, ...appearanceStyle } as CSSProperties} viewBox={node.source.svgGeometry?.viewBox} width={node.bounds.width} height={node.bounds.height} {...identity}>
+        <defs dangerouslySetInnerHTML={{__html:renderSvgDefinitions(node.source.svgGeometry?.definitions,node.id)}}/>
         {node.children.filter((child) => child.type === 'Shape').map((child) => (
-          <StructuredShapeView key={child.id} node={child} />
+          <StructuredShapeView key={child.id} node={child} scope={node.id} />
         ))}
       </svg>
     )
@@ -190,7 +208,7 @@ const StructuredNodeView = memo(function StructuredNodeView({
   return (
     <div style={{ ...containerStyle, ...positionStyle, ...appearanceStyle } as CSSProperties} {...identity}>
       {node.children.map((child) => (
-        <StructuredNodeView key={child.id} node={child} parentMode={node.layout.mode} editingId={editingId} onEnterTextEdit={onEnterTextEdit} onCommitText={onCommitText} />
+        <StructuredNodeView key={child.id} node={child} parentMode={node.layout.mode} inheritedGradient={childTextPaint(paint,child)} editingId={editingId} onEnterTextEdit={onEnterTextEdit} onCommitText={onCommitText} prototype={prototype} />
       ))}
     </div>
   )
@@ -198,13 +216,17 @@ const StructuredNodeView = memo(function StructuredNodeView({
 
 /** Only ever reached as a direct child of an `SVG`-type node's own render
  * branch above — real SVG primitives can't be laid out via HTML div flow. */
-function StructuredShapeView({ node }: { node: StructuredNode }) {
+function StructuredShapeView({ node,scope }: { node: StructuredNode;scope:string }) {
   const geo = node.source.svgGeometry ?? {}
-  const paint = { fill: node.appearance.fill, stroke: node.appearance.stroke, strokeWidth: node.appearance.strokeWidth }
+  const paint = { opacity:node.appearance.opacity, filter:scopeSvgValue(geo.filter??node.appearance.filter,scope),clipPath:scopeSvgValue(geo['clip-path'],scope),mask:scopeSvgValue(geo.mask,scope),fill: scopeSvgValue(node.appearance.fill,scope), stroke: scopeSvgValue(node.appearance.stroke,scope), strokeWidth: node.appearance.strokeWidth, transform: geo.transform, strokeLinecap: geo['stroke-linecap'] as 'round' | 'butt' | 'square' | undefined, strokeLinejoin: geo['stroke-linejoin'] as 'round' | 'miter' | 'bevel' | undefined, strokeDasharray: geo['stroke-dasharray'], strokeDashoffset: geo['stroke-dashoffset'], fillRule: geo['fill-rule'] as 'nonzero' | 'evenodd' | undefined }
   const id = { 'data-structured-id': node.id }
   switch (node.source.tag) {
+    case 'use': { const href=geo.href??geo['xlink:href'];if(!href?.startsWith('#'))return null;
+      return <use href={scopeSvgValue('url('+href+')',scope)?.replace(/^url\((.*)\)$/,'$1')} x={geo.x} y={geo.y} width={geo.width} height={geo.height} {...paint} {...id}/> }
+    case 'g':
+      return <g {...paint} {...id}>{node.children.map(child => <StructuredShapeView key={child.id} node={child} scope={scope} />)}</g>
     case 'rect':
-      return <rect x={geo.x} y={geo.y} width={geo.width} height={geo.height} {...paint} {...id} />
+      return <rect x={geo.x} y={geo.y} width={geo.width} height={geo.height} rx={geo.rx} ry={geo.ry} {...paint} {...id} />
     case 'circle':
       return <circle cx={geo.cx} cy={geo.cy} r={geo.r} {...paint} {...id} />
     case 'ellipse':

@@ -1,7 +1,8 @@
 node_modules
 dist
 dist-electron
-release
+# Local packaged apps and installers must never be committed.
+/release/
 .DS_Store
 *.log
 

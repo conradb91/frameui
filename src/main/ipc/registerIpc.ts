@@ -1,3 +1,5 @@
+import { registerPrototypeHandlers } from '../prototype/drafts'
+import { registerAiHandlers } from './handlers/ai.handlers'
 import { registerAppHandlers } from './handlers/app.handlers'
 import { registerWorkspaceHandlers } from './handlers/workspace.handlers'
 import { registerProjectHandlers } from './handlers/project.handlers'
@@ -12,6 +14,7 @@ import { registerRepoDesignHandlers } from './handlers/repoDesign.handlers'
 // declared in src/shared/ipc-contract.ts and exposed narrowly from
 // src/preload/index.ts.
 export function registerIpc(): void {
+  registerAiHandlers(); registerPrototypeHandlers()
   registerDesignIdeHandlers()
   registerRepoDesignHandlers()
   registerAppHandlers()

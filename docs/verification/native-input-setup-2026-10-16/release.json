@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "date": "2026-10-16",
+  "profile": "review-1792133728006-f5b712fc-2cb3-41e6-9a50-fc1a1639c4e2",
+  "sha256": "4611813c05807d8e4c61ced83d45c69e3d549559b917735fe53a8cd18f379cc2",
+  "asarSha256": "75259ecf5a946ef85c830465d57bb99dcaca2c336470dba0ffb5f8e86929fed7",
+  "unitTests": {
+    "passed": 403,
+    "failed": 0,
+    "assertions": 1344,
+    "files": 72
+  },
+  "checks": [
+    "Production TypeScript/Vite build",
+    "Packaged native input placeholder, default value, radius and inline content edits",
+    "Packaged text editing and Claude-to-properties navigation",
+    "Undo/redo and edit persistence after restart",
+    "Existing installation preserved by in-app installer IPC",
+    "Installer unit checks: official stable script, version verification, cleanup, untrusted redirect rejection, generic errors",
+    "Claude CLI protocol/login/image/cancellation regression",
+    "Packaged full five-screen generation, revisions, approval/import, input and navigation, recovery and undo/redo",
+    "DMG integrity; mounted app matches tested app"
+  ],
+  "limitations": [
+    "Fresh-machine official installer execution was simulated in unit tests; this Mac already has Claude Code.",
+    "Windows installation code is included but was not tested on Windows.",
+    "Distribution requires FrameUI distributor compliance with Anthropic Commercial Terms; no agreement was accepted on their behalf."
+  ]
+}

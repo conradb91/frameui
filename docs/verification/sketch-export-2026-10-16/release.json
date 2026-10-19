@@ -1,0 +1,14 @@
+{
+  "dmgSHA256": "afbc5d1e54fedad6e5e5c90d5cd88ff5b433a8620a124d8da7db7aa9c3f73b95",
+  "asarSHA256": "653d2f54c0ce87944190db2ed4bb3747453c08f75dbcce19c9328ddd6e197bce",
+  "reviewProfile": "review-1792160379104-89a99cb6-9be2-45e2-aeba-e6ed3e7a390f",
+  "dmgbundleMatchesTestedApp": true,
+  "path": "release/FrameUI-0.1.0-x64.dmg",
+  "packagedChecks": [
+    "Sketch bridge",
+    "SVG native editing",
+    "Running app capture and saved edits",
+    "Prototype approval/import and navigation"
+  ],
+  "sizeBytes": 127057479
+}

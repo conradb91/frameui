@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "live": true,
+  "checks": [
+    "real localhost capture and component resolution",
+    "actual project component context",
+    "new composition using bound repository components",
+    "source component variant props and readable label",
+    "rendered text measurement, correction and visual warnings",
+    "explicit editable import",
+    "source files preserved",
+    "Low to High effort reaches the CLI",
+    "developer handoff ZIP including full native design and Claude Code brief"
+  ],
+  "designReview": {
+    "approach": "explore",
+    "pages": [
+      {
+        "id": "ab298a49-4aa2-408c-a7d9-c8ed768d6919",
+        "name": "Login – Mobile",
+        "reusedElements": 4,
+        "components": [
+          "Brand",
+          "Button"
+        ],
+        "warnings": []
+      }
+    ],
+    "errors": [],
+    "reference": "Login"
+  }
+}

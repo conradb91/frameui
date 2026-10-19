@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-07",
+  "scope": "Local FrameUI capture and editor audit; production application read-only",
+  "runtime": "https://threebeez.co.za/",
+  "localSource": "/Users/leadsprint/Desktop/New-App/Budget",
+  "unitTests": {
+    "passed": 342,
+    "failed": 0,
+    "files": 62
+  },
+  "build": "passed (TypeScript, renderer, Electron main, preload)",
+  "electronSmokeSuitesPassed": [
+    "capture motion and lazy content",
+    "modal interaction",
+    "structured capture editing and drag",
+    "capture registry and authenticated resources",
+    "design workflows",
+    "pages workflow",
+    "project opening (300 pages)",
+    "new design and legacy fallback editing",
+    "editor sidebar",
+    "camera and text alignment"
+  ],
+  "fontVerification": {
+    "InterVariable.woff2": "SHA-256 matches repository file",
+    "InterVariable-Italic.woff2": "SHA-256 matches repository file"
+  },
+  "pixelComparison": {
+    "method": "Pixelmatch, threshold 0.15; full-page references downscaled by existing screenshot size limits",
+    "fixture": {
+      "mobilePercent": 0.2341025641025641,
+      "desktopPercent": 0.06340277777777778
+    },
+    "homepageFullPage": {
+      "mobilePercent": 0.6185952719155844,
+      "desktopPercent": 0.8307595854824028
+    },
+    "dashboardFullPage": {
+      "mobilePercent": 0.2909515538677422,
+      "desktopPercent": 0.332084415986142
+    }
+  },
+  "limitations": [
+    "Pixel differences remain; these results do not certify every page or control.",
+    "Live-site comparisons exercised the capture engine directly; no production verification file was deployed."
+  ],
+  "productionRecordsModified": false,
+  "sourceRepoModified": false,
+  "reviewPackage": {
+    "path": "release/FrameUI-0.1.0-x64.dmg",
+    "architecture": "x64",
+    "dmgChecksum": "verified by hdiutil",
+    "freshProfile": "verified empty project and design libraries; test profile removed",
+    "packagedChecksPassed": [
+      "modal interactions",
+      "structured capture and inline editing",
+      "first-press drag and camera gestures",
+      "mounted DMG new-design, multi-frame, persistence and rename"
+    ]
+  },
+  "additionalFixes": [
+    "Mixed-axis clipping retained",
+    "Native range, checkbox and radio appearance and current state retained"
+  ]
+}

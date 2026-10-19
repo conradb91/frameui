@@ -1,0 +1,28 @@
+[
+  {
+    "width": 390,
+    "diffPercent": 0,
+    "fonts": 0,
+    "warnings": [
+      "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app.",
+      "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app.",
+      "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app."
+    ],
+    "texts": [
+      "Editable capture"
+    ]
+  },
+  {
+    "width": 1440,
+    "diffPercent": 0,
+    "fonts": 0,
+    "warnings": [
+      "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app.",
+      "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app.",
+      "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app."
+    ],
+    "texts": [
+      "Editable capture"
+    ]
+  }
+]

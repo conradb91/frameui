@@ -21,3 +21,18 @@ test('does not mistake a rotation or nonuniform transform for a uniform scale', 
     expect(result.styles.fontSize).toBe('20px')
   }
 })
+
+test('recovers rotated border boxes without applying the matrix to an already rotated bounding box',()=>{
+ const source=node({width:'100px',height:'40px',boxSizing:'border-box',transform:'matrix(0, 1, -1, 0, 0, 0)',transformOrigin:'50px 20px'})
+ source.rect={x:130,y:170,width:40,height:100}
+ const result=normalizeCaptureScale(source)
+ expect(result.rect).toEqual({x:100,y:200,width:100,height:40})
+ expect(result.styles.frameuiTransform).toBe('matrix(0,1,-1,0,0,0)')
+ expect(result.styles.transform).toBe('none')
+ expect(source.rect.width).toBe(40)
+})
+test('recovers skew, reflection and nonuniform scale on leaf boxes',()=>{
+ for(const [matrix,rect] of [['matrix(1, 0, 0.5, 1, 0, 0)',{x:90,y:200,width:120,height:40}],['matrix(-1, 0, 0, 0.5, 0, 0)',{x:100,y:210,width:100,height:20}]] as const){
+ const source=node({width:'100px',height:'40px',boxSizing:'border-box',transform:matrix,transformOrigin:'50px 20px'});source.rect={...rect};const result=normalizeCaptureScale(source);expect(result.rect).toEqual({x:100,y:200,width:100,height:40});expect(result.styles.frameuiTransform).toBeDefined()
+ }
+})

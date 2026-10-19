@@ -57,5 +57,6 @@ export function useCanvasCamera(initial: Camera) {
     clearTimeout(timer.current)
     cancelAnimationFrame(frame.current)
   }, [])
-  return { camera, setCamera, navigateCamera, finishCamera, cameraGroup, cameraOverlay }
+  const getCamera=useCallback(()=>current.current,[])
+  return { getCamera, camera, setCamera, navigateCamera, finishCamera, cameraGroup, cameraOverlay }
 }

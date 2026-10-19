@@ -1,5 +1,6 @@
+import { RuntimeSettings } from './RuntimeSettings'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Circle, Component, FileText, FolderCog, FolderOpen, Loader2, Palette, PanelsTopLeft, ShieldCheck } from 'lucide-react'
+import { Check, Circle, Component, FileText, FolderCog, FolderOpen, Loader2, Palette, ShieldCheck } from 'lucide-react'
 import type { RecentProject } from '@shared/types/project'
 import type { IndexProgressStep, ProjectIndex } from '@shared/types/projectIndex'
 import { ModalBody, ModalField, ModalFooter, ModalHeader, ModalNotice, ModalProgress, ModalShell } from '../ui/Modal'
@@ -77,18 +78,18 @@ export function ProjectSetupModal({ project, index, onCancel, onOpen }: {
   }
 
   const title = phase === 'confirm'
-    ? `Prepare ${project.name} for FrameUI`
+    ? `Open ${project.name}`
     : phase === 'ready' ? `${project.name} is ready` : `Preparing ${project.name}`
   const description = phase === 'confirm'
-    ? 'Connect your project’s pages, components and styles to the canvas.'
+    ? 'Bring your existing product into your design workspace.'
     : phase === 'ready'
-      ? 'Everything is connected. Choose where to start.'
+      ? 'Your repository is indexed. Connect your app to capture its pages.'
       : 'Reading your project and building the design index.'
 
   return (
     <ModalShell
       as="form"
-      size="large"
+      size="standard"
       variant={phase === 'ready' ? 'completion' : phase === 'preparing' ? 'progress' : 'setup'}
       onClose={onCancel}
       onSubmit={(event) => {
@@ -99,18 +100,8 @@ export function ProjectSetupModal({ project, index, onCancel, onOpen }: {
       className={`ide-project-setup-dialog is-${phase}`}
     >
       <div className="setup-workflow">
-        <aside className="setup-workflow-rail" aria-label="Setup stages">
-          <div className="setup-workflow-brand"><PanelsTopLeft size={18}/><strong>FrameUI</strong></div>
-          <span className="setup-workflow-label">PROJECT SETUP</span>
-          <ol>{['Connect', 'Prepare', 'Ready'].map((label, position) => {
-            const current = phase === 'confirm' ? 0 : phase === 'ready' ? 2 : 1
-            return <li key={label} data-state={position < current ? 'complete' : position === current ? 'current' : 'pending'} aria-current={position === current ? 'step' : undefined}><span>{position < current ? <Check size={12}/> : `0${position + 1}`}</span><div><strong>{label}</strong><small>{['Your local codebase', 'Pages, components, styles', 'Open your workspace'][position]}</small></div></li>
-          })}</ol>
-          <div className="setup-workflow-project"><FolderOpen size={15}/><span>{project.name}</span></div>
-        </aside>
         <div className="setup-workflow-main">
       <ModalHeader
-        eyebrow={phase === 'confirm' ? '01 / Connect' : phase === 'ready' ? '03 / Ready' : '02 / Prepare'}
         title={title}
         description={description}
         icon={phase === 'ready' ? <Check size={17} /> : <FolderCog size={17} />}
@@ -124,7 +115,7 @@ export function ProjectSetupModal({ project, index, onCancel, onOpen }: {
             <FolderOpen size={19} />
             <div>
               <strong>{project.name}</strong>
-              <span><i /> Application detected</span>
+              <span><i /> Repository selected</span>
             </div>
             <span className="ide-local-only"><ShieldCheck size={12} /> Local only</span>
             <details>
@@ -134,27 +125,18 @@ export function ProjectSetupModal({ project, index, onCancel, onOpen }: {
           </section>
 
           <ModalField
-            label={<span className="ide-project-field-title">Local preview <small>Optional</small></span>}
-            hint="Optional. Connect your running app for more accurate page previews and runtime content."
+            label={<span className="ide-project-field-title">App address <small>Optional</small></span>}
+            hint="Add the address of your running app. You can connect it later, too."
             error={invalidUrl ? 'Use a full address beginning with http:// or https://.' : undefined}
             className="ide-project-preview-field"
           >
-            <input aria-label="Local preview" placeholder="http://localhost:3000" value={appUrl} onChange={(event) => setAppUrl(event.target.value)} />
+            <input aria-label="App address" placeholder="http://localhost:3000" value={appUrl} onChange={(event) => setAppUrl(event.target.value)} />
           </ModalField>
 
-          <section className="ide-project-preparation">
-            <div>
-              <strong>What FrameUI will prepare</strong>
-              <p>FrameUI reads your project structure and creates a local design index. Your source files are not changed.</p>
-            </div>
-            <div className="ide-project-preparation-strip" aria-label="Project contents">
-              <span><FileText size={15} /> Pages &amp; routes</span>
-              <span><Component size={15} /> Components</span>
-              <span><Palette size={15} /> Styles &amp; tokens</span>
-            </div>
-          </section>
+          {appUrl.trim()&&<RuntimeSettings showUrl={false} url={appUrl} onChange={setAppUrl} />}
+          <p className="studio-setup-note"><Component size={14}/> Components, styles and assets are indexed locally.</p>
         </ModalBody>
-        <ModalFooter note="You can change these settings later.">
+        <ModalFooter note="Your repository stays unchanged.">
           <button type="button" onClick={onCancel}>Cancel</button>
           <button className="primary" type="submit" disabled={invalidUrl} data-modal-initial-focus>Prepare project</button>
         </ModalFooter>
@@ -190,7 +172,7 @@ export function ProjectSetupModal({ project, index, onCancel, onOpen }: {
             <div><Component size={17}/><span>Components</span><strong>{stats.components}</strong><Check size={13}/></div>
             <div><Palette size={17}/><span>Design tokens</span><strong>{stats.tokens}</strong><Check size={13}/></div>
           </div>
-          <p><ShieldCheck size={14} /> Ready for your first editable design.</p>
+          <p><ShieldCheck size={14} /> Next: capture a page or start a design.</p>
         </ModalBody>
         <ModalFooter note={preparedIndex?.scannedFileCount ? `${preparedIndex.scannedFileCount} files checked.` : 'Local design index ready.'}>
           <button type="button" onClick={() => finish('review')}>Review project</button>

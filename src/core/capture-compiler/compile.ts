@@ -1,3 +1,4 @@
+import {richTextFromCapture,captureTextGradient} from './capturedRichText'
 import type { CapturedElement } from '@shared/types/runtimeCapture'
 import type {
   StructuredAppearance,
@@ -113,7 +114,7 @@ function edgeBorderShadows(edges: CapturedBorderEdge[]): string | undefined {
   }).join(', ')
 }
 
-const SVG_SHAPE_TAGS = new Set(['rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'path'])
+const SVG_SHAPE_TAGS = new Set(['use', 'g', 'rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'path'])
 const SECTION_TAGS = new Set(['header', 'footer', 'aside', 'nav', 'section', 'main', 'article'])
 /** Block-level tags that are the semantic "owner" of the text inside them —
  * a heading/paragraph/label/list-item/table-cell must compile to exactly
@@ -124,6 +125,7 @@ const SECTION_TAGS = new Set(['header', 'footer', 'aside', 'nav', 'section', 'ma
  * shape for an interactive element's label. */
 const TEXT_OWNER_TAGS = new Set([
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'label', 'li', 'td', 'th',
+  'span','strong','b','em','i','small','frameui-richtext',
   'figcaption', 'blockquote', 'dt', 'dd',
 ])
 /** Tags that make an element's content NOT a single plain-text run — a
@@ -138,30 +140,25 @@ const TEXT_OWNER_EXCLUDED_DESCENDANT_TAGS = new Set([
 function isPureTextSubtree(el: CapturedElement): boolean {
   const tag = el.tag.toLowerCase()
   if (tag === 'frameui-text' || tag === 'br') return true
+  if (tag === 'frameui-visual') return false
   if (TEXT_OWNER_EXCLUDED_DESCENDANT_TAGS.has(tag)) return false
   return el.children.every(isPureTextSubtree)
 }
-function hasDistinctInlineTypography(owner: CapturedElement): boolean {
-  const properties = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'color', 'textDecoration']
-  const walk = (node: CapturedElement): boolean => node.children.some((child) => {
-    if (child.tag === 'frameui-text' || child.tag === 'br') return false
-    if (properties.some((key) => child.styles[key] && owner.styles[key] && child.styles[key] !== owner.styles[key])) return true
-    return walk(child)
-  })
-  return walk(owner)
+function inlineTextGroups(parent:CapturedElement):CapturedElement[] {
+ if(parent.tag==='frameui-richtext')return parent.children
+ const out:CapturedElement[]=[];let group:CapturedElement[]=[]
+ const flush=()=>{if(group.length>1){const x=Math.min(...group.map(n=>n.rect.x)),y=Math.min(...group.map(n=>n.rect.y)),right=Math.max(...group.map(n=>n.rect.x+n.rect.width)),bottom=Math.max(...group.map(n=>n.rect.y+n.rect.height));out.push({tag:'frameui-richtext',styles:{...parent.styles,backgroundImage:'none',backgroundColor:'transparent',borderWidth:'0',padding:'0',opacity:'1',transform:'none'},rect:{x,y,width:right-x,height:bottom-y},children:group})}else out.push(...group);group=[]}
+ for(const child of parent.children){if((child.tag==='frameui-text'||child.styles.display==='inline')&&isPureTextSubtree(child))group.push(child);else{flush();out.push(child)}}flush();return out
 }
-/** Concatenates a text owner's descendant runs into one string, inserting
- * exactly one space between adjacent runs (source markup for a heading or
- * paragraph is essentially always whitespace/element-boundary separated,
- * so this reconstructs normal prose spacing even though each individual
- * `frameui-text` leaf was already independently trimmed upstream) and a
- * literal `\n` for each explicit `<br>` — browser-caused line wrapping
- * never appears here since this walks DOM structure, not rendered lines. */
+/** Retain exact spacing from current snapshots; older capture trees trimmed
+ * each run, so retain their historical space-joining fallback. Explicit br
+ * elements remain newlines, independent of browser wrapping. */
 function collectOwnerText(el: CapturedElement): string {
   const parts: string[] = []
+  let exact = false
   const walk = (e: CapturedElement): void => {
     const tag = e.tag.toLowerCase()
-    if (tag === 'frameui-text') { if (e.textPreview) parts.push(e.textPreview) }
+    if (tag === 'frameui-text') { if (e.textPreview) parts.push(e.textPreview); if (e.attributes?.['data-frameui-exact-text']) exact = true }
     else if (tag === 'br') parts.push('\n')
     else e.children.forEach(walk)
   }
@@ -169,7 +166,7 @@ function collectOwnerText(el: CapturedElement): string {
   let out = ''
   for (const part of parts) {
     if (part === '\n') out = out.replace(/ +$/, '') + '\n'
-    else out += (out && !out.endsWith('\n') ? ' ' : '') + part
+    else out += (!exact && out && !out.endsWith('\n') ? ' ' : '') + part
   }
   return out.trim()
 }
@@ -216,8 +213,12 @@ function constraintsOf(s: Record<string, string>): StructuredConstraints {
 }
 
 function appearanceOf(s: Record<string, string>, tag?: string, elementHeight = 0): StructuredAppearance {
+  const overflow = (s.overflow || '').split(/\s+/)
+  const clips = (value: string) => ['hidden', 'clip', 'scroll', 'auto'].includes(value)
+  const clipX = clips(s.overflowX || overflow[0])
+  const clipY = clips(s.overflowY || overflow[1] || overflow[0])
   const radii = ['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomRightRadius', 'borderBottomLeftRadius']
-    .map((k) => number(s[k] || s.borderRadius)) as StructuredAppearance['radius']
+    .map((k) => {const value=s[k]||s.borderRadius||'0';return value.trim().endsWith('%')?number(value)*elementHeight/100:number(value)}) as StructuredAppearance['radius']
   const edgeBorders = tag === 'hr' ? [] : splitBorderEdges(s)
   const edgeShadow = edgeBorderShadows(edgeBorders)
   const authoredShadow = visiblePaint(s.boxShadow) ? s.boxShadow : undefined
@@ -225,6 +226,26 @@ function appearanceOf(s: Record<string, string>, tag?: string, elementHeight = 0
     zIndex: s.zIndex && s.zIndex !== 'auto' ? number(s.zIndex) : undefined,
     backgroundColor: visiblePaint(s.backgroundColor) ? s.backgroundColor : undefined,
     backgroundImage: visiblePaint(s.backgroundImage) ? s.backgroundImage : undefined,
+    backgroundSize: s.backgroundSize || undefined,
+    backgroundPosition: s.backgroundPosition || undefined,
+    backgroundRepeat: s.backgroundRepeat || undefined,
+    backgroundBlendMode: s.backgroundBlendMode && s.backgroundBlendMode !== 'none' ? s.backgroundBlendMode : undefined,
+    backgroundOrigin: s.backgroundOrigin && s.backgroundOrigin !== 'none' ? s.backgroundOrigin : undefined,
+    backgroundClip: s.backgroundClip && s.backgroundClip !== 'none' ? s.backgroundClip : undefined,
+    clipPath: s.clipPath && s.clipPath !== 'none' ? s.clipPath : undefined,
+    maskImage: s.maskImage && s.maskImage !== 'none' ? s.maskImage : undefined,
+    maskSize: s.maskSize && s.maskSize !== 'none' ? s.maskSize : undefined,
+    maskPosition: s.maskPosition && s.maskPosition !== 'none' ? s.maskPosition : undefined,
+    maskRepeat: s.maskRepeat && s.maskRepeat !== 'none' ? s.maskRepeat : undefined,
+    maskMode: s.maskMode && s.maskMode !== 'none' ? s.maskMode : undefined,
+    maskComposite: s.maskComposite && s.maskComposite !== 'none' ? s.maskComposite : undefined,
+    filter: s.filter && s.filter !== 'none' ? s.filter : undefined,
+    backdropFilter: s.backdropFilter && s.backdropFilter !== 'none' ? s.backdropFilter : undefined,
+    mixBlendMode: s.mixBlendMode && s.mixBlendMode !== 'none' ? s.mixBlendMode : undefined,
+    isolation: s.isolation && s.isolation !== 'none' ? s.isolation : undefined,
+    overflowClipMargin: s.overflowClipMargin && s.overflowClipMargin !== 'none' ? s.overflowClipMargin : undefined,
+
+    objectPosition: s.objectPosition || undefined,
     border: edgeBorders.length ? undefined : number(s.borderWidth) > 0 ? { width: number(s.borderWidth), style: s.borderStyle, color: s.borderColor } : undefined,
     radius: radii,
     boxShadow: [authoredShadow, edgeShadow].filter(Boolean).join(', ') || undefined,
@@ -234,8 +255,13 @@ function appearanceOf(s: Record<string, string>, tag?: string, elementHeight = 0
     strokeWidth: s.strokeWidth ? number(s.strokeWidth) : undefined,
     objectFit: s.objectFit === 'cover' || s.objectFit === 'contain' || s.objectFit === 'fill' ? s.objectFit : undefined,
     blur: blurFromFilter(s.filter),
+    transform: s.frameuiTransform,
+    transformOrigin: s.frameuiTransformOrigin,
     rotation: rotationFromTransform(s.transform),
-    clip: ['hidden', 'clip', 'scroll', 'auto'].includes(s.overflow),
+    clip: clipX || clipY,
+    clipX, clipY,
+    accentColor: s.accentColor || undefined,
+    colorScheme: s.colorScheme || undefined,
   }
   if (tag === 'hr') {
     const divider = horizontalRulePaint(s, elementHeight)
@@ -254,6 +280,14 @@ function typographyOf(s: Record<string, string>, text: string): StructuredTypogr
     text,
     whiteSpace: s.whiteSpace,
     fontStyle: s.fontStyle,
+    textWrap: s.textWrap || undefined,
+    fontFeatureSettings: s.fontFeatureSettings || undefined,
+    fontVariationSettings: s.fontVariationSettings || undefined,
+    fontOpticalSizing: s.fontOpticalSizing || undefined,
+    fontKerning: s.fontKerning || undefined,
+    fontStretch: s.fontStretch || undefined,
+    wordSpacing: s.wordSpacing || undefined,
+    WebkitFontSmoothing: s.WebkitFontSmoothing || undefined,
     fontFamily: s.fontFamily || 'sans-serif',
     fontSize: number(s.fontSize) || 16,
     fontWeight: s.fontWeight || '400',
@@ -289,12 +323,14 @@ function tokenBindingsOf(s: Record<string, string>): StructuredTokenBindings | u
  * for `SVG`/`Shape`-type nodes — deliberately not every attribute, just
  * enough to redraw the primitive (fill/stroke come from `appearance`
  * already, via computed style, not from here). */
-const SVG_GEOMETRY_ATTRS = ['d', 'points', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'y1', 'x2', 'y2', 'x', 'y', 'width', 'height', 'viewBox']
+const SVG_GEOMETRY_ATTRS = ['href','xlink:href','filter','mask','clip-path','d', 'points', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'y1', 'x2', 'y2', 'x', 'y', 'width', 'height', 'viewBox', 'transform', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'fill-rule']
 function svgGeometryOf(el: CapturedElement, tag: string): Record<string, string> | undefined {
   if (tag !== 'svg' && !SVG_SHAPE_TAGS.has(tag)) return undefined
   const a = el.attributes ?? {}
   const geometry: Record<string, string> = {}
+  if(a['data-frameui-svg-definitions'])geometry.definitions=a['data-frameui-svg-definitions']
   for (const attr of SVG_GEOMETRY_ATTRS) if (a[attr] !== undefined) geometry[attr] = a[attr]
+  for (const [css, attr] of [['strokeLinecap', 'stroke-linecap'], ['strokeLinejoin', 'stroke-linejoin'], ['strokeDasharray', 'stroke-dasharray'], ['strokeDashoffset', 'stroke-dashoffset'], ['fillRule', 'fill-rule']]) if (el.styles[css]) geometry[attr] = el.styles[css]
   return Object.keys(geometry).length ? geometry : undefined
 }
 /** Same acceptance rule legacy `normalize.ts` already uses: only a safe,
@@ -317,6 +353,7 @@ function sourceOf(el: CapturedElement, tag: string, ctx?: { file?: string; route
     href: a.href,
     imageSrc: imageSrcOf(el, tag),
     svgGeometry: svgGeometryOf(el, tag),
+    control: tag==='input'&&!['hidden','file','color','button','submit','reset','image'].includes(a.type)?{type:(['text','email','password','number','range','checkbox','radio','date','time'].includes(a.type)?a.type:'text') as NonNullable<StructuredSource['control']>['type'],placeholder:a.placeholder,placeholderColor:a['data-frameui-placeholder-color'],placeholderOpacity:a['data-frameui-placeholder-opacity']===undefined?undefined:Number(a['data-frameui-placeholder-opacity']),value:a.type==='password'?'':a.controlValue,checked:a.controlChecked==='true',disabled:a.visualState==='Disabled',min:a.min,max:a.max,step:a.step}:undefined,
   }
 }
 
@@ -340,14 +377,19 @@ export function compileStructuredNodes(
     if (
       s.display === 'none' ||
       s.visibility === 'hidden' ||
-      (number(s.opacity) === 0 && s.opacity !== undefined) ||
-      el.rect.width <= 0 ||
-      el.rect.height <= 0
+      (number(s.opacity) === 0 && s.opacity !== undefined)
     )
       return []
+    // Absolute/fixed descendants may remain visible outside a zero-height body or wrapper.
+    if(el.rect.width<=0||el.rect.height<=0){
+      const clipped=(axis:string)=>/^(hidden|clip|scroll|auto)$/.test(s['overflow'+axis]||s.overflow||'')
+      if(el.rect.width<=0&&clipped('X')||el.rect.height<=0&&clipped('Y'))return []
+      return el.children.flatMap(child=>convert(child,parentX,parentY,parentId))
+    }
 
-    if (TEXT_OWNER_TAGS.has(tag) && isPureTextSubtree(el) && !hasDistinctInlineTypography(el)) {
-      const ownerText = collectOwnerText(el)
+    if (TEXT_OWNER_TAGS.has(tag) && !Object.values(expandBoxShorthand(s.padding)??{}).some(value=>value!==0) && !Object.values(expandBoxShorthand(s.borderWidth)??{}).some(value=>value!==0) && isPureTextSubtree(el)) {
+      const rich = richTextFromCapture(el)
+      const ownerText = rich.text || collectOwnerText(el)
       if (ownerText) {
         const id = crypto.randomUUID()
         return [
@@ -360,7 +402,7 @@ export function compileStructuredNodes(
             bounds: { x: el.rect.x - parentX, y: el.rect.y - parentY, width: el.rect.width, height: el.rect.height },
             layout: layoutOf(s),
             appearance: appearanceOf(s, tag, el.rect.height),
-            typography: typographyOf(s, ownerText),
+            typography: {...typographyOf(s, ownerText),...rich,text:ownerText},
             source: sourceOf(el, tag, ctx),
             tokenBindings: tokenBindingsOf(s),
             componentBinding: undefined,
@@ -378,8 +420,8 @@ export function compileStructuredNodes(
     const a = el.attributes ?? {}
     if (a.backgroundSrc?.startsWith('data:image/') && appearance.backgroundImage)
       appearance.backgroundImage = appearance.backgroundImage.replace(/url\((?:"[^"]+"|'[^']+'|[^)]*)\)/, `url("${a.backgroundSrc}")`)
-    const text = tag === 'frameui-text' ? el.textPreview?.trim() ?? '' : el.textPreview?.trim()
-    const paint = !!(appearance.backgroundColor || appearance.backgroundImage || appearance.border || appearance.boxShadow)
+    const text = tag === 'frameui-text' ? el.textPreview ?? '' : el.textPreview?.trim()
+    const paint = !!(appearance.backgroundColor || appearance.backgroundImage || appearance.border || appearance.boxShadow || appearance.filter || appearance.backdropFilter || appearance.clipPath || appearance.maskImage || appearance.mixBlendMode && appearance.mixBlendMode!=='normal' || appearance.isolation==='isolate' || appearance.rotation || appearance.transform)
     const label = el.aria?.['aria-label'] || a.alt || (el.componentHint ? cleanName(el.componentHint) : '')
 
     let type: StructuredNodeType
@@ -403,9 +445,10 @@ export function compileStructuredNodes(
     // A paint-less flex/grid wrapper is KEPT, because dropping it would
     // destroy the very layout relationship this schema exists to preserve
     // (docs/CAPTURE_ENGINE_REBUILD_SPEC.md §7).
-    const isPlainWrapper = (type === 'Container' || type === 'Group') && !paint && !label && !text && appearance.zIndex === undefined
-    const children = el.children.flatMap((child) => convert(child, el.rect.x, el.rect.y, null))
-    if (isPlainWrapper && layout.mode === 'free') {
+    const isPlainWrapper = (type === 'Container' || type === 'Group') && !paint && !label && !text && appearance.zIndex === undefined && !appearance.clip && appearance.opacity === 1
+    const borderInset = appearance.border?.width ?? 0
+    const children = sourceOf(el,tag,ctx).control?[]:inlineTextGroups(el).flatMap((child) => convert(child, el.rect.x + borderInset, el.rect.y + borderInset, null))
+    if (isPlainWrapper && layout.mode === 'free' && !Object.values(layout.padding??{}).some(value=>value!==0)) {
       return children.map((child) => ({
         ...child,
         parentId,
@@ -432,7 +475,7 @@ export function compileStructuredNodes(
         : { x: el.rect.x - parentX, y: el.rect.y - parentY, width: el.rect.width, height: el.rect.height },
       layout,
       appearance,
-      typography: type === 'Text' ? typographyOf(s, text ?? '') : undefined,
+      typography: type==='Text'||sourceOf(el,tag,ctx).control?typographyOf(s,sourceOf(el,tag,ctx).control?(a.controlValue||a.placeholder||''):text??''):undefined,
       source: sourceOf(el, tag, ctx),
       tokenBindings: tokenBindingsOf(s),
       componentBinding: undefined,
@@ -440,6 +483,10 @@ export function compileStructuredNodes(
       visibility: true,
       locked: false,
       captureConfidence: undefined,
+    }
+    if(node.typography)node.typography.gradient=captureTextGradient(el)
+    if(node.typography&&a['data-frameui-text-lines']){
+      try{const lines=JSON.parse(a['data-frameui-text-lines']);if(Array.isArray(lines)&&lines.every(line=>typeof line.text==='string'&&['x','y','width','height'].every(k=>Number.isFinite(line[k]))))node.typography.captureLines=lines}catch{/* ordinary text fallback */}
     }
     return [node]
   }

@@ -45,6 +45,7 @@ export function resolveStructuredComponents(frame: StructuredFrame, components: 
       ...node,
       children,
       type: 'ComponentInstance',
+      source:{...node.source,file:match.source.filePath},
       componentBinding: { componentId: match.id, confidence: 1 },
       captureConfidence: { ...node.captureConfidence, componentConfidence: 1 },
     }

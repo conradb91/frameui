@@ -1,0 +1,120 @@
+{
+  "status": "PASS",
+  "date": "2026-10-16",
+  "profile": "review-1792157928885-1eddf806-eaaa-4fb4-a3ce-7a459df2a994",
+  "sha256": "1d53e301858bca0ae8428a0dbac57ee54a6abba069b8c96289be55c47851435f",
+  "asarSha256": "c3a635b19257f1d5b45f23867f04dd64dd746681bc19d1acf66abf880b77fe03",
+  "unit": {
+    "passed": 409,
+    "failed": 0,
+    "assertions": 1393,
+    "files": 72
+  },
+  "connectionChanges": [
+    "Repository + running app remains recommended; repository-only setup can omit its address",
+    "Running-app-only entry creates an isolated local application project with no claimed source mapping",
+    "Remote and localhost capture require no ownership-file upload; optional ownership check is separate",
+    "Exact-origin/project authorisation, URL protocol checks and isolated browser sessions remain"
+  ],
+  "rootCauses": [
+    "Missing clip paths, masks, compositing and full filters; effect-only wrappers were collapsed",
+    "CDP can emit empty bounds for painted blurred negative-z-index pseudo-elements",
+    "Visual diff correction could rasterise native controls and supported decorative layers",
+    "Canvas rejected structured rendering above a 5% difference, hiding editable layers",
+    "Percentage min/max constraints were parsed into pixel clamps and overrode measured bounds",
+    "Multiline inline text was rewrapped independently from neighbouring inline content",
+    "Horizontal-only paragraph padding was mistaken for no padding",
+    "The real site serves AVIF image bytes with application/json headers; valid images were rejected",
+    "Screenshot-backed fallback crops mixed CSS coordinates with device-pixel coordinates"
+  ],
+  "checks": [
+    "Packaged running-app-only capture: live navigation, no verification request, native controls/SVG/gradient, direct canvas selection, input edit and save/reopen",
+    "Packaged repository capture: localhost plus explicitly connected HTTPS test application, no verification-file request, canvas edit/pan/zoom/rename",
+    "Packaged prototype: 5-screen process navigation, native input, targeted revisions, exact-version approval/import, atomic failure recovery, undo/redo and persistence",
+    "DMG verified; mounted app.asar matches tested app",
+    "Native inspector supports gradient CSS, effects/clipping, image replacement/fit/position, vector fill/stroke/path data, stack gap/padding",
+    "Existing capture regression under 0.5% difference at mobile and desktop"
+  ],
+  "representativeQuality": [
+    {
+      "width": 390,
+      "zooms": [
+        {
+          "zoom": 0.5,
+          "diffPercent": 0.15461538461538463
+        },
+        {
+          "zoom": 1,
+          "diffPercent": 0.0004487179487179487
+        },
+        {
+          "zoom": 2,
+          "diffPercent": 0.003926282051282051
+        }
+      ],
+      "movedDiffPercent": 0.0004487179487179487,
+      "nativeNodes": 22
+    },
+    {
+      "width": 1440,
+      "zooms": [
+        {
+          "zoom": 0.5,
+          "diffPercent": 0.041875
+        },
+        {
+          "zoom": 1,
+          "diffPercent": 0.00012152777777777779
+        },
+        {
+          "zoom": 2,
+          "diffPercent": 0.0010633680555555555
+        }
+      ],
+      "movedDiffPercent": 0.00012152777777777779,
+      "nativeNodes": 22
+    }
+  ],
+  "publicSite": {
+    "url": "https://mapmymaintenance.com/",
+    "viewport": [
+      {
+        "width": 390,
+        "diffPercent": 1.8505128205128205,
+        "warnings": [
+          "An image could not be embedded. Check the screenshot preview for its appearance.",
+          "A background resource could not be embedded; its appearance may differ."
+        ]
+      },
+      {
+        "width": 1440,
+        "diffPercent": 0.8840972222222222,
+        "warnings": [
+          "An image could not be embedded. Check the screenshot preview for its appearance.",
+          "A background resource could not be embedded; its appearance may differ."
+        ]
+      }
+    ],
+    "fullPage": [
+      {
+        "width": 390,
+        "frameHeight": 18664,
+        "diffPercent": 0.9976927997076024
+      },
+      {
+        "width": 1440,
+        "frameHeight": 13418,
+        "diffPercent": 0.9044590799203641
+      }
+    ],
+    "method": "Read-only public homepage; no account sign-in or forms submitted. DOM/native HTML replay compared with pixelmatch at matching viewport sizes."
+  },
+  "limitations": [
+    "Complex rotated/skewed/3D layouts and referenced SVG mask/filter definitions can still differ; not every CSS effect has a native representation",
+    "Raster fallbacks remain for inherently non-DOM content such as canvas and embedded frames; they are identified as fallback images",
+    "Some source background URLs on the tested site do not return recognised image data; capture reports these failures",
+    "Dynamic content, font rasterisation and fixed overlays can produce nonzero visual differences; measured results are not a universal fidelity guarantee",
+    "Previously flattened layers require recapturing to recover editable structure",
+    "Authenticated application screens were not tested without credentials; public homepage and isolated fixtures were tested"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "live": false,
+  "checks": [
+    "real localhost capture and component resolution",
+    "actual project component context",
+    "new composition using bound repository components",
+    "source component variant props and readable label",
+    "rendered text measurement, correction and visual warnings",
+    "explicit editable import",
+    "source files preserved",
+    "Low to High effort reaches the CLI",
+    "developer handoff ZIP including full native design and Claude Code brief"
+  ],
+  "designReview": {
+    "approach": "explore",
+    "pages": [
+      {
+        "id": "f045c3a6-27ad-4e87-93e1-9f87a86d802a",
+        "name": "Harbour Renewed",
+        "reusedElements": 0,
+        "components": [
+          "Button"
+        ],
+        "warnings": []
+      }
+    ],
+    "errors": [],
+    "reference": "Login"
+  }
+}

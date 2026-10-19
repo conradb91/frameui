@@ -1,0 +1,8 @@
+{
+  "dmgSHA256": "84baf334361415718086af410803e9c943c1eb6069c92d4489088714d9761767",
+  "asarSHA256": "4e12511959ada62737caec3a928e7a6dd346c05a0d3ec2df62800d632347ff4d",
+  "reviewProfile": "review-1792162031709-a2a33c99-ac5b-4678-a113-5336df547e5f",
+  "dmgbundleMatchesTestedApp": true,
+  "path": "release/FrameUI-0.1.0-x64.dmg",
+  "sizeBytes": 127053994
+}

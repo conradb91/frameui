@@ -1,3 +1,4 @@
+import {textStyleRunSchema,textGradientSchema} from '../visual/textStyleSchema'
 import { z } from 'zod'
 import type { StructuredFrame, StructuredNode } from '@shared/types/structuredDesign'
 
@@ -39,9 +40,31 @@ const structuredLayoutSchema = z.object({
 const structuredConstraintsSchema = z.object({ position: z.string() })
 
 const structuredAppearanceSchema = z.object({
+  transform: z.string().optional(),
+  transformOrigin: z.string().optional(),
   zIndex: finite.optional(),
   backgroundColor: z.string().optional(),
   backgroundImage: z.string().optional(),
+  backgroundSize: z.string().optional(),
+  backgroundPosition: z.string().optional(),
+  backgroundRepeat: z.string().optional(),
+  backgroundBlendMode: z.string().optional(),
+  backgroundOrigin: z.string().optional(),
+  backgroundClip: z.string().optional(),
+  clipPath: z.string().optional(),
+  maskImage: z.string().optional(),
+  maskSize: z.string().optional(),
+  maskPosition: z.string().optional(),
+  maskRepeat: z.string().optional(),
+  maskMode: z.string().optional(),
+  maskComposite: z.string().optional(),
+  filter: z.string().optional(),
+  backdropFilter: z.string().optional(),
+  mixBlendMode: z.string().optional(),
+  isolation: z.string().optional(),
+  overflowClipMargin: z.string().optional(),
+
+  objectPosition: z.string().optional(),
   border: z.object({ width: finite, style: z.string().optional(), color: z.string().optional() }).optional(),
   radius: z.tuple([finite, finite, finite, finite]),
   boxShadow: z.string().optional(),
@@ -53,18 +76,27 @@ const structuredAppearanceSchema = z.object({
   blur: finite.optional(),
   rotation: finite,
   clip: z.boolean(),
+  clipX: z.boolean().optional(),
+  clipY: z.boolean().optional(),
+  accentColor: z.string().optional(),
+  colorScheme: z.string().optional(),
 })
 
 const structuredTypographySchema = z.object({
+  captureLines: z.array(z.object({text:z.string(),start:finite.optional(),x:finite,y:finite,width:finite,height:finite})).optional(),
   whiteSpace: z.string().optional(),
   fontStyle: z.string().optional(),
+  textWrap: z.string().optional(),
+  fontFeatureSettings: z.string().optional(),
+  fontVariationSettings: z.string().optional(),
+  fontOpticalSizing: z.string().optional(),
+  fontKerning: z.string().optional(),
+  fontStretch: z.string().optional(),
+  wordSpacing: z.string().optional(),
+  WebkitFontSmoothing: z.string().optional(),
   text: z.string(),
-  textRuns: z.array(z.object({
-    start: z.number().int().min(0),
-    end: z.number().int().min(0),
-    fontWeight: z.string().max(40).optional(),
-    color: z.string().max(100).optional(),
-  }).refine((run) => run.end > run.start, 'Text run must have a positive range.')).max(5000).optional(),
+  textRuns: z.array(textStyleRunSchema).max(5000).optional(),
+  gradient:textGradientSchema.nullable().optional(),
   fontFamily: z.string(),
   fontSize: finite,
   fontWeight: z.string(),
@@ -85,6 +117,7 @@ const structuredSourceSchema = z.object({
   href: z.string().optional(),
   imageSrc: z.string().refine((s) => s.startsWith('data:image/'), 'Design images must be stored locally.').optional(),
   svgGeometry: z.record(z.string()).optional(),
+  control: z.object({ type: z.enum(['text', 'email', 'password', 'number', 'range', 'checkbox', 'radio','date','time']), placeholder:z.string().max(300).optional(), placeholderColor:z.string().optional(),placeholderOpacity:z.number().min(0).max(1).optional(), value: z.string().optional(), checked: z.boolean().optional(), disabled: z.boolean().optional(), min: z.string().optional(), max: z.string().optional(), step: z.string().optional() }).optional(),
 })
 
 const tokenBindablePropertySchema = z.enum([
@@ -122,6 +155,7 @@ export const structuredNodeSchema: z.ZodType<StructuredNode> = z.lazy(() =>
     source: structuredSourceSchema,
     tokenBindings: structuredTokenBindingsSchema,
     componentBinding: structuredComponentBindingSchema.optional(),
+    designProposal:z.object({kind:z.enum(['new','variant']),reason:z.string().min(24).max(2000),componentId:z.string().max(100).optional()}).optional(),
     constraints: structuredConstraintsSchema,
     visibility: z.boolean(),
     locked: z.boolean(),
@@ -131,7 +165,7 @@ export const structuredNodeSchema: z.ZodType<StructuredNode> = z.lazy(() =>
 
 const structuredCaptureMetadataSchema = z.object({
   capturedAt: z.string(),
-  engine: z.literal('domSnapshot'),
+  engine: z.enum(['domSnapshot', 'design']),
   structuredNodeCount: finite.min(0),
   durationMs: finite.min(0),
   visualMatch: z.object({ diffPixels: finite.min(0), totalPixels: finite.min(0), diffPercent: finite.min(0) }).optional(),
@@ -142,6 +176,8 @@ const structuredFontSchema = z.object({
   family: z.string(),
   weight: z.string(),
   style: z.string(),
+            unicodeRange: z.string().optional(),
+            stretch: z.string().optional(),
   data: z.string().startsWith('data:'),
 })
 

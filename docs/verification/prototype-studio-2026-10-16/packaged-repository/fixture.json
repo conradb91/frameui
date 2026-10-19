@@ -1,0 +1,63 @@
+{
+  "status": "PASS",
+  "live": false,
+  "approachMode": true,
+  "checks": [
+    "real localhost capture and component resolution",
+    "actual project component context",
+    "repository-grounded new elements where no suitable component exists; rationale preserved",
+    "versioned design approach, restoration, new-screen generation and approved-design preservation",
+    "rendered text measurement, correction and visual warnings",
+    "explicit editable import",
+    "source files preserved",
+    "Low to High effort reaches the CLI",
+    "developer handoff ZIP including full native design and Claude Code brief"
+  ],
+  "designReview": {
+    "design": {
+      "approach": "redesign"
+    },
+    "approach": "explore",
+    "pages": [
+      {
+        "id": "7d936f72-1b76-42a4-8443-6a25a32aab59",
+        "name": "Harbour Renewed",
+        "reusedElements": 0,
+        "components": [],
+        "warnings": [],
+        "newElements": [
+          {
+            "id": "a4fede2f-8f15-4321-be9c-adaf6340a9cf",
+            "name": "New action card",
+            "type": "Container"
+          },
+          {
+            "id": "3709bef6-a1a7-4f7d-8286-a308460d74c5",
+            "name": "Headline",
+            "type": "Text"
+          },
+          {
+            "id": "8ca41af7-c0b4-4478-b78e-89238011a35f",
+            "name": "Supporting copy",
+            "type": "Text"
+          },
+          {
+            "id": "e1a0f714-f3fb-4683-8869-2ac0a3e83dd4",
+            "name": "Auto-sized copy",
+            "type": "Text"
+          }
+        ],
+        "decisions": [
+          {
+            "id": "a4fede2f-8f15-4321-be9c-adaf6340a9cf",
+            "name": "New action card",
+            "kind": "new",
+            "reason": "No action summary card exists in this repository; use its established type family, corner treatment and spacing."
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "reference": "Login"
+  }
+}

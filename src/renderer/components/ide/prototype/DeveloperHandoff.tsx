@@ -1,0 +1,17 @@
+import {useState} from 'react'
+import {ModalShell,ModalHeader,ModalBody,ModalFooter,ModalField} from '../../ui/Modal'
+import {userFacingError} from '../../../lib/userFacingError'
+import type {VisualDocument} from '@shared/types/visualDesign'
+export function DeveloperHandoff({document,onClose}:{document:VisualDocument;onClose:()=>void}){
+ const [notes,setNotes]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState(''),[warnings,setWarnings]=useState<string[]>([]),[copied,setCopied]=useState(false)
+ const prompt='Read frameui-handoff/CLAUDE_HANDOFF.md and implement the approved design in this repository. Inspect the design JSON and previews, reuse our components and routing, and verify the exported acceptance scenarios. Show me the implementation plan before editing.'
+ async function exportBundle(){setBusy(true);setError('');try{await(window as typeof window&{frameuiFlushSaves?:()=>Promise<void>}).frameuiFlushSaves?.();const result=await window.frameui.prototype.exportHandoff(document.id,notes);if(result.ok){setSaved(result.filePath??'Developer handoff saved');setWarnings(result.warnings??[])}}catch(e){setError(userFacingError(e))}finally{setBusy(false)}}
+ return <ModalShell size="standard" ariaLabel="Developer handoff" onClose={onClose} critical={busy}>
+  <ModalHeader title="Hand off to development" description="Give your team the approved design and everything Claude Code needs to implement it in their repository." onClose={onClose} closeDisabled={busy}/>
+  <ModalBody><div className="studio-import-counts"><div><strong>{document.pages.length}</strong><span>Screens</span></div><div><strong>{document.prototype?.flows.length??0}</strong><span>Flows</span></div><div><strong>{document.prototype?.interactions.length??0}</strong><span>Actions</span></div></div>
+   <p className="studio-import-note">Includes the editable design, screen previews, assets, fonts, component and prop mappings, tokens, interactions, test scenarios and a Claude Code implementation brief.</p>
+   {!saved?<ModalField label="Notes for the developer" hint="Add requirements, decisions or backend details that aren’t shown in the design."><textarea aria-label="Notes for the developer" rows={4} maxLength={12000} value={notes} disabled={busy} onChange={e=>setNotes(e.target.value)} placeholder="For example: reuse the existing sign-in service; the new security panel is optional."/></ModalField>:<><p role="status">Handoff saved to {saved}</p><p className="studio-import-note">Unzip it into the developer’s repository. Open Claude Code there and paste:</p><textarea aria-label="Claude Code handoff prompt" rows={4} readOnly value={prompt}/><button onClick={()=>void navigator.clipboard.writeText(prompt).then(()=>setCopied(true)).catch(e=>setError(userFacingError(e)))}>{copied?'Copied':'Copy Claude Code prompt'}</button></>}
+   {!!warnings.length&&<details><summary>{warnings.length} preview notes</summary>{warnings.map(w=><p key={w}>{w}</p>)}</details>}{error&&<p role="alert">{error}</p>}
+  </ModalBody><ModalFooter><span className="studio-import-note">Implementation happens in the developer’s repository.</span><button disabled={busy} onClick={onClose}>{saved?'Done':'Cancel'}</button>{!saved&&<button className="primary" disabled={busy} onClick={()=>void exportBundle()}>{busy?'Preparing handoff…':'Export handoff ZIP'}</button>}</ModalFooter>
+ </ModalShell>
+}

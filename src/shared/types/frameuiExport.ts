@@ -71,6 +71,9 @@ export interface FrameUiExportNode {
   radius: [number, number, number, number]
   effects: FrameUiEffect[]
   text?: {
+    gradient?: import('./richText').TextGradient | null
+    color?: string
+    captureLines?: import('./structuredDesign').StructuredTypography['captureLines']
     characters: string
     fontFamily: string
     fontStyle: string
@@ -84,7 +87,7 @@ export interface FrameUiExportNode {
     paragraphSpacing?: number
     runs?: import('./richText').TextStyleRun[]
   }
-  vector?: { path?: string; viewBox?: string; svg?: string }
+  vector?: { path?: string; viewBox?: string; svg?: string; tag?: string; geometry?: Record<string,string> }
   image?: { assetId: string; fit: 'COVER' | 'CONTAIN' | 'FILL' }
   component?: {
     componentId: string
@@ -92,6 +95,8 @@ export interface FrameUiExportNode {
     overrides?: string[]
     variants?: { id: string; name: string; properties: Record<string, string>; children: FrameUiExportNode[] }[]
   }
+  captureAppearance?: import('./structuredDesign').StructuredAppearance
+  control?: import('./structuredDesign').StructuredSource['control']
   tokenBindings?: Record<string, string>
   source?: { component?: string; selector?: string }
 }

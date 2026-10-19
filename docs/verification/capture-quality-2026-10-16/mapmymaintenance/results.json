@@ -1,0 +1,30 @@
+[
+  {
+    "width": 390,
+    "diffPercent": 1.8505128205128205,
+    "fonts": 42,
+    "warnings": [
+      "An image could not be embedded. Check the screenshot preview for its appearance.",
+      "A background resource could not be embedded; its appearance may differ.",
+      "A background resource could not be embedded; its appearance may differ.",
+      "A background resource could not be embedded; its appearance may differ."
+    ],
+    "texts": {
+      "count": 245
+    }
+  },
+  {
+    "width": 1440,
+    "diffPercent": 0.8840972222222222,
+    "fonts": 42,
+    "warnings": [
+      "An image could not be embedded. Check the screenshot preview for its appearance.",
+      "A background resource could not be embedded; its appearance may differ.",
+      "A background resource could not be embedded; its appearance may differ.",
+      "A background resource could not be embedded; its appearance may differ."
+    ],
+    "texts": {
+      "count": 251
+    }
+  }
+]

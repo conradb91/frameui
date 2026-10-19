@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-08",
+  "change": "Staging and production present a download, upload and verify flow immediately; native save dialog writes the project verification token to frameui-verification.txt. Localhost requires no file.",
+  "tests": {
+    "build": "passed",
+    "changedFileLint": "passed",
+    "runtimeAndErrorTests": 8,
+    "developmentWorkflow": "passed",
+    "mountedDmgWorkflows": [
+      "modal-system",
+      "new-design-capture"
+    ],
+    "downloadChecks": [
+      "cancel creates no file",
+      "default filename",
+      "downloaded token matches current project",
+      "staging and production choices",
+      "missing file error",
+      "successful verification",
+      "local capture needs no file"
+    ],
+    "packagedFilesMatchBuild": true,
+    "dmgChecksum": "valid",
+    "freshProfile": "review-1791438376477-0d9af3f6-bb17-45ed-80e9-25549e71809c"
+  },
+  "release": {
+    "path": "release/FrameUI-0.1.0-x64.dmg",
+    "sha256": "61f2278d36b90eac5421e6219e230c8eab8ea79d1260b029fbe29247778134b7"
+  }
+}

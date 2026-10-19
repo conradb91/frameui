@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-16",
+  "changes": [
+    "Repository-aware design context includes selected native scene graph, actual preview, ranked components, prop contracts, tokens and routes.",
+    "New compositions and palettes are allowed by default; keeping the current layout is optional.",
+    "Source component instancing supports real props and preserves native component bindings; captured element cloning retains styling.",
+    "Reuse checks request correction and block import when available project components or captured elements are not used.",
+    "Zero-height overflow-visible wrappers preserve visible controls rather than collapsing an editable page to a raster.",
+    "Text-only bound components remain visible in canvas and previews.",
+    "Creation honours radius, borders, shadows, gradients and typography parameters.",
+    "New text with unspecified dimensions uses measured auto sizing; rendered overflow and sibling text overlap are reported.",
+    "Effort levels come from official Claude Code model capability metadata, persist per model and are sent using --effort.",
+    "FrameUI exposes design-only AI tools and rejects repository implementation requests.",
+    "Developer handoff is available after approval and in the main Export dialog. It includes native and normalized editable design files, previews, assets, fonts, component/prop mappings, tokens, full prototype data, test scenarios, source fingerprints, notes and a Claude Code implementation brief."
+  ],
+  "verification": {
+    "build": "typecheck and production build passed",
+    "unit": {
+      "passed": 383,
+      "failed": 0,
+      "assertions": 1265,
+      "files": 70
+    },
+    "liveClaude": {
+      "status": "PASS",
+      "live": true,
+      "checks": [
+        "real localhost capture and component resolution",
+        "actual project component context",
+        "new composition using bound repository components",
+        "source component variant props and readable label",
+        "rendered text measurement, correction and visual warnings",
+        "explicit editable import",
+        "source files preserved"
+      ],
+      "designReview": {
+        "approach": "explore",
+        "pages": [
+          {
+            "id": "897e5050-d657-46d6-ac6e-deb3bc073183",
+            "name": "Login \u2013 Violet",
+            "reusedElements": 0,
+            "components": [
+              "Brand",
+              "Button"
+            ],
+            "warnings": []
+          }
+        ],
+        "errors": [],
+        "reference": "Login"
+      }
+    },
+    "finalPackagedRepositoryWorkflow": {
+      "status": "PASS",
+      "live": false,
+      "checks": [
+        "real localhost capture and component resolution",
+        "actual project component context",
+        "new composition using bound repository components",
+        "source component variant props and readable label",
+        "rendered text measurement, correction and visual warnings",
+        "explicit editable import",
+        "source files preserved",
+        "Low to High effort reaches the CLI",
+        "developer handoff ZIP including full native design and Claude Code brief"
+      ],
+      "designReview": {
+        "approach": "explore",
+        "pages": [
+          {
+            "id": "f045c3a6-27ad-4e87-93e1-9f87a86d802a",
+            "name": "Harbour Renewed",
+            "reusedElements": 0,
+            "components": [
+              "Button"
+            ],
+            "warnings": []
+          }
+        ],
+        "errors": [],
+        "reference": "Login"
+      }
+    },
+    "mountedInstaller": [
+      "designer journey in light/dark themes, capture, editing, flow and compact modals",
+      "5-screen prototype, input, navigation, revision, restart recovery, approval and undo/redo",
+      "API design workflow, repository implementation rejected, cancellation and credential isolation"
+    ],
+    "officialCliFixture": "login failure/success, reference images, private MCP, rendered images, cancellation and subprocess cleanup passed"
+  },
+  "limits": [
+    "Live generation used a temporary captured React repository, not the user\u2019s Budget repository.",
+    "Prototype variables and authentication views are design simulations; backend implementation takes place in the developer repository.",
+    "PNG handoff previews are capped at 2560 \u00d7 4096; the full native hierarchy is exported."
+  ],
+  "release": {
+    "file": "release/FrameUI-0.1.0-x64.dmg",
+    "sha256": "79e33061443ab04c76a6eb698413cfed847aafa9340c4b3c374b027b0f1253a9",
+    "dmgChecksum": "valid",
+    "freshBuildProfile": true,
+    "sourceProjectsAndExistingProfilesPreserved": true
+  }
+}

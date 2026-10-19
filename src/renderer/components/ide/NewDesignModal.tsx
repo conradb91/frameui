@@ -10,9 +10,9 @@ function assetName(asset: LibraryAsset): string {
 }
 
 const START_OPTIONS = [
-  { id: 'blank', title: 'Blank canvas', description: "Start with an empty frame and build using your project's components, styles and assets.", icon: Sparkles },
-  { id: 'capture', title: 'Capture application', description: 'Open your saved local app, navigate to any state, and turn it into an editable design.', icon: MonitorDown },
-  { id: 'existing', title: 'Existing page', description: 'Start from a page FrameUI already discovered in this repository.', icon: LayoutTemplate },
+  { id: 'blank', title: 'Blank canvas', description: 'Build an idea with your project’s components.', icon: Sparkles },
+  { id: 'capture', title: 'Capture application', description: 'Capture a page or state from your running app.', icon: MonitorDown },
+  { id: 'existing', title: 'Existing page', description: 'Reuse a page already captured or discovered.', icon: LayoutTemplate },
 ] satisfies { id: 'blank' | 'capture' | 'existing'; title: string; description: string; icon: typeof Sparkles }[]
 
 /**
@@ -60,28 +60,26 @@ export function NewDesignModal({
   return (
     <ModalShell
       as="form"
-      size={startWith === 'existing' && !initialAsset ? 'wide' : 'large'}
+      size={startWith === 'existing' && !initialAsset ? 'large' : 'standard'}
       variant="form"
       onClose={onCancel}
       onSubmit={(e) => { e.preventDefault(); submit() }}
       className="ide-new-design-dialog"
     >
       <ModalHeader
-        eyebrow="Design workspace"
         title="Create editable design"
-        description="Start with a blank canvas, a discovered page, or the current state of your running application."
+        description={initialAsset?`Create an independent, editable design from ${assetName(initialAsset)}.`:'Choose a starting point. Your project’s components and styles stay available.'}
         icon={<FilePlus2 size={17} />}
         onClose={onCancel}
-        meta={initialAsset ? <><span>Source <strong>{assetName(initialAsset)}</strong></span><span>Project styles <strong>Available</strong></span></> : undefined}
       />
       <ModalBody>
         <ModalSection title="Design">
-          <ModalField className="ide-design-name-field" label="Design name" error={duplicateName ? 'A design with this name already exists in the project.' : undefined} hint="Give the design a clear workspace name. You can change it later.">
+          <ModalField className="ide-design-name-field" label="Design name" error={duplicateName ? 'A design with this name already exists in the project.' : undefined} hint="You can rename it later.">
             <input autoFocus aria-label="Design name" placeholder="Untitled design" value={name} onChange={(e) => setName(e.target.value)} />
           </ModalField>
         </ModalSection>
-        <ModalSection title="Starting point" description="Choose the content FrameUI should place on the first canvas.">
-          <div className="ide-start-cards" role="radiogroup" aria-label="Start with">
+        {!initialAsset&&<ModalSection title="Starting point">
+          <div className="ide-start-cards" role="radiogroup" aria-label="Start with" onKeyDown={e=>{if(initialAsset||!['ArrowRight','ArrowDown','ArrowLeft','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=START_OPTIONS.findIndex(o=>o.id===startWith),next=e.key==='Home'?0:e.key==='End'?2:(current+(['ArrowRight','ArrowDown'].includes(e.key)?1:-1)+3)%3;setStartWith(START_OPTIONS[next].id);if(START_OPTIONS[next].id!=='existing')setSelectedPage(null);e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()}}>
           {START_OPTIONS.map((opt) => {
             const Icon = opt.icon
             return (
@@ -89,6 +87,7 @@ export function NewDesignModal({
               type="button"
               key={opt.id}
               role="radio"
+              tabIndex={startWith===opt.id?0:-1}
               aria-checked={startWith === opt.id}
               className={`ide-start-card ${startWith === opt.id ? 'selected' : ''}`}
               disabled={!!initialAsset}
@@ -100,7 +99,7 @@ export function NewDesignModal({
             </button>
           )})}
           </div>
-        </ModalSection>
+        </ModalSection>}
         {startWith === 'existing' && (
           initialAsset ? (
             <ModalSection title="Selected source"><ModalSummary items={[{ label: 'Page or component', value: assetName(initialAsset) }, { label: 'Destination', value: addToExisting && destination !== 'new' ? existingDesigns.find((design) => design.id === destination)?.name ?? 'Existing design' : 'New design' }]} /></ModalSection>
@@ -114,7 +113,7 @@ export function NewDesignModal({
         {startWith !== 'capture' && existingDesigns.length > 0 && <ModalSection title="Destination">
           <label className="ide-check">
             <input type="checkbox" checked={addToExisting} onChange={(e) => setAddToExisting(e.target.checked)} />
-            Add to an existing design instead of creating a new one
+            Add to an existing design
           </label>
         
         {addToExisting && (
@@ -125,7 +124,6 @@ export function NewDesignModal({
             </select>
           </ModalField>
         )}</ModalSection>}
-        <ModalNotice tone="info">Editing the FrameUI design does not immediately change your application source files.</ModalNotice>
       </ModalBody>
       <ModalFooter note={startWith === 'capture' ? 'The capture workspace will open next.' : 'Project styles and reusable assets remain available.'}>
         <button type="button" onClick={onCancel}>Cancel</button>

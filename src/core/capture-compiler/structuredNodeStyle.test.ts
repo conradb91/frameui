@@ -129,3 +129,9 @@ describe('styleToInlineCss', () => {
     expect(styleToInlineCss({ width: 200 })).toBe('width:200px')
   })
 })
+
+test('single-line captured text cannot be rewrapped by the original text-wrap longhand', () => {
+  const style = typographyStyleFor({ text: 'No bank password', fontFamily: 'Inter', fontSize: 14, fontWeight: '600', lineHeight: 20, letterSpacing: 0, textAlign: 'start', whiteSpace: 'pre', textWrap: 'wrap' })
+  expect(style.whiteSpace).toBe('pre')
+  expect(style.textWrap).toBe('nowrap')
+})

@@ -1,0 +1,95 @@
+{
+  "date": "2026-10-15",
+  "scope": "Designer workflow, visual refresh, capture/editability reliability and prototype review",
+  "status": "verified",
+  "changes": {
+    "startup": "Projects open directly with an inline four-step path; the former blocking four-page tour is now concise optional help.",
+    "visualDesign": "Neutral light and dark surfaces, compact typography, consistent modern inputs and focus states, quieter borders, reduced shadows and decoration, compact source choices, contextual labels and less empty-state duplication. Starting from a known captured page skips disabled source choices entirely.",
+    "projectJourney": "Inline Repository \u2192 Connect app \u2192 Capture pages \u2192 Design & prototype navigation with working actions and persisted connection state.",
+    "connections": "Pages accepts localhost and verified HTTPS hosts. Domain verification can be downloaded and completed from Pages, setup or capture. Source/URL fields retain full widths. Newer typed addresses are preserved when a previous verification finishes.",
+    "editableCapture": "Captured native screens retain their structured trees, independent element IDs and fonts when creating a design or adding them from the library. New designs retain project component context and app URL.",
+    "inspector": "Native captured layers now expose font, weight, alignment, spacing, colour, opacity, corner radius, border, shadow, rotation and visibility, alongside position/size and inline text editing.",
+    "prototypes": "Friendly action names, a shared accessible import-confirmation modal, stable draft revisions and existing explicit approval workflow.",
+    "robustness": "Modal-aware keyboard/menu commands, nested dialog handling, input hints and errors associated with their controls, project-load race guards, sensible recovery when Claude Code is no longer installed.",
+    "performance": [
+      "Graph, prototype runner and draft review load on demand.",
+      "The 184.52 KB graph module is absent at startup; actual Chromium script-loading events confirm it loads on Flow entry.",
+      "Capture lists index screens by route/session instead of repeated full scans.",
+      "Flow metadata edits preserve existing page references and memoized thumbnails.",
+      "Prototype hotspot/state DOM work no longer reruns for every form keystroke.",
+      "Consecutive manual draft edits coalesce into one manual version instead of appending a full document for every edit."
+    ]
+  },
+  "mainFiles": [
+    "src/renderer/styles/studio.css",
+    "src/shared/theme.ts",
+    "src/renderer/components/onboarding/FirstRunOnboarding.tsx",
+    "src/renderer/components/ui/Modal.tsx",
+    "src/renderer/components/ide/Ui.tsx",
+    "src/renderer/components/ide/ProjectSetupModal.tsx",
+    "src/renderer/components/ide/ProjectLibrary.tsx",
+    "src/renderer/components/ide/RuntimeSettings.tsx",
+    "src/renderer/components/ide/PagesWorkspace.tsx",
+    "src/renderer/components/ide/StructuredSelectionPanel.tsx",
+    "src/renderer/components/ide/DesignIde.tsx",
+    "src/core/ai/canvas.ts",
+    "src/core/runtime/address.ts",
+    "src/renderer/components/ide/prototype/LazyWorkspaces.tsx",
+    "src/renderer/components/ide/prototype/DraftReview.tsx",
+    "src/main/prototype/drafts.ts"
+  ],
+  "verification": {
+    "productionBuildAndTypecheck": "passed",
+    "unitSuite": {
+      "passed": 373,
+      "failed": 0,
+      "files": 69,
+      "assertions": 1212
+    },
+    "designerJourney": "passed: startup, optional guidance, setup, file download and host verification, local capture, editable design creation, native property editing and hide/show, flow, preview, themes and compact dialog containment",
+    "hostVerificationTestScope": "The real verification download/save/verify IPC is exercised against fixture tokens. Remote verification responses and remote reachability are deterministic test transports; no claim is made of deploying a verification file to a public website.",
+    "prototype": "passed: isolated generation, real form input, back/state, revisions, coalesced manual versions, restart/recovery, approval, disk-write failure rollback/retry, undo/redo, manual connections, shared screens and 20-screen flow",
+    "capture": "passed: direct and multi-size batch capture, dynamic routes, failure isolation, sign-in/resume, editable persistence; interactive capture and inline text editing",
+    "projectHub": "passed: saved projects, filtering/sort, grid/list, missing folder recovery, setup cancellation and compact help",
+    "projectOpening": {
+      "pages": 300,
+      "mainProcessTicks": 138,
+      "ipcResponsiveDuringRebuild": true
+    },
+    "modalSystem": "passed: focus trap/restoration, Escape, backdrop policies, validation, themes and small-window containment",
+    "claudeCode": "passed: login, models, references, subprocess/tool boundary, cancellation/failure, credential isolation and disconnect without logout",
+    "anthropicApi": "passed: tool loop, source proposals, apply/undo, component reuse, approved commands and runtime comparison",
+    "canvas": "passed: presets, grids, drawing, styling, commands, components, offline prototypes, resizing and persistence",
+    "packagedApp": "passed: mounted checksum-verified DMG; complete designer journey, lazy graph loading, AI prototype/import/restart/rollback, modal keyboard behaviour and fresh build-specific profile",
+    "targetedLint": "passed: shared modal, startup guidance, new-design form, native inspector, runtime settings, lazy workspaces and address validation"
+  },
+  "limits": [
+    "Prototype interactions simulate local behaviour; they do not execute a real application backend.",
+    "Arbitrary source-component state machines, custom animations and partial draft approval remain outside the implemented prototype runtime.",
+    "The review package targets macOS x64 and uses the existing unsigned local-review configuration."
+  ],
+  "localOnly": true,
+  "sourceProjectsAndUserDatabasesPreserved": true,
+  "screenshots": [
+    "docs/verification/designer-studio-2026-10-15/01-home-light.png",
+    "docs/verification/designer-studio-2026-10-15/02-optional-guide.png",
+    "docs/verification/designer-studio-2026-10-15/03-project-setup.png",
+    "docs/verification/designer-studio-2026-10-15/04-project-workspace.png",
+    "docs/verification/designer-studio-2026-10-15/05-captured-pages.png",
+    "docs/verification/designer-studio-2026-10-15/06-create-from-page.png",
+    "docs/verification/designer-studio-2026-10-15/07-editable-canvas.png",
+    "docs/verification/designer-studio-2026-10-15/08-flow-builder.png",
+    "docs/verification/designer-studio-2026-10-15/09-prototype.png",
+    "docs/verification/designer-studio-2026-10-15/10-settings-dark.png",
+    "docs/verification/designer-studio-2026-10-15/11-canvas-dark.png",
+    "docs/verification/designer-studio-2026-10-15/12-ai-context-dark.png",
+    "docs/verification/designer-studio-2026-10-15/13-compact-dialog.png",
+    "docs/verification/designer-studio-2026-10-15/14-hosted-verification.png"
+  ],
+  "release": {
+    "path": "release/FrameUI-0.1.0-x64.dmg",
+    "sha256": "884e0230cd6ab0deaafc8b151e9e07c2302e11c2d5e09a19ca881ce4ce3f2ea2",
+    "freshProfile": true,
+    "olderReleaseRemovedAfterVerification": true
+  }
+}

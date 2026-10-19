@@ -1,3 +1,5 @@
+import {textStyleRunSchema} from './textStyleSchema'
+import { prototypeSchema } from '../prototype/schema'
 import { z } from 'zod'
 import type { VisualObject } from '../../shared/types/visualDesign'
 import { structuredFrameSchema } from '../capture-compiler/schema'
@@ -65,12 +67,7 @@ export const visualObjectSchema: z.ZodType<VisualObject> = z.lazy(() =>
     imageFit: z.enum(['cover', 'contain', 'fill']).optional(),
     arrow: z.boolean().optional(),
     text: z.string().optional(),
-    textRuns: z.array(z.object({
-      start: z.number().int().min(0),
-      end: z.number().int().min(0),
-      fontWeight: z.string().max(40).optional(),
-      color: z.string().max(100).optional(),
-    }).refine((run) => run.end > run.start, 'Text run must have a positive range.')).max(5000).optional(),
+    textRuns: z.array(textStyleRunSchema).max(5000).optional(),
     src: z
       .string()
       .refine(
@@ -129,6 +126,7 @@ export const visualObjectSchema: z.ZodType<VisualObject> = z.lazy(() =>
   }),
 )
 export const visualDocumentSchema = z.object({
+  prototype: prototypeSchema.optional(),
   version: z.literal(1),
   id,
   name: z.string().max(500),
@@ -149,6 +147,7 @@ export const visualDocumentSchema = z.object({
       authProfile: z.string().optional(),
       state: z.string(),
       route: z.string().optional(),
+      artifactSource: z.object({path:z.string().max(4096),steps:z.array(z.string().max(4096)).max(4)}).optional(),
       sourceHash: z.string().optional(),
       capturedAt: z.string().optional(),
       width: finite.positive(),
@@ -171,6 +170,8 @@ export const visualDocumentSchema = z.object({
             family: z.string(),
             weight: z.string(),
             style: z.string(),
+            unicodeRange: z.string().optional(),
+            stretch: z.string().optional(),
             data: z.string().startsWith('data:'),
           }),
         )
@@ -179,6 +180,7 @@ export const visualDocumentSchema = z.object({
       structured: structuredFrameSchema.optional(),
       thumbnail: z.string().optional(),
       fullPageScreenshot: z.string().optional(),
+      canvasPreview: z.string().optional(),
       edited: z.boolean().optional(),
       importedObjects: z.array(visualObjectSchema).optional(),
       captureStatus: z

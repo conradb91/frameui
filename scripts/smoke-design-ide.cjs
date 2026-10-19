@@ -116,7 +116,7 @@ const fs = require('node:fs'),
       .getByRole('button', { name: 'Open Codebase', exact: true })
       .click()
     await page.getByRole('dialog', { name: 'Prepare Ledger for FrameUI' }).waitFor()
-    await page.getByLabel('Local preview', { exact: true }).fill(url)
+    await page.getByLabel('App address', { exact: true }).fill(url)
     await page.getByRole('button', { name: 'Prepare project', exact: true }).click()
     await page.getByRole('dialog', { name: 'Ledger is ready' }).waitFor({ timeout: 60000 })
     await page.getByRole('button', { name: 'Review project', exact: true }).click()

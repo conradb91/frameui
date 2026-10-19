@@ -3,7 +3,7 @@ import type { StructuredFrame, StructuredNode } from '@shared/types/structuredDe
 /**
  * Stage 9 sub-slice 3 (docs/CAPTURE_ENGINE_REBUILD_SPEC.md §23) — decides
  * which already-compiled `StructuredNode`s should become `RasterFallback`
- * based on a per-pixel diff mask (original screenshot vs. real HTML/CSS
+ * for explicitly unsupported media based on a per-pixel diff mask (original screenshot vs. real HTML/CSS
  * render), not by tag. Sub-slices 1-2 already handle the tag-identifiable
  * cases (canvas, iframe/frame) at compile time; this catches whatever
  * renders wrong for reasons that AREN'T tag-identifiable (unusual masks,
@@ -71,6 +71,10 @@ export function selectRasterFallbackCandidates(
       const { width, height } = node.bounds
       if (
         node.children.length === 0 &&
+        !['frameui-root','html','body'].includes(node.source.tag) &&
+        !node.componentBinding &&
+        !node.source.control &&
+        ['canvas','iframe','frame','video','object','embed'].includes(node.source.tag) &&
         node.type !== 'Text' &&
         node.type !== 'RasterFallback' &&
         width * height >= minArea

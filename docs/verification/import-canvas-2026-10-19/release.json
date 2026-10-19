@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-19",
+  "tests": 434,
+  "assertions": 1632,
+  "failures": 0,
+  "build": "passed",
+  "typecheck": "passed",
+  "targetedLint": "no errors; three pre-existing hook warnings",
+  "packagedBuildFilesMatched": 26,
+  "reviewProfile": "review-1792429384733-a3f0ff06-a849-4faf-b875-9d871d65ad41",
+  "asarSha256": "86da41541a7f3d60ad084e90862a371076377b177d9c1e9ba1dfc9f131563b79",
+  "dmgSha256": "a103830e9cc374a2e83725f63f5f6f82dffc29baf68fff6c8b3ad3219ebe826f",
+  "mountedDmgMatchesApp": true,
+  "dmgChecksum": "valid",
+  "packagedChecks": [
+    "connected twelve-page import, content bounds, camera and playback style parity",
+    "import progress and cancellation",
+    "HTML and ZIP, edit/save/reopen and linked states",
+    "running-app capture",
+    "gradients and mixed-weight text"
+  ],
+  "overviewNativeNodes": 0,
+  "activeNativeNodes": 13,
+  "zoomFixtureP95ms": 17.5
+}

@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-07",
+  "scope": "Claude design and code integration; all changes local",
+  "authentication": {
+    "primary": "Anthropic Console API key, entered through native system dialog; macOS Keychain / Windows Credential Manager",
+    "optional": "Existing official ant CLI frameui profile, tokens requested through print-credentials",
+    "browserLogin": "Development builds only; CLI not bundled",
+    "workspace": "Optional workspace ID for multi-workspace API keys; model list fetched from account"
+  },
+  "implemented": [
+    "Main-process Messages API tool loop with cancellation and bounded context",
+    "Project source, component intelligence, route, token, asset and font retrieval",
+    "Current selection and artboard context plus related project designs",
+    "Native editable document operations with component/source/token bindings",
+    "Local font byte resolution and source-derived component previews",
+    "Reference attachment, project-style default, artboard rendering and bounded pixel comparison",
+    "Design mode source/command restrictions",
+    "Reviewed source proposals, explicit apply, local checkpoints and guarded undo",
+    "Git HEAD/branch guard without automatic commits or pushes",
+    "Approved package scripts and managed development process",
+    "Approved project-runtime capture and comparison",
+    "Activity panel, provider connection, model selection and disconnect"
+  ],
+  "verification": {
+    "build": "passed",
+    "unitTests": {
+      "passed": 350,
+      "failed": 0,
+      "files": 65
+    },
+    "focusedLint": "passed",
+    "diffCheck": "passed",
+    "developmentElectronFlow": "passed",
+    "mountedDmgClaudeFlow": "passed",
+    "packagedModalSuite": "passed",
+    "packagedCaptureSuite": "passed including direct drag, camera gestures, inline editing and persistence",
+    "dmgChecksum": "hdiutil verified",
+    "freshReviewProfile": "verified empty, build-specific profile; temporary test profile removed"
+  },
+  "integrationTestTransport": "Deterministic mock Anthropic responses with transient test CLI tokens; real Electron IPC, renderer, component compiler, repository indexing, local runtime capture, file proposal/apply/undo and package command execution.",
+  "release": "release/FrameUI-0.1.0-x64.dmg",
+  "limitations": [
+    "No live Anthropic API key or paid Claude request was used; live account verification remains necessary.",
+    "Windows native credential storage is implemented but has not been exercised on this macOS machine.",
+    "Source-derived component previews can be partial; runtime-dependent components may need an existing capture.",
+    "Visual comparison is a bounded viewport pixel comparison, not guaranteed semantic diagnoses of font or layout differences.",
+    "Checkpoints snapshot affected files and guard Git HEAD/branch; they do not create Git commits."
+  ],
+  "references": [
+    "https://platform.claude.com/docs/en/manage-claude/authentication",
+    "https://platform.claude.com/docs/en/cli-sdks-libraries/cli/authentication",
+    "https://platform.claude.com/docs/en/cli-sdks-libraries/cli/scripting",
+    "https://platform.claude.com/docs/en/api/messages/create"
+  ],
+  "productionApplicationModified": false,
+  "budgetRepoModified": false,
+  "committedOrPushed": false
+}

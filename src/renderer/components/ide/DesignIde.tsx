@@ -1,3 +1,13 @@
+import {zoomAt} from '@core/visual/camera'
+import {layoutArtifactScreens} from '@core/prototype/artifactLayout'
+import { artifactFlow } from '@core/prototype/artifactFlow'
+import {applicationAddress} from '@core/runtime/address'
+import { addScreenToDocument } from '@core/ai/canvas'
+import { FlowWorkspace } from './prototype/LazyWorkspaces'
+import { PrototypeRunner } from './prototype/LazyWorkspaces'
+import { InteractionInspector } from './prototype/InteractionInspector'
+import './prototype/prototype.css'
+import { ClaudePanel } from './ClaudePanel'
 import { StructuredLayers, StructuredSelectionPanel } from './StructuredSelectionPanel'
 import { patchStructuredNode } from '@core/capture-compiler/edit'
 import { useCanvasCamera } from './useCanvasCamera'
@@ -12,7 +22,7 @@ import { StructuredCapturePreview } from './StructuredCapturePreview'
 import { ProjectSetupModal } from './ProjectSetupModal'
 import { openFirstRunOnboarding } from '../onboarding/FirstRunOnboarding'
 import { ProgressModal } from '../ui/ProgressModal'
-import { ModalBody, ModalField, ModalFooter, ModalHeader, ModalNotice, ModalSection, ModalShell, ModalSummary } from '../ui/Modal'
+import { ModalBody, ModalField, ModalFooter, ModalHeader, ModalNotice, ModalProgress, ModalSection, ModalShell, ModalSummary } from '../ui/Modal'
 import { PageBrowser } from './PageBrowser'
 import { detectedAssets } from './pageLibrary'
 import { type ProjectSection } from './ProjectNav'
@@ -136,15 +146,16 @@ function arrangeCanvasFrames(pages: VisualPage[]) {
   })
 }
 
-const canUseStructuredCanvas = (page: VisualPage) =>
-  !!page.structured?.captureMetadata.visualMatch &&
-  page.structured.captureMetadata.visualMatch.diffPercent <= 5
+// Visual differences are diagnostics, never a reason to hide native editable layers.
+const canUseStructuredCanvas = (page: VisualPage) => !!page.structured
+
 
 function CanvasFrameTitle({
   page,
   zoom,
   onRename,
   onMoveBy,
+  onMoveEnd,
   active = true,
   selected = false,
   onActivate,
@@ -153,6 +164,7 @@ function CanvasFrameTitle({
   zoom: number
   onRename: (name: string) => void
   onMoveBy: (dx: number, dy: number) => void
+  onMoveEnd?: () => void
   active?: boolean
   selected?: boolean
   onActivate?: () => void
@@ -169,7 +181,7 @@ function CanvasFrameTitle({
     moved: boolean
   } | null>(null)
   const ignoreClick = useRef(false)
-  const scale = 1 / zoom
+  const scale = Math.min(4,1 / zoom)
 
   useEffect(() => {
     if (!editing) setDraft(page.name)
@@ -221,6 +233,7 @@ function CanvasFrameTitle({
             className="ide-canvas-frame-title"
             aria-label={`Frame title ${page.name}`}
             style={{
+              maxWidth: `${page.width}px`,
               fontSize: `${11 * scale}px`,
               gap: `${5 * scale}px`,
               padding: `${2 * scale}px ${3 * scale}px`,
@@ -254,12 +267,13 @@ function CanvasFrameTitle({
             onPointerUp={(event) => {
               event.stopPropagation()
               ignoreClick.current = !!drag.current?.moved
+              if(drag.current?.moved)onMoveEnd?.()
               drag.current = null
               if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
               setDragging(false)
             }}
-            onPointerCancel={() => { drag.current = null; ignoreClick.current = false; setDragging(false) }}
-            onLostPointerCapture={() => { drag.current = null; setDragging(false) }}
+            onPointerCancel={() => { if(drag.current?.moved)onMoveEnd?.();drag.current = null; ignoreClick.current = false; setDragging(false) }}
+            onLostPointerCapture={() => { if(drag.current?.moved)onMoveEnd?.();drag.current = null; setDragging(false) }}
             onClick={() => {
               if (ignoreClick.current) {
                 ignoreClick.current = false
@@ -278,7 +292,7 @@ function CanvasFrameTitle({
             data-active={active ? 'true' : undefined}
           >
             <span>{page.name}</span>
-            <small>· {page.width} × {page.height}</small>
+            {zoom>=0.25&&<small>· {page.width} × {page.height}</small>}
           </button>
         )}
       </div>
@@ -387,6 +401,7 @@ export function DesignIde() {
   // the `StructuredNode` currently in inline text-edit mode, if any.
   const [editingStructuredId, setEditingStructuredId] = useState<string | null>(null)
   const [mode, setMode] = useState('Pages')
+  const [connectAppOpen,setConnectAppOpen]=useState(false),[connectAppUrl,setConnectAppUrl]=useState(''),[connectingApp,setConnectingApp]=useState(false),[connectAppError,setConnectAppError]=useState('')
   const [projectSection, setProjectSection] = useState<ProjectSection>('Designs')
   const [importSummary, setImportSummary] = useState('')
   // Capture is not a destination of its own — it's entered over the current
@@ -404,9 +419,10 @@ export function DesignIde() {
   const [captureNamePending, setCaptureNamePending] = useState(false)
   const [pendingProject, setPendingProject] = useState<{ project: RecentProject; index: ProjectIndex | null } | null>(null)
   const [inspector, setInspector] = useState('Design')
+  const [studioActive,setStudioActive]=useState(false)
   const [search, setSearch] = useState('')
   const [tool, setTool] = useState<Tool>('Select')
-  const { camera, setCamera, navigateCamera, finishCamera, cameraGroup, cameraOverlay } = useCanvasCamera({ x: 80, y: 70, zoom: 0.65 })
+  const { getCamera, camera, setCamera, navigateCamera, finishCamera, cameraGroup, cameraOverlay } = useCanvasCamera({ x: 80, y: 70, zoom: 0.65 })
   const [sourceBusy, setSourceBusy] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
@@ -417,6 +433,7 @@ export function DesignIde() {
     [help, setHelp] = useState(false),
     [settings, setSettings] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
+    [exportInitialFormat,setExportInitialFormat] = useState<'figma'|'adobe-xd'>('figma'),
     [structuredPreviewOpen, setStructuredPreviewOpen] = useState(false)
   // The legacy `selected` state is cleared at each of its own many call
   // sites individually; `selectedStructured` is simpler to keep in sync
@@ -464,6 +481,7 @@ export function DesignIde() {
   const [hover, setHover] = useState<VisualPage | VisualObject | null>(null)
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null)
   const [panning, setPanning] = useState(false)
+  const [flowMode,setFlowMode]=useState(false),[flowId,setFlowId]=useState(''),[prototypeOpen,setPrototypeOpen]=useState(false)
   const [present, setPresent] = useState(false)
   const [question, setQuestion] = useState<{
     label: string
@@ -543,6 +561,8 @@ export function DesignIde() {
     ? undefined
     : (doc?.pages.find((p) => p.id === pageId) ?? doc?.pages[0])
   const canvasFrames = useMemo(() => arrangeCanvasFrames(doc?.pages ?? []), [doc?.pages])
+  const [canvasViewport,setCanvasViewport]=useState({width:1440,height:900})
+  useEffect(()=>{const node=stage.current;if(!node)return;const observer=new ResizeObserver(()=>setCanvasViewport({width:node.clientWidth,height:node.clientHeight}));observer.observe(node);return()=>observer.disconnect()},[doc?.id,captureMode])
   const activeFramePosition = canvasFrames.find((frame) => frame.page.id === page?.id) ?? { x: 0, y: 0 }
   // Structured capture is still being visually validated asynchronously.
   // Until it has a measured, close match, draw the complete editable legacy
@@ -667,6 +687,7 @@ export function DesignIde() {
     if (!page || !stage.current) return
     if (fitAllAfterCapture.current) {
       fitAllAfterCapture.current = false
+      fittedPage.current=`${present}-${doc?.id}-${present?page.id:''}`
       requestAnimationFrame(() => fitAllFrames())
       return
     }
@@ -682,6 +703,7 @@ export function DesignIde() {
       requestAnimationFrame(() => fit())
     }
   })
+  function zoomCanvas(factor:number,exact?:number){setCamera(c=>zoomAt(c,exact??c.zoom*factor,{x:(stage.current?.clientWidth??canvasViewport.width)/2,y:(stage.current?.clientHeight??canvasViewport.height)/2}))}
   function fit(selection = false) {
     if (!page || !stage.current) return
     let x = activeFramePosition.x,
@@ -698,7 +720,7 @@ export function DesignIde() {
       zoom = Math.min(
         2,
         Math.max(
-          0.05,
+          0.001,
           Math.min((rect.width - 100) / width, (rect.height - 100) / height),
         ),
       )
@@ -714,7 +736,7 @@ export function DesignIde() {
     setSelected([])
     setSelectedStructured([])
     setReviewHistory([])
-    setPresent(true)
+    setPrototypeOpen(true)
   }
   function fitAllFrames() {
     if (!canvasFrames.length || !stage.current) return
@@ -725,7 +747,7 @@ export function DesignIde() {
     const width = maxX - minX
     const height = maxY - minY
     const rect = stage.current.getBoundingClientRect()
-    const zoom = Math.min(2, Math.max(0.05, Math.min((rect.width - 100) / width, (rect.height - 100) / height)))
+    const zoom = Math.min(2, Math.max(0.001, Math.min((rect.width - 100) / width, (rect.height - 100) / height)))
     setCamera({
       zoom,
       x: (rect.width - width * zoom) / 2 - minX * zoom,
@@ -854,14 +876,16 @@ export function DesignIde() {
     screenDy: number,
   ) {
     if (!docRef.current) return
-    const next = structuredClone(docRef.current)
-    const targetPage = next.pages.find((candidate) => candidate.id === pageId)
-    if (!targetPage) return
+    const current=docRef.current
+    const original=current.pages.find(p=>p.id===pageId);if(!original)return
+    const targetPage={...original}
+    const next={...current,pages:current.pages.map(p=>p===original?targetPage:p)}
     targetPage.canvasX = (targetPage.canvasX ?? fallbackX) + screenDx / camera.zoom
     targetPage.canvasY = (targetPage.canvasY ?? fallbackY) + screenDy / camera.zoom
-    change(next, false)
+    docRef.current=next;setDoc(next)
   }
   function open(next: VisualDocument) {
+    if(next.prototype&&next.pages.some(p=>p.artifactSource)&&next.pages.every(p=>p.canvasX===undefined))layoutArtifactScreens(next.pages,next.prototype)
     setDoc(next)
     setMode(next.libraryId ? 'Layers' : 'Pages')
     docRef.current = next
@@ -920,6 +944,70 @@ export function DesignIde() {
       }))
     return next
   }
+  const [artifactImportStage,setArtifactImportStage]=useState('')
+  const [artifactProgress,setArtifactProgress]=useState<{value?:number;detail:string;file?:string;screens?:number;connections?:number}>({detail:''})
+  const [artifactElapsed,setArtifactElapsed]=useState(0)
+  const artifactJob=useRef<{id:string;cancelled:boolean;stop:()=>void}|null>(null)
+  function stopArtifactImport(){
+    const job=artifactJob.current;if(!job||job.cancelled)return
+    void window.frameui.project.cancelPrototypeImport(job.id).catch(()=>{})
+    job.stop()
+  }
+  async function importClaudePrototype(){
+    if(artifactJob.current)return
+    const id=crypto.randomUUID(),startedAt=Date.now()
+    const job={id,cancelled:false,stop:()=>{}}
+    const stopped=new Promise<never>((_,reject)=>{job.stop=()=>{job.cancelled=true;reject(new Error('Import stopped'))}})
+    void stopped.catch(()=>{})
+    artifactJob.current=job
+    const wait=<T,>(work:Promise<T>)=>Promise.race([work,stopped])
+    setError('');setArtifactElapsed(0);setArtifactProgress({detail:'Choose an HTML artifact or ZIP. Files stay on this computer.'});setArtifactImportStage('Choose your prototype')
+    const timer=setInterval(()=>setArtifactElapsed(Math.floor((Date.now()-startedAt)/1000)),1000)
+    const unsubscribeImport=window.frameui.project.onPrototypeImportProgress(progress=>{
+      if(progress.id!==id||job.cancelled)return
+      setArtifactImportStage(progress.stage==='extract'?'Reading prototype files':'Discovering screens and connections')
+      setArtifactProgress(previous=>({...previous,file:progress.file??previous.file,value:progress.stage==='extract'&&progress.total?progress.completed/progress.total*100:undefined,detail:progress.stage==='extract'?`${progress.completed} of ${progress.total} files · ${progress.detail}`:progress.detail,screens:progress.screens,connections:progress.connections}))
+    })
+    const unsubscribe=window.frameui.design.onProgress(progress=>{
+      if(job.cancelled)return
+      setArtifactImportStage('Creating editable screens')
+      setArtifactProgress(previous=>({...previous,value:progress.total?progress.completed/progress.total*100:undefined,detail:`${progress.completed} of ${progress.total} screens · ${progress.status==='Failed'?'Could not capture':'Capturing'} ${progress.name}`}))
+    })
+    try{
+      const result=await wait(window.frameui.project.importPrototype(id))
+      if(!result)return
+      const library=buildProjectDocument(result.project,null,result.project.name,result.url)
+      save(library)
+      setArtifactImportStage('Discovering screens and connections')
+      setArtifactProgress(previous=>({...previous,value:undefined,detail:'Opening the prototype and checking its controls…'}))
+      const plan=await wait(window.frameui.design.discoverArtifact(id))
+      setArtifactImportStage('Creating editable screens')
+      setArtifactProgress(previous=>({...previous,value:0,detail:`Preparing ${plan.routes.length} screens`,screens:plan.routes.length,connections:plan.transitions.length}))
+      const pages=await wait(window.frameui.design.capture({token:plan.token,artifactImportId:id,widths:[1440],unchanged:[]}))
+      if(job.cancelled)return
+      pages.sort((a,b)=>plan.routes.findIndex(r=>r.pattern===a.route)-plan.routes.findIndex(r=>r.pattern===b.route))
+      if(!pages.length)throw new Error('No screens could be captured. Open the prototype as a running app to check its rendering.')
+      const design=newDocument(result.project.name)
+      design.projectId=result.project.id;design.libraryId=library.id;design.appUrl=result.url
+      design.pages=pages;design.prototype=artifactFlow(pages,plan.transitions,result.project.name)
+      const warnings=[...plan.warnings,...(pages.length<plan.routes.length?['Some screens could not be captured. Open Capture page to retry them.']:[])]
+      if(warnings.length)design.pages[0].captureWarnings=[...(design.pages[0].captureWarnings??[]),...warnings]
+      library.pages=structuredClone(design.pages);save(library)
+      open(design);save(design);fitAllAfterCapture.current=true
+      setStatus(`Imported ${pages.length} editable screens · ${design.prototype.interactions.length} connections`)
+    }catch(error){if(job.cancelled)setStatus('Import stopped');else setError(error instanceof Error?error.message:String(error))}
+    finally{clearInterval(timer);unsubscribe();unsubscribeImport();artifactJob.current=null;setArtifactImportStage('');void window.frameui.project.finishPrototypeImport(id).catch(()=>{});void window.frameui.project.listLibrary().then(setProjectLibrary).catch(()=>{})}
+  }
+  async function connectRunningApp(){
+    setConnectingApp(true);setConnectAppError('')
+    try{
+      const url=applicationAddress(connectAppUrl),project=await window.frameui.project.connectApplication(url)
+      const index=await window.frameui.project.getIndex()
+      const library=buildProjectDocument(project,index,project.name,url);save(library)
+      const design=newDocument(project.name+' screens');design.projectId=project.id;design.libraryId=library.id;design.appUrl=url
+      open(design);save(design);setConnectAppOpen(false);setCaptureProjectUrl(url);setCaptureMode(true)
+    }catch(e){setConnectAppError(e instanceof Error?e.message:String(e))}finally{setConnectingApp(false)}
+  }
   async function openProject(projectPath?: string) {
     setStatus('Scanning repository…')
     setError('')
@@ -940,6 +1028,7 @@ export function DesignIde() {
       if (saved) {
         const existing = await window.frameui.design.load(saved.id)
         if (existing) {
+          if(result.project.path.includes('/artifact-projects/'))existing.appUrl=(await window.frameui.project.getRuntime())?.url ?? existing.appUrl
           open(existing)
           setStatus('Saved design opened')
           return
@@ -1110,7 +1199,9 @@ export function DesignIde() {
         )
       )
         return
+      if(window.document.querySelector('[role=dialog],.ai-prototype-studio'))return
       const mod = e.metaKey || e.ctrlKey
+      if(flowMode&&(e.target as HTMLElement).closest('.flow-workspace')){if(mod&&e.key.toLowerCase()==='z'){e.preventDefault();undo(e.shiftKey)}return}
       // Stage 6 of the capture-engine rebuild (docs/CAPTURE_ENGINE_REBUILD_SPEC.md),
       // extended by the grouping-follow-up + Stage 7 (text editing): a
       // small, separate set of shortcuts for `selectedStructured` — kept
@@ -1147,7 +1238,7 @@ export function DesignIde() {
         }
         if (e.key === 'Enter' && selectedStructured.length === 1 && !editingStructuredId) {
           const node = findStructuredNode(page.structured.children, selectedStructured[0])
-          if (node?.type === 'Text') {
+          if (node&&!node.locked&&(node.type==='Text'||node.source.control||node.typography&&!node.children.length)) {
             e.preventDefault()
             setEditingStructuredId(node.id)
             return
@@ -1271,17 +1362,7 @@ export function DesignIde() {
         setSelected(parent ? [parent] : [])
         setTool('Select')
         setPresent(false)
-      } else if (mod && ['+', '=', '-', '0'].includes(e.key))
-        setCamera((c) => ({
-          ...c,
-          zoom:
-            e.key === '0'
-              ? 1
-              : Math.min(
-                  8,
-                  Math.max(0.05, c.zoom * (e.key === '-' ? 0.8 : 1.25)),
-                ),
-        }))
+      } else if (mod && ['+', '=', '-', '0'].includes(e.key)){e.preventDefault();zoomCanvas(e.key==='-'?0.8:1.25,e.key==='0'?1:undefined)}
       else if (!mod && e.shiftKey && e.key.toLowerCase() === 'g') {
         e.preventDefault()
         updateLayoutGrid({ visible: !(page?.layoutGrid?.visible ?? false) })
@@ -1297,18 +1378,18 @@ export function DesignIde() {
     const el = stage.current
     if (!el) return
     const wheel = (e: WheelEvent) => {
-      if ((e.target as Element).closest('.ide-tools')) return
+      if ((e.target as Element).closest('.ide-tools,.ide-canvas-frame-name-input,[contenteditable=true]')) return
       e.preventDefault()
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientHeight : 1
       const dx = e.deltaX * unit, dy = e.deltaY * unit
       if (e.ctrlKey || e.metaKey) {
-        const rect = el.getBoundingClientRect(),
+        const rect = svg.current?.getBoundingClientRect()??el.getBoundingClientRect(),
           x = e.clientX - rect.left,
           y = e.clientY - rect.top
         navigateCamera((c) => {
           const zoom = Math.min(
             8,
-            Math.max(0.05, c.zoom * Math.exp(-dy * 0.006)),
+            Math.max(0.001, c.zoom * Math.exp(-dy * 0.006)),
           )
           return {
             zoom,
@@ -1323,6 +1404,7 @@ export function DesignIde() {
   }, [doc?.id, captureMode])
   function pointerDown(e: React.PointerEvent<SVGSVGElement>) {
     if (!page) return
+    const camera=getCamera()
     if (present) {
       const id = (e.target as Element)
         .closest('[data-object-id]')
@@ -1346,6 +1428,7 @@ export function DesignIde() {
     const frameSurfaceId = (e.target as Element).getAttribute('data-canvas-surface')
     const frameResizeHandle = (e.target as Element).getAttribute('data-frame-resize-handle')
     const panGesture = e.button === 1 || tool === 'Hand' || spacePressed.current
+    if(clickedFrameId&&!panGesture&&camera.zoom<0.2){const target=canvasFrames.find(f=>f.page.id===clickedFrameId);if(target){const zoom=Math.max(0.001,Math.min(1,(canvasViewport.width-100)/target.page.width,(canvasViewport.height-100)/target.page.height));setCamera({zoom,x:(canvasViewport.width-target.page.width*zoom)/2-target.x*zoom,y:(canvasViewport.height-target.page.height*zoom)/2-target.y*zoom});setPageId(clickedFrameId);setSelectedFrameId(clickedFrameId);return}}
     if (clickedFrameId && clickedFrameId !== page.id && !panGesture) {
       setPageId(clickedFrameId)
       setSelected([])
@@ -1717,6 +1800,12 @@ export function DesignIde() {
     position?: { x: number; y: number },
   ) {
     if (!page || !docRef.current) return
+    if(asset.kind==='screen'&&asset.page.structured){
+      const next=structuredClone(docRef.current),added=addScreenToDocument(next,asset.page)
+      for(const component of assetLibrary?.components??[])if(!next.components.some(c=>c.id===component.id))next.components.push(structuredClone(component))
+      next.sourceComponents=structuredClone(assetLibrary?.sourceComponents??next.sourceComponents??[])
+      change(next);setPageId(added.id);setSelected([]);setSelectedStructured([]);return
+    }
     const at = position ?? {
       x: 40 + page.objects.length * 24,
       y: 40 + page.objects.length * 24,
@@ -2370,6 +2459,8 @@ export function DesignIde() {
         document.execCommand(id)
         return
       }
+      if(globalThis.document.querySelector('[role=dialog]'))return
+      if(id==='export-xd'){setExportInitialFormat('adobe-xd');setExportOpen(true);return}
       if (id === 'selectAll') {
         setSelected(
           (page?.objects ?? []).filter((o) => !o.locked).map((o) => o.id),
@@ -2390,6 +2481,8 @@ export function DesignIde() {
         <Welcome
           recents={recents.filter((r) => !r.libraryId && !hiddenRecent.includes(r.id))}
           projects={projectLibrary}
+          onImportPrototype={()=>void importClaudePrototype()}
+          onConnectApplication={()=>{setConnectAppError('');setConnectAppOpen(true)}}
           onOpen={() => void openProject()}
           onOpenProject={path => void openProject(path)}
           onBlank={() => {
@@ -2421,6 +2514,17 @@ export function DesignIde() {
           error={error}
           onGettingStarted={openFirstRunOnboarding}
         />
+        {artifactImportStage&&<ModalShell size="standard" variant="progress" ariaLabel="Importing HTML prototype" critical onClose={stopArtifactImport}>
+          <ModalHeader title="Importing your prototype" description={artifactProgress.file??'Read local files, discover flows, then create editable screens.'}/>
+          <ModalBody>
+            <ModalProgress value={artifactProgress.value} label={artifactImportStage} detail={artifactProgress.detail}/>
+            <p role="status">{artifactProgress.screens!==undefined?`${artifactProgress.screens} screens found · ${artifactProgress.connections??0} connections · `:''}{artifactElapsed}s elapsed</p>
+            <p>Files stay on your computer. Discovery checks interactive states; the progress bar moves continuously until the number of screens is known.</p>
+          </ModalBody>
+          <ModalFooter><button onClick={stopArtifactImport}>Stop import</button></ModalFooter>
+        </ModalShell>}
+
+        {connectAppOpen&&<ModalShell size="standard" ariaLabel="Connect a running app" critical={connectingApp} onClose={()=>setConnectAppOpen(false)}><ModalHeader title="Connect a running app" description="Open your actual application, sign in if needed, then capture screens as editable layers." onClose={()=>setConnectAppOpen(false)}/><ModalBody><label>App address<input aria-label="Running app address" placeholder="http://localhost:3000 or https://app.example.com" value={connectAppUrl} disabled={connectingApp} onChange={e=>setConnectAppUrl(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!connectingApp)void connectRunningApp()}}/></label><p>Without a repository, FrameUI uses rendered styles and assets. Source component mapping is unavailable. No verification file is required.</p>{connectAppError&&<p role="alert">{connectAppError}</p>}</ModalBody><ModalFooter><button disabled={connectingApp} onClick={()=>setConnectAppOpen(false)}>Cancel</button><button className="primary" disabled={connectingApp||!connectAppUrl.trim()} onClick={()=>void connectRunningApp()}>{connectingApp?'Connecting…':'Open app'}</button></ModalFooter></ModalShell>}
         {pendingProject && (
           <ProjectSetupModal
             project={pendingProject.project}
@@ -2463,6 +2567,7 @@ export function DesignIde() {
               next.projectId = doc.projectId
               next.libraryId = doc.id
               next.variables = structuredClone(doc.variables)
+              next.sourceComponents=structuredClone(doc.sourceComponents??[])
               // The project-level "Local app URL" set in ProjectSetupModal
               // lives on the project's own document, not this new per-design
               // one — without carrying it over, Capture always opened on a
@@ -2480,18 +2585,21 @@ export function DesignIde() {
               if (!next) return
               next.projectId = doc.projectId
               next.libraryId = doc.id
-              if (!fileId) next.variables = structuredClone(doc.variables)
+              if(doc.appUrl&&doc.appUrl.includes('127.0.0.1:')&&next.pages.some(p=>p.artifactSource))next.appUrl=doc.appUrl
+              if (!fileId) {next.variables = structuredClone(doc.variables);next.sourceComponents=structuredClone(doc.sourceComponents??[]);next.appUrl=doc.appUrl}
               if (asset) {
+                if(asset.kind==='screen') {
+                  addScreenToDocument(next,asset.page)
+                  next.sourceComponents=structuredClone(doc.sourceComponents??[])
+                } else {
                 if (!next.pages.length) next.pages = newDocument(name).pages
                 const target = next.pages[0]
-                const source = asset.kind === 'screen' ? asset.page : asset.component
-                const added = asset.kind === 'screen' ? object('Frame', {name:source.name,x:40,y:40,width:source.width,height:source.height,fill:'#ffffff',clip:false,children:asset.page.objects.map(cloneObject),source:{route:asset.page.route}}) : cloneObject(asset.component.variants?.find(v=>v.id===asset.variant)?.objects[0] ?? asset.component)
+                const added = cloneObject(asset.component.variants?.find(v=>v.id===asset.variant)?.objects[0] ?? asset.component)
                 added.x = 40 + target.objects.length * 24
                 added.y = 40 + target.objects.length * 24
                 target.objects.push(added)
                 target.width = Math.max(target.width,added.x+added.width+40)
                 target.height = Math.max(target.height,added.y+added.height+40)
-                if(asset.kind==='screen') target.fonts = [...(target.fonts||[]),...(asset.page.fonts||[])]
                 const needed = new Set<string>()
                 visit([added],o=>{if(o.componentId)needed.add(o.componentId)})
                 for(const id of needed) {
@@ -2500,6 +2608,7 @@ export function DesignIde() {
                     next.components.push(structuredClone(master))
                     visit(master.children,o=>{if(o.componentId)needed.add(o.componentId)})
                   }
+                }
                 }
               }
               open(next)
@@ -2515,7 +2624,7 @@ export function DesignIde() {
   return (
     <div
       style={{ '--ide-left-width': `${leftWidth}px` } as React.CSSProperties}
-      className={`ide ${present ? 'ide-present' : ''} ${hideUi ? 'ide-hide-ui' : ''} ${leftHidden ? 'ide-left-hidden' : ''} ${rightHidden ? 'ide-right-hidden' : ''}`}
+      className={`ide ${studioActive?'ide-ai-studio':''} ${present ? 'ide-present' : ''} ${hideUi ? 'ide-hide-ui' : ''} ${leftHidden ? 'ide-left-hidden' : ''} ${rightHidden ? 'ide-right-hidden' : ''}`}
     >
       <header className="ide-top app-drag-region">
         <div className="ide-breadcrumb ide-editor-breadcrumb app-no-drag">
@@ -2582,9 +2691,10 @@ export function DesignIde() {
           <button title="Workspace settings" onClick={() => setSettings(true)}>
             <Settings2 size={16} />
           </button>
+          <button aria-pressed={flowMode} onClick={()=>setFlowMode(!flowMode)}>Flows</button>
           <button onClick={startPresent}>
             <Play size={14} />
-            Present
+            Prototype
           </button>
           <button className="ide-export-action" onClick={() => setExportOpen(true)}>
             <Download size={14} />
@@ -2592,6 +2702,8 @@ export function DesignIde() {
           </button>
         </div>
       </header>
+      {flowMode&&<div className="flow-workspace-host" style={{right:rightHidden?0:rightWidth}}><FlowWorkspace document={doc} flowId={flowId} onSelect={setFlowId} onChange={change} onOpen={id=>{setPageId(id);setFlowMode(false)}} onClose={()=>setFlowMode(false)}/></div>}
+      {prototypeOpen&&<PrototypeRunner document={doc} flowId={flowId||undefined} pageId={flowId?undefined:pageId} onClose={()=>setPrototypeOpen(false)}/>}
       {present && (
         <div className="ide-present-bar">
           <button
@@ -2640,7 +2752,7 @@ export function DesignIde() {
               setPageId(lastCapturedPageId)
             }
           }}
-          focusRoute={page?.route}
+          focusRoute={page?.artifactSource?.path??page?.route}
         />
       ) : (
       <div className="ide-body">
@@ -3066,6 +3178,7 @@ export function DesignIde() {
               }}
             >
               <defs>
+                <marker id="canvas-flow-arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="var(--ide-accent)"/></marker>
                 {page && (
                   <pattern
                     id={`layout-grid-${page.id}`}
@@ -3094,6 +3207,7 @@ export function DesignIde() {
                 }
                 transform={`translate(${camera.x} ${camera.y}) scale(${camera.zoom})`}
               >
+                {!present&&doc.pages.some(p=>p.artifactSource)&&<g data-canvas-flow-links="true" pointerEvents="none" fill="none" stroke="var(--ide-accent)" opacity={0.6}>{[...new Map((doc.prototype?.interactions??[]).filter(i=>i.destinationId&&i.destinationId!==i.sourceArtboardId).map(i=>[i.sourceArtboardId+':'+i.destinationId,i])).values()].map(edge=>{const from=canvasFrames.find(f=>f.page.id===edge.sourceArtboardId),to=canvasFrames.find(f=>f.page.id===edge.destinationId);if(!from||!to)return null;const x1=from.x+from.page.width,y1=from.y+Math.min(180,from.page.height/2),x2=to.x,y2=to.y+Math.min(180,to.page.height/2);return <path key={edge.id} data-flow-connection={edge.id} d={`M${x1} ${y1} C${x1+120} ${y1},${x2-120} ${y2},${x2} ${y2}`} strokeWidth={1.5/camera.zoom} markerEnd="url(#canvas-flow-arrow)"/>})}</g>}
                 {!present && canvasFrames
                   .filter((frame) => frame.page.id !== page?.id)
                   .map((frame) => (
@@ -3104,6 +3218,7 @@ export function DesignIde() {
                       transform={`translate(${frame.x} ${frame.y})`}
                     >
                       <CanvasFrameTitle
+                        onMoveEnd={()=>{if(docRef.current)change(docRef.current,false)}}
                         page={frame.page}
                         zoom={camera.zoom}
                         active={false}
@@ -3127,8 +3242,7 @@ export function DesignIde() {
                         )}
                       />
                       <rect data-canvas-page-id={frame.page.id} data-canvas-surface={frame.page.id} width={frame.page.width} height={frame.page.height} fill="white" />
-                      <FontDefinitions fonts={frame.page.fonts} />
-                      {canUseStructuredCanvas(frame.page) ? (
+                      {frame.x+frame.page.width < (-camera.x-400)/camera.zoom || frame.y+frame.page.height < (-camera.y-400)/camera.zoom || frame.x > (-camera.x+canvasViewport.width+400)/camera.zoom || frame.y > (-camera.y+canvasViewport.height+400)/camera.zoom ? null : !frame.page.edited&&(frame.page.canvasPreview||frame.page.fullPageScreenshot||frame.page.thumbnail) ? <image data-canvas-preview={frame.page.id} href={frame.page.canvasPreview??frame.page.fullPageScreenshot??frame.page.thumbnail} width={frame.page.width} height={frame.page.height} preserveAspectRatio="xMinYMin slice" pointerEvents="none"/> : canUseStructuredCanvas(frame.page) ? (
                         <foreignObject x={0} y={0} width={frame.page.width} height={frame.page.height} pointerEvents="none">
                           <StructuredFrameView
                             frame={frame.page.structured!}
@@ -3138,7 +3252,7 @@ export function DesignIde() {
                       ) : (
                         <VisualSvg objects={frame.page.objects} variables={doc.variables} />
                       )}
-                      {canUseStructuredCanvas(frame.page) && <VisualSvg objects={frame.page.objects.filter(o => o.designOnly)} variables={doc.variables}/>}
+                      {frame.page.edited && canUseStructuredCanvas(frame.page) && <VisualSvg objects={frame.page.objects.filter(o => o.designOnly)} variables={doc.variables}/>}
                     </g>
                   ))}
                 <g
@@ -3150,6 +3264,7 @@ export function DesignIde() {
                   <>
                     {!present && (
                       <CanvasFrameTitle
+                        onMoveEnd={()=>{if(docRef.current)change(docRef.current,false)}}
                         page={page}
                         zoom={camera.zoom}
                         selected={selectedFrameId === page.id}
@@ -3180,7 +3295,7 @@ export function DesignIde() {
                       fill="white"
                     />
                     <FontDefinitions fonts={page.fonts} />
-                    {useStructuredCanvas ? (
+                    {camera.zoom<0.2&&!page.edited&&(page.canvasPreview||page.fullPageScreenshot||page.thumbnail)?<image data-canvas-preview={page.id} href={page.canvasPreview??page.fullPageScreenshot??page.thumbnail} width={page.width} height={page.height} preserveAspectRatio="xMinYMin slice"/>:useStructuredCanvas ? (
                       // Stage 5 (docs/CAPTURE_ENGINE_REBUILD_SPEC.md): the
                       // canvas stage is an <svg> root (for the existing
                       // pan/zoom/rotate `<g transform>` treatment) — a
@@ -3473,23 +3588,16 @@ export function DesignIde() {
               <span />
               <button
                 title="Zoom out"
-                onClick={() =>
-                  setCamera((c) => ({
-                    ...c,
-                    zoom: Math.max(0.05, c.zoom * 0.8),
-                  }))
-                }
+                onClick={()=>zoomCanvas(0.8)}
               >
                 −
               </button>
-              <button onClick={() => setCamera({ x: 80, y: 70, zoom: 1 })}>
-                {Math.round(camera.zoom * 100)}%
+              <button onClick={()=>zoomCanvas(1,1)}>
+                {Math.round(camera.zoom * 1000)/10}%
               </button>
               <button
                 title="Zoom in"
-                onClick={() =>
-                  setCamera((c) => ({ ...c, zoom: Math.min(8, c.zoom * 1.25) }))
-                }
+                onClick={()=>zoomCanvas(1.25)}
               >
                 +
               </button>
@@ -3501,12 +3609,12 @@ export function DesignIde() {
           onPointerDown={(e) => panelResize('right', e)}
         />
         <aside
-          className="ide-inspector"
+          className={`ide-inspector${inspector === 'Claude' ? ' ide-inspector-chat' : ''}`}
           data-kind={active?.kind}
           style={{ width: rightWidth }}
         >
           <div className="ide-tabs">
-            {['Design', 'Prototype', 'Inspect'].map((m) => (
+            {['Design', 'Prototype', 'Inspect', 'Claude'].map((m) => (
               <button
                 key={m}
                 className={inspector === m ? 'active' : ''}
@@ -3517,8 +3625,8 @@ export function DesignIde() {
               </button>
             ))}
           </div>
-          {page?.sourceDesign && <details className="ide-source-status"><summary>{page.sourceDesign.generatedData ? 'Preview Data · generated locally' : 'Source Reference'}{page.sourceDesign.status !== 'ready' ? ' · Partial' : ''}</summary><p>Content edits belong to this design only. Changing source state or viewport creates a separate editable version.</p>{page.captureWarnings?.map(warning => <p key={warning}>{warning}</p>)}</details>}
-          {inspector === 'Inspect' ? (
+          {inspector !== 'Claude' && (page?.sourceDesign||page?.artifactSource) && <details className="ide-source-status"><summary>{page.artifactSource?'Imported prototype':page.sourceDesign?.generatedData ? 'Preview Data · generated locally' : 'Source Reference'}{page.sourceDesign && page.sourceDesign.status !== 'ready' ? ' · Partial' : ''}{page.captureWarnings?.length ? ` · ${page.captureWarnings.length} notes` : ''}</summary><p>Content edits belong to this design only. Changing source state or viewport creates a separate editable version.</p>{page.captureWarnings?.map(warning => <p key={warning}>{warning}</p>)}</details>}
+          {inspector === 'Claude' ? <><button className="studio-text-edit" hidden={!selectedStructured.length&&!selected.length} onClick={()=>setInspector('Design')}>Edit selected layer</button><ClaudePanel onWorkspaceChange={setStudioActive} onCapture={()=>void openCaptureWorkspace()} key={doc.id} document={doc} flowId={flowId} pageId={pageId} selection={page?.structured ? selectedStructured : selected} onDocument={next => { fitAllAfterCapture.current=true; change(next); const added=next.pages.find(p=>!doc.pages.some(old=>old.id===p.id)); if(added)setPageId(added.id) }} /></> : inspector === 'Inspect' ? (
             <div className="ide-inspect">
               <h3>{active?.name ?? 'Source mapping'}</h3>
               <p>{active?.source?.file ?? 'Created in FrameUI'}</p>
@@ -3601,83 +3709,9 @@ export function DesignIde() {
               ))}
             </div>
           ) : inspector === 'Prototype' ? (
-            active ? (
-              <div className="ide-prototype-properties">
-                <h3>{active.name}</h3>
-                <p>
-                  Connect this object to a saved screen or state. It works
-                  offline in Present.
-                </p>
-                <label>
-                  Go to
-                  <select
-                    aria-label="Prototype destination"
-                    value={active.interaction?.targetPageId ?? ''}
-                    onChange={(e) =>
-                      patch({
-                        interaction: e.target.value
-                          ? {
-                              targetPageId: e.target.value,
-                              transition:
-                                active.interaction?.transition ?? 'Instant',
-                              trigger: active.interaction?.trigger ?? 'Click',
-                            }
-                          : undefined,
-                      })
-                    }
-                  >
-                    <option value="">No interaction</option>
-                    {doc.pages.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} · {p.state}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {active.interaction && (
-                  <>
-                    <label>
-                      Transition
-                      <select
-                        value={active.interaction.transition}
-                        onChange={(e) =>
-                          patch({
-                            interaction: {
-                              ...active.interaction!,
-                              transition: e.target.value as
-                                | 'Instant'
-                                | 'Dissolve'
-                                | 'Slide',
-                            },
-                          })
-                        }
-                      >
-                        {['Instant', 'Dissolve', 'Slide'].map((t) => (
-                          <option key={t}>{t}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <button onClick={startPresent}>
-                      <Play size={14} />
-                      Preview interaction
-                    </button>
-                    <button onClick={() => patch({ interaction: undefined })}>
-                      Remove interaction
-                    </button>
-                  </>
-                )}
-                <button onClick={() => setOverview('map')}>
-                  View application map
-                </button>
-              </div>
-            ) : (
-              <EmptyState title="Make your screens work together">
-                Select a button or navigation item, then connect it to a page or
-                state.
-              </EmptyState>
-            )
+            <InteractionInspector document={doc} pageId={pageId} elementId={page?.structured?selectedStructured[0]:selected[0]} onChange={change}/>
           ) : useStructuredCanvas && selectedStructured.length && page?.structured ? (
-            <StructuredSelectionPanel node={findStructuredNode(page.structured.children,selectedStructured[0])} count={selectedStructured.length} onBounds={bounds=>commitStructuredBounds([{id:selectedStructured[0],bounds}])} onPatch={patch=>editStructured(frame=>patchStructuredNode(frame,selectedStructured[0],patch))} onEditText={()=>enterStructuredText(selectedStructured[0])}/>
+            <StructuredSelectionPanel onRecapture={()=>void openCaptureWorkspace()} tokens={doc.variables} node={findStructuredNode(page.structured.children,selectedStructured[0])} count={selectedStructured.length} onBounds={bounds=>commitStructuredBounds([{id:selectedStructured[0],bounds}])} onPatch={patch=>editStructured(frame=>patchStructuredNode(frame,selectedStructured[0],patch))} onEditText={()=>enterStructuredText(selectedStructured[0])}/>
           ) : active ? (
             <>
               <div className="ide-panel-heading">
@@ -4628,6 +4662,7 @@ export function DesignIde() {
       )}
       {exportOpen && (
         <ExportWorkspace
+          initialFormat={exportInitialFormat}
           document={doc}
           page={page}
           selectedIds={selected}

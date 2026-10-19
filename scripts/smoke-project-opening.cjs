@@ -18,19 +18,19 @@ const assert = require('node:assert/strict');
       globalThis.openingTicks = 0;
       globalThis.openingTimer = setInterval(() => globalThis.openingTicks++, 10);
     }, root);
-    await page.getByRole('button', { name: 'Get started', exact: true }).click();
+    assert.equal(await page.getByRole('dialog').count(),0,'startup must open directly into the workspace')
     await page.evaluate(() => {
       window.observedSteps = [];
       window.frameui.project.onIndexProgress(({ step }) => window.observedSteps.push(step));
     });
-    await page.getByRole('button', { name: 'Open Project', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Open Codebase', exact: true }).first().click();
     await page.getByRole('dialog').waitFor({ state: 'visible' });
-    await page.getByText('Find screens and components', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Back to projects', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Prepare project', exact: true }).click();
     for (let attempt = 0; attempt < 300; attempt++) {
       if (await page.evaluate(() => window.observedSteps.includes('done'))) break;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+    await page.getByRole('button', { name: 'Review project', exact: true }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden', timeout: 60000 });
     const steps = await page.evaluate(() => window.observedSteps);
     assert(steps.includes('done'), `Index failed: ${steps}`);

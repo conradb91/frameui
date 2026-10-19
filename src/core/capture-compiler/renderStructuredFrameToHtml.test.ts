@@ -54,7 +54,7 @@ describe('renderStructuredFrameToHtml', () => {
     const html = renderStructuredFrameToHtml(frame([
       node({ type: 'Section', bounds: { x: 0, y: 500, width: 1440, height: 300 } }),
     ]))
-    expect(html).toContain('position:absolute;left:0px;top:500px;width:1440px;height:300px')
+    expect(html).toContain('left:0px;top:500px;width:1440px;height:300px')
   })
 
   test('Text content is HTML-escaped, never emitted raw', () => {
@@ -127,6 +127,37 @@ describe('renderStructuredFrameToHtml', () => {
     })
     const html = renderStructuredFrameToHtml(frame([stackParent]))
     expect(html).toContain('display:flex')
-    expect(html).toContain('position:absolute;left:24px;top:12px;width:200px;height:40px')
+    expect(html).toContain('left:24px;top:12px;width:200px;height:40px')
   })
+})
+
+test('SVG groups preserve transforms, stroke caps and dash offsets', () => {
+  const shape = node({ type: 'Shape', source: { tag: 'path', svgGeometry: { d: 'M1 2L3 4', 'stroke-linecap': 'round', 'stroke-dashoffset': '12' } } })
+  const group = node({ type: 'Shape', source: { tag: 'g', svgGeometry: { transform: 'translate(2,2)' } }, children: [shape] })
+  const html = renderStructuredFrameToHtml(frame([node({ type: 'SVG', children: [group] })]))
+  expect(html).toContain('<g transform="translate(2,2)">')
+  expect(html).toContain('stroke-linecap="round"')
+  expect(html).toContain('stroke-dashoffset="12"')
+})
+
+test('font subset descriptors survive standalone rendering', () => {
+  const html = renderStructuredFrameToHtml(frame([], [{ family: 'Fixture', weight: '100 900', style: 'normal', unicodeRange: 'U+0-FF', stretch: 'condensed', data: 'data:font/woff2;base64,AAAA' }]))
+  expect(html).toContain('unicode-range:U+0-FF;')
+  expect(html).toContain('font-stretch:condensed;')
+})
+
+test('standalone render retains designer-applied rich text styles', () => {
+  const html = renderStructuredFrameToHtml(frame([node({ type: 'Text', typography: { text: 'Bold rest', fontFamily: 'Arial', fontSize: 16, fontWeight: '400', lineHeight: 20, letterSpacing: 0, textAlign: 'left', textRuns: [{ start: 0, end: 4, fontWeight: '700', color: '#123456' }] } })]))
+  expect(html).toContain('<span style="font-weight:700;color:#123456;-webkit-text-fill-color:#123456">Bold</span>')
+})
+
+test('native controls render captured state without introducing live application actions', () => {
+  const html = renderStructuredFrameToHtml(frame([node({ type: 'Input', source: { tag: 'input', control: { type: 'checkbox', checked: true, disabled: false } } })]))
+  expect(html).toMatch(/<input[^>]*type="checkbox" checked readonly tabindex="-1"/)
+  expect(html).not.toContain('disabled')
+  expect(html).toContain('pointer-events:none')
+})
+test('a text-only repository component keeps its text, typography and rounded appearance',()=>{
+ const html=renderStructuredFrameToHtml(frame([node({type:'ComponentInstance',componentBinding:{componentId:'brand',confidence:1},appearance:{radius:[14,14,14,14],opacity:1,rotation:0,clip:false},typography:{text:'Harbour',fontFamily:'Arial',fontSize:24,fontWeight:'700',lineHeight:32,letterSpacing:0,textAlign:'left'}})]))
+ expect(html).toContain('Harbour');expect(html).toContain('font-size:24px');expect(html).toContain('line-height:32px');expect(html).toContain('border-radius:14px 14px 14px 14px')
 })

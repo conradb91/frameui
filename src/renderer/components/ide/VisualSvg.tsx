@@ -336,7 +336,7 @@ export const FontDefinitions = memo(function FontDefinitions({
       {fonts
         .map(
           (font) =>
-            `@font-face{font-family:${font.family};font-weight:${font.weight};font-style:${font.style};src:url("${font.data}")}`,
+            `@font-face{font-family:${font.family};font-weight:${font.weight};font-style:${font.style};${font.unicodeRange ? `unicode-range:${font.unicodeRange};` : ''}${font.stretch ? `font-stretch:${font.stretch};` : ''}src:url("${font.data}")}`,
         )
         .join('\n')}
     </style>

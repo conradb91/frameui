@@ -51,7 +51,7 @@ export function installDesignMenu(win: BrowserWindow) {
         action('Save', 'save', 'CmdOrCtrl+S'),
         { type: 'separator' },
         action('Capture / Refresh from App…', 'capture'),
-        action('Export…', 'export', 'CmdOrCtrl+Shift+E'),
+        {label:'Export',submenu:[action('Export Design…','export','CmdOrCtrl+Shift+E'),action('Adobe XD · Sketch Bridge…','export-xd')]},
         { type: 'separator' },
         { role: mac ? 'close' : 'quit' },
       ],

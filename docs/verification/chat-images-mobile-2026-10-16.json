@@ -1,0 +1,35 @@
+{
+  "status": "PASS",
+  "date": "2026-10-16",
+  "changes": [
+    "Clipboard paste and image drop use the same validated attachment loader as file selection",
+    "Submitted image displayed in user message and cleared from composer",
+    "Image persisted with draft conversation and restored for retry",
+    "Latest conversation reference delivered as actual image content, never serialized base64 in text context",
+    "Image-only requests supported",
+    "Explicit mobile artboard resizing without scaling controls or typography",
+    "Improved mobile composition, copy and new editable icon guidance",
+    "Readable progress messages for key design operations"
+  ],
+  "verification": {
+    "unitTests": 384,
+    "failed": 0,
+    "assertions": 1270,
+    "files": 70,
+    "build": "PASS",
+    "packagedClaudeCodeSmoke": "PASS: exact reference bytes reach CLI, clipboard paste, file attach, message thumbnail, composer clearing, persisted image, failed-request image retry, approval, cancellation and source boundary",
+    "liveMobile": "PASS: real signed-in Claude Code, actual fixture Brand and Button bindings, new mobile composition, security icon, no render warnings, approval and developer ZIP",
+    "dmgChecksum": "VALID",
+    "mountedAsarMatchesTestedApp": true
+  },
+  "release": {
+    "dmg": "release/FrameUI-0.1.0-x64.dmg",
+    "sha256": "44bbcc180e3742c71a637b7c613656fb5dc5bcd41d47af3c2f8d07a0f79e4267",
+    "asarSha256": "2a8d5e1677b523138e2abc5a3d2b29b85e6377026d0256432729a625bed3eb68",
+    "freshProfile": "review-1792128728888-275a6984-acf6-4bf0-a5fa-2978f787fdd2"
+  },
+  "limits": [
+    "Live design tested against a temporary React fixture repository, not the user Budget project",
+    "Generated design quality remains reviewable; render diagnostics do not judge all semantic UX decisions"
+  ]
+}

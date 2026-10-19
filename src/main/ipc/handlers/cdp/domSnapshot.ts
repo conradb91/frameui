@@ -1,3 +1,5 @@
+import { CONTENT_METRICS_SCRIPT } from '../capture/contentHeight'
+import { SVG_RESOURCE_TAGS, SVG_RESOURCE_ATTRIBUTES } from '@core/capture-compiler/svgDefinitions'
 import { normalizeCaptureScale } from './normalizeCaptureScale'
 import type { WebContents } from 'electron'
 import type { Protocol } from 'devtools-protocol'
@@ -97,7 +99,8 @@ export async function captureDomSnapshot(
   // CSS pixels. Calibrate against the same body's live DOM rect rather than
   // guessing from devicePixelRatio (which does not always describe CDP's
   // coordinate space).
-  const liveBodyWidth = await contents.executeJavaScript('document.body.getBoundingClientRect().width') as number
+  const contentMetrics = await contents.executeJavaScript(CONTENT_METRICS_SCRIPT) as {width:number;height:number}
+  const liveBodyWidth = contentMetrics.width
   const doc = snapshot.documents[0]
   const bodyIndex = doc?.nodes.nodeName?.findIndex((name) => snapshot.strings[name]?.toLowerCase() === 'body') ?? -1
   const bodyLayoutIndex = doc?.layout.nodeIndex.indexOf(bodyIndex) ?? -1
@@ -105,11 +108,56 @@ export async function captureDomSnapshot(
   const ratio = snapshotBodyWidth && liveBodyWidth > 0 ? snapshotBodyWidth / liveBodyWidth : 1
   const coordinateScale = Number.isFinite(ratio) && ratio > 0 ? ratio : 1
   const root = reconstructSnapshotTree(snapshot, CAPTURED_STYLE_PROPERTIES, viewport, coordinateScale)
+  const placeholderStyles = await contents.executeJavaScript(`(() => {
+    const result = {};
+    for (const input of document.querySelectorAll('input[placeholder]')) {
+      if (input.value) continue;
+      const parts = []; let cursor = input;
+      while (cursor && cursor.parentElement && cursor !== document.documentElement) {
+        parts.unshift(cursor.tagName.toLowerCase() + ':nth-child(' + (Array.prototype.indexOf.call(cursor.parentElement.children, cursor) + 1) + ')'); cursor = cursor.parentElement;
+      }
+      const style = getComputedStyle(input, '::placeholder');
+      result['html>' + parts.join('>')] = { color: style.color, opacity: style.opacity };
+    }
+    return result;
+  })()`) as Record<string, { color: string; opacity: string }>
+  const applyPlaceholderStyles = (element: CapturedElement): void => {
+    const style = placeholderStyles[element.attributes?.captureSelector??''];
+    if(style&&element.tag==='input'){element.attributes={...element.attributes,'data-frameui-placeholder-color':style.color,'data-frameui-placeholder-opacity':style.opacity}}
+    const hasPlaceholder = element.attributes?.['data-frameui-placeholder'];
+    if (style&&hasPlaceholder) for (const child of element.children) if (child.tag === 'frameui-text') Object.assign(child.styles, style);
+    element.children.forEach(applyPlaceholderStyles);
+  }
+  applyPlaceholderStyles(root)
   const canvases = (await contents.executeJavaScript(CANVAS_SCRIPT)) as {
     captureSelector: string
     dataUrl: string
   }[]
   if (canvases.length)
     spliceCanvasFallback(root, new Map(canvases.map((c) => [c.captureSelector, c.dataUrl])))
+  const svgResources = await contents.executeJavaScript(`(() => {
+    const tags = new Set(${JSON.stringify(SVG_RESOURCE_TAGS)}), attributes = new Set(${JSON.stringify(SVG_RESOURCE_ATTRIBUTES)});
+    function selector(el) { const parts=[]; while(el&&el.parentElement&&el!==document.documentElement){parts.unshift(el.tagName.toLowerCase()+':nth-child('+(Array.prototype.indexOf.call(el.parentElement.children,el)+1)+')');el=el.parentElement}return 'html>'+parts.join('>') }
+    let budget=4000;
+    function resource(el,depth=0){if(depth>32||budget--<=0||!tags.has(el.tagName))return null;const a={};for(const attr of el.attributes)if(attributes.has(attr.name))a[attr.name]=attr.value;const style=getComputedStyle(el);for(const key of ['fill','fill-opacity','stroke','stroke-opacity','stroke-width','stroke-linecap','stroke-linejoin','fill-rule','clip-rule','opacity','stop-color','stop-opacity','flood-color','flood-opacity','color-interpolation-filters'])if(style.getPropertyValue(key))a[key]=style.getPropertyValue(key);return {tag:el.tagName,attributes:a,children:Array.from(el.children).map(c=>resource(c,depth+1)).filter(Boolean)}}
+    function referencedIds(root){const ids=new Set();for(const el of [root,...root.querySelectorAll('*')]){for(const attr of ['href','xlink:href']){const v=el.getAttribute(attr);if(v&&v.startsWith('#'))ids.add(v.slice(1))}const style=getComputedStyle(el);for(const key of ['fill','stroke','filter','clip-path','mask-image']){const value=style.getPropertyValue(key);for(const m of value.matchAll(/url\\(\\s*["']?([^"')]+)["']?\\s*\\)/g)){try{const url=new URL(m[1],document.baseURI);if(url.href.split('#')[0]===location.href.split('#')[0]&&url.hash)ids.add(decodeURIComponent(url.hash.slice(1)))}catch{}}}}return ids}
+    return Array.from(document.querySelectorAll('svg')).map(el=>{budget=4000;const pending=[...referencedIds(el)],seen=new Set(),definitions=[];while(pending.length&&seen.size<128){const id=pending.shift();if(seen.has(id))continue;seen.add(id);const target=document.getElementById(id);if(!target)continue;const value=resource(target);if(value)definitions.push(value);for(const nested of referencedIds(target))if(!seen.has(nested))pending.push(nested)}return {selector:selector(el),definitions:JSON.stringify(definitions)}});
+  })()` ) as {selector:string;definitions:string}[]
+  const resources = new Map(svgResources.map(item=>[item.selector,item.definitions]))
+  const attachSvgResources=(el:CapturedElement):void=>{if(el.tag==='svg'){const defs=resources.get(el.attributes?.captureSelector??'');if(defs&&defs.length<=2_000_000)el.attributes={...el.attributes,'data-frameui-svg-definitions':defs}}el.children.forEach(attachSvgResources)}
+  attachSvgResources(root)
+  const gradientPaints = await contents.executeJavaScript(`(() => {
+ const paints={};
+ for(const el of document.querySelectorAll('span,strong,b,em,i,h1,h2,h3,h4,p,label,a')){
+ const style=getComputedStyle(el);if(!style.backgroundClip.includes('text')||style.backgroundImage==='none')continue;
+ const parts=[];let cursor=el;
+ while(cursor&&cursor.parentElement&&cursor!==document.documentElement){parts.unshift(cursor.tagName.toLowerCase()+':nth-child('+(Array.prototype.indexOf.call(cursor.parentElement.children,cursor)+1)+')');cursor=cursor.parentElement}
+ paints['html>'+parts.join('>')]={clone:style.getPropertyValue('box-decoration-break')==='clone'||style.getPropertyValue('-webkit-box-decoration-break')==='clone',fragments:Array.from(el.getClientRects()).map(r=>({x:r.x,y:r.y,width:r.width,height:r.height}))};
+ }
+ return paints;
+})()`) as Record<string,unknown>
+  const attachGradientPaint=(el:CapturedElement):void=>{const paint=gradientPaints[el.attributes?.captureSelector??''];if(paint)el.attributes={...el.attributes,'data-frameui-gradient-paint':JSON.stringify(paint)};el.children.forEach(attachGradientPaint)}
+  attachGradientPaint(root)
+  if(root.tag==='frameui-root'&&Number.isFinite(contentMetrics.height))root.rect.height=contentMetrics.height
   return normalizeCaptureScale(root)
 }

@@ -1,0 +1,108 @@
+{
+  "date": "2026-10-08",
+  "changes": [
+    "Readable runtime source and URL fields; isolated setup styles from inspector property-row sizing",
+    "Compact runtime summary, numbered ownership setup, token copying and visible actionable verification errors",
+    "Claude connection-first screen, optional workspace settings, Console key link and existing CLI option",
+    "Human-readable IPC and validation errors in runtime, capture and Claude flows"
+  ],
+  "verification": {
+    "unitTests": {
+      "passed": 354,
+      "failed": 0,
+      "files": 66
+    },
+    "build": "passed",
+    "changedFileLint": "passed",
+    "diffWhitespace": "passed",
+    "electronSuites": [
+      "claude",
+      "new-design-capture",
+      "modal-system",
+      "design-workflows",
+      "pages-workflow",
+      "project-opening",
+      "editor-sidebar",
+      "camera-text",
+      "capture-motion",
+      "capture-registry",
+      "capture-editability"
+    ],
+    "mountedDmgSuites": [
+      "modal-system",
+      "claude",
+      "new-design-capture",
+      "capture-editability"
+    ],
+    "dmgChecksumVerification": "passed",
+    "packagedFilesMatchBuild": true,
+    "freshReviewProfile": "review-1791437827816-729cb0b1-55a8-48a5-9010-793def0e2141",
+    "captureFidelity": [
+      {
+        "width": 390,
+        "diffPercent": 0.2341025641025641,
+        "fonts": 1,
+        "warnings": [],
+        "texts": [
+          "Exact capture",
+          "Hello",
+          "World",
+          "! ",
+          "Italic",
+          " and ",
+          "bold",
+          ".",
+          "Padded text stays inside its border.",
+          "First card",
+          "Second card",
+          "const total = 1;\n  total += 2;\n    done();",
+          "Save changes",
+          "NEW",
+          "Ready to capture",
+          "Current value",
+          "End of fixture."
+        ]
+      },
+      {
+        "width": 1440,
+        "diffPercent": 0.06340277777777778,
+        "fonts": 1,
+        "warnings": [],
+        "texts": [
+          "Exact capture",
+          "Hello",
+          "World",
+          "! ",
+          "Italic",
+          " and ",
+          "bold",
+          ".",
+          "Padded text stays inside its border.",
+          "First card",
+          "Second card",
+          "const total = 1;\n  total += 2;\n    done();",
+          "Save changes",
+          "NEW",
+          "Ready to capture",
+          "Current value",
+          "End of fixture."
+        ]
+      }
+    ]
+  },
+  "release": {
+    "dmg": "release/FrameUI-0.1.0-x64.dmg",
+    "sha256": "4f4b4e3b53d04d6366943eddc42544a40bad78362f474c8616ff0f49c5df649a",
+    "architecture": "x64"
+  },
+  "limitations": [
+    "Threebeez ownership verification file returned HTTP 404; deploying the file remains required for production verification. Neither the live application nor Budget source was modified.",
+    "Claude provider responses and CLI credentials were simulated for integration checks; live Anthropic account access and billing were not exercised.",
+    "Native Windows credential storage was not tested on this macOS host.",
+    "Passing tests do not establish that every possible application state is bug-free."
+  ],
+  "references": [
+    "https://platform.claude.com/docs/en/api/overview",
+    "https://platform.claude.com/settings/keys"
+  ]
+}

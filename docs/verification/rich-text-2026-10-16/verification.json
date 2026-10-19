@@ -1,0 +1,185 @@
+{
+  "date": "2026-10-16",
+  "changes": [
+    "Capture inline font weight, style, size, colour and gradient ranges as one editable text owner.",
+    "Normalize CDP raw whitespace offsets into UTF-16 style range offsets without stripping or duplicating text.",
+    "Preserve inline gradient slice/clone fragments and their paint origins across wrapping.",
+    "Render measured rich text consistently in native canvas and standalone capture comparison.",
+    "Preserve text-gradient paint through schema validation and serialization; inherit retained wrapper paint for older captures without changing saved data.",
+    "Add text-gradient inspector input and solid-colour replacement; preserve other range formatting.",
+    "Allow AI text gradient fills and clear stale range overrides when changing typography.",
+    "Preserve actual source overflow and rounded clipping for gradient decorations."
+  ],
+  "tests": {
+    "automated": 424,
+    "failures": 0,
+    "assertions": 1456,
+    "targetedLint": "passed",
+    "build": "passed",
+    "developmentUISmoke": "passed",
+    "packaged": {
+      "rich text editing and paint": "passed",
+      "running app capture": "passed",
+      "prototype approval/import/navigation": "passed",
+      "Sketch bridge export/cancel": "passed"
+    }
+  },
+  "fixtures": [
+    {
+      "width": 390,
+      "diffPercent": 0,
+      "fonts": 0,
+      "warnings": [],
+      "texts": [
+        "Four plans. Every feature in all. No surprises",
+        "1 Admin",
+        "Try it for free. Every feature.",
+        "Clipped decoration, editable text.",
+        "Always visible"
+      ]
+    },
+    {
+      "width": 1440,
+      "diffPercent": 0,
+      "fonts": 0,
+      "warnings": [],
+      "texts": [
+        "Four plans. Every feature in all. No surprises",
+        "1 Admin",
+        "Try it for free. Every feature.",
+        "Clipped decoration, editable text.",
+        "Always visible"
+      ]
+    }
+  ],
+  "pricingBefore": [
+    {
+      "width": 390,
+      "diffPercent": 1.4635897435897436,
+      "fonts": 42,
+      "warnings": [
+        "An image could not be embedded. Check the screenshot preview for its appearance.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ."
+      ],
+      "texts": {
+        "count": 298
+      }
+    },
+    {
+      "width": 1440,
+      "diffPercent": 0.9349305555555555,
+      "fonts": 42,
+      "warnings": [
+        "An image could not be embedded. Check the screenshot preview for its appearance.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ."
+      ],
+      "texts": {
+        "count": 304
+      }
+    }
+  ],
+  "pricingAfter": [
+    {
+      "width": 390,
+      "diffPercent": 1.6612820512820512,
+      "fonts": 42,
+      "warnings": [
+        "An image could not be embedded. Check the screenshot preview for its appearance.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ."
+      ],
+      "texts": {
+        "count": 241
+      }
+    },
+    {
+      "width": 1440,
+      "diffPercent": 0.7686805555555555,
+      "fonts": 42,
+      "warnings": [
+        "An image could not be embedded. Check the screenshot preview for its appearance.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ."
+      ],
+      "texts": {
+        "count": 247
+      }
+    }
+  ],
+  "pricingCTA": [
+    {
+      "width": 390,
+      "diffPercent": 1.8115384615384618,
+      "fonts": 42,
+      "warnings": [
+        "An image could not be embedded. Check the screenshot preview for its appearance.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ."
+      ],
+      "texts": {
+        "count": 241
+      }
+    },
+    {
+      "width": 1440,
+      "diffPercent": 0.3672916666666667,
+      "fonts": 42,
+      "warnings": [
+        "An image could not be embedded. Check the screenshot preview for its appearance.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ."
+      ],
+      "texts": {
+        "count": 247
+      }
+    }
+  ],
+  "limitations": [
+    "A previous flattened image has no underlying text/style data to restore; recapture it.",
+    "Complex transform and unsupported source-effect limitations from the earlier capture work still apply.",
+    "Live page comparison retains existing source asset warnings and small rendering differences; controlled rich-text/clipping fixtures match exactly."
+  ],
+  "files": [
+    "src/shared/types/richText.ts",
+    "src/shared/types/structuredDesign.ts",
+    "src/shared/types/frameuiExport.ts",
+    "src/shared/captureStyleProperties.ts",
+    "src/core/visual/textStyleSchema.ts",
+    "src/core/visual/textRuns.ts",
+    "src/core/visual/schema.ts",
+    "src/core/capture-compiler/capturedRichText.ts",
+    "src/core/capture-compiler/textPaint.ts",
+    "src/core/capture-compiler/compile.ts",
+    "src/core/capture-compiler/schema.ts",
+    "src/core/capture-compiler/structuredNodeStyle.ts",
+    "src/core/capture-compiler/renderStructuredFrameToHtml.ts",
+    "src/core/export/frameuiPackage.ts",
+    "src/core/ai/canvas.ts",
+    "src/main/ipc/handlers/cdp/domSnapshot.ts",
+    "src/main/ipc/handlers/cdp/reconstructSnapshotTree.ts",
+    "src/renderer/components/ide/StructuredTextContent.tsx",
+    "src/renderer/components/ide/StructuredFrameView.tsx",
+    "src/renderer/components/ide/InlineRichTextEditor.tsx",
+    "src/renderer/components/ide/StructuredSelectionPanel.tsx",
+    "tests/main/captureRichText.test.ts",
+    "tests/fixtures/capture-rich-gradient-text.html",
+    "scripts/smoke-rich-text.cjs",
+    "scripts/audit-capture-fidelity.cjs"
+  ],
+  "release": {
+    "dmgSHA256": "84baf334361415718086af410803e9c943c1eb6069c92d4489088714d9761767",
+    "asarSHA256": "4e12511959ada62737caec3a928e7a6dd346c05a0d3ec2df62800d632347ff4d",
+    "reviewProfile": "review-1792162031709-a2a33c99-ac5b-4678-a113-5336df547e5f",
+    "dmgbundleMatchesTestedApp": true,
+    "path": "release/FrameUI-0.1.0-x64.dmg",
+    "sizeBytes": 127053994
+  }
+}

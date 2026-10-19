@@ -104,6 +104,7 @@ export interface VisualObject {
   children: VisualObject[]
 }
 export interface VisualPage {
+  artifactSource?: { path: string; steps: string[] }
   sourceDesign?: { pageId: string; state: string; states: string[]; status: 'ready' | 'partial' | 'unsupported'; generatedData: boolean }
   id: string
   name: string
@@ -131,7 +132,7 @@ export interface VisualPage {
     color: string
     opacity: number
   }
-  fonts?: { family: string; weight: string; style: string; data: string }[]
+  fonts?: { family: string; weight: string; style: string; unicodeRange?: string; stretch?: string; data: string }[]
   objects: VisualObject[]
   /** The FrameUI Design Model rendering of this exact same capture, used
    * live in the canvas (`DesignIde.tsx`) when present instead of `objects`/
@@ -145,6 +146,8 @@ export interface VisualPage {
    * after scroll-to-settle. Reference/comparison data only — not consumed
    * by the canvas. */
   fullPageScreenshot?: string
+  /** Small full-page bitmap for canvas overview; native layers remain the editable source. */
+  canvasPreview?: string
   edited?: boolean
   importedObjects?: VisualObject[]
   captureStatus?:
@@ -177,6 +180,7 @@ export interface PageRegistryEntry extends CaptureRoute {
   status: 'Discovered' | 'Needs Sample Data' | 'Captured' | 'Failed'
 }
 export interface VisualDocument {
+  prototype?: import('./prototype').PrototypeData
   sourceComponents?: { id: string; name: string; file: string }[]
   pageRegistry?: PageRegistryEntry[]
   version: 1

@@ -103,3 +103,15 @@ test('Next app layouts wrap the editable page from local source',()=>fixture({
   expect(html).toContain('Shared navigation')
   expect(html).toContain('Dashboard')
 }))
+test('AI component variants use actual source props without changing repository files',()=>fixture({
+ 'Button.tsx':`export function Button({variant,children}){return <button className={variant==='quiet'?'quiet':'primary'}>{children}</button>}`,
+ 'style.css':'.primary{background:#14968b;border-radius:12px}.quiet{background:#eeeeff;border-radius:12px}'
+},root=>{
+ const component={id:'button',name:'Button',exportKind:'named',source:{filePath:'Button.tsx'}}
+ const project={...model,components:[component],styles:[{id:'style',source:{filePath:'style.css'}}]} as unknown as ProjectModel
+ const target={...page('Button.tsx'),id:'button'}
+ const ir=compileRepositoryPage(root,target,project,'Populated',{variant:'quiet',children:'Continue securely'})
+ const html=designIRMarkup(ir)
+ expect(html).toContain('Continue securely');expect(html).toContain('class="quiet"')
+ expect(fs.readFileSync(path.join(root,'Button.tsx'),'utf8')).toContain("variant==='quiet'")
+}))

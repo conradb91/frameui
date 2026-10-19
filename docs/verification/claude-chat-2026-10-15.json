@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-15",
+  "scope": "Compact chat, account model discovery, streaming CLI fix",
+  "rootCause": "stream-json input was incorrectly combined with json output; official CLI requires stream-json output",
+  "verification": {
+    "typecheck": "passed",
+    "build": "passed",
+    "focusedTests": "14 passed",
+    "apiSmoke": "passed",
+    "cliSmoke": "passed",
+    "liveClaudeCode": "2.1.300, signed-in account, Sonnet 5.5, tool execution, editable artboard, rendering, conversation follow-up passed",
+    "mountedDmgLiveSmoke": "passed",
+    "dmgChecksum": "valid"
+  },
+  "artifact": "release/FrameUI-0.1.0-x64.dmg",
+  "sha256": "50f9c2236e4c7e1eb0f59eea06a4283772b864af7c2ddf97af659e7ed9d90003",
+  "limitations": [
+    "Unsigned Intel x64 macOS review build",
+    "Model availability is supplied by the installed Claude Code and account"
+  ]
+}

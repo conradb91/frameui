@@ -1,0 +1,77 @@
+{
+  "format": "sketch",
+  "schemaVersion": 121,
+  "structuralValidation": "passed",
+  "xdValidation": "unverified",
+  "artboards": 1,
+  "layers": 5,
+  "editableText": 2,
+  "editableVectors": 2,
+  "images": 1,
+  "groups": 1,
+  "components": 0,
+  "fallbackEffects": 0,
+  "unconvertedInteractions": 0,
+  "unsupportedFeatures": 0,
+  "missingAssets": 0,
+  "failedElements": 0,
+  "fontCheck": "unverified",
+  "missingFonts": [],
+  "fontsToCheck": [
+    "Arial"
+  ],
+  "warnings": [
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "basic",
+      "layerId": "title",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "basic",
+      "layerId": "title",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "basic",
+      "layerId": "title",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-check",
+      "message": "Check Arial 400 Regular in Adobe XD. Fonts are referenced, never embedded.",
+      "artboard": "basic",
+      "layerId": "body",
+      "layerName": "Text"
+    },
+    {
+      "code": "xd-text-metrics",
+      "message": "Sketch preserves text metrics; Adobe XD may ignore custom line height or character spacing.",
+      "artboard": "basic",
+      "layerId": "body",
+      "layerName": "Text"
+    },
+    {
+      "code": "font-weight",
+      "message": "Verify the 400 font face; the document retains the requested weight in metadata.",
+      "artboard": "basic",
+      "layerId": "body",
+      "layerName": "Text"
+    }
+  ],
+  "idMap": {
+    "fixture-basic:artboard-basic:artboard": "9788A21B-EB8B-EB9B-DB68-AF83826C2D01",
+    "title": "8C0D4402-14D2-86D9-28DB-CFFD0A1EE966",
+    "body": "A3EB1915-0B92-0FE2-2F71-AFBAE2380C1D",
+    "button": "3D9CA6AD-F500-5089-4B85-F040F0945DB8",
+    "icon": "DEB29780-2F1A-DF3F-F82C-F9F9FB418FAE",
+    "image": "A8FA3B54-83D1-BB9A-5717-4188BAAF42F2",
+    "artboard-basic": "9788A21B-EB8B-EB9B-DB68-AF83826C2D01",
+    "fixture-basic:page": "BEE27C99-CCFB-239F-361F-A0C1601D1E83"
+  }
+}

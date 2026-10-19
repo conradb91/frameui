@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-15",
+  "scope": [
+    "compact Claude sign-in and standalone runtime connection styling",
+    "atomic native design batches with stable ID references and rollback",
+    "48-turn bounded tasks and recoverable turn-limit completion",
+    "retain valid partial drafts on cancellation/provider failure",
+    "conversation continuity after prototype approval",
+    "approved prototype to reviewed repository source proposals"
+  ],
+  "tests": {
+    "unit": {
+      "passed": 375,
+      "failed": 0,
+      "assertions": 1219
+    },
+    "liveOfficialClaudeCode": {
+      "passed": true,
+      "model": "Sonnet 5.5",
+      "checks": [
+        "native editable home and profile screens",
+        "native settings drawer and help modal",
+        "navigate/back and open/close drawer/modal actions",
+        "complete flow imported only after approval",
+        "follow-up conversation after import"
+      ]
+    },
+    "electron": [
+      "prototype generation/revision/restart/approval/undo",
+      "repository source proposal/apply/undo/approved test command",
+      "light/dark UI, localhost capture, hosted verification fixture, compact setup"
+    ]
+  },
+  "limits": [
+    "Prototype data is simulated locally; backend integration must be implemented in reviewed repository changes.",
+    "Live generation used an isolated scratch design, not a user repository.",
+    "Hosted-domain transport was a deterministic fixture."
+  ],
+  "release": {
+    "path": "release/FrameUI-0.1.0-x64.dmg",
+    "sha256": "34a6ebda9e63fb126df30cef7e06e1a5b938f58b246ed392449f3aa91d22ea6c",
+    "freshReviewProfile": true,
+    "dmgChecksum": "valid",
+    "mountedInstallerChecks": [
+      "designer UI journey including standalone connection layout",
+      "source proposal/apply/undo and command approval"
+    ],
+    "packagedChecks": [
+      "full prototype generation/revision/recovery/import/undo",
+      "live official Claude generation, all native action types, approved import and conversation continuity"
+    ]
+  }
+}

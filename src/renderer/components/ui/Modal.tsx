@@ -1,5 +1,9 @@
 import {
   createContext,
+  cloneElement,
+  isValidElement,
+  Children,
+  type ReactElement,
   useContext,
   useEffect,
   useId,
@@ -92,6 +96,8 @@ export function ModalShell({
     if (!onClose || critical || !closeOnEscape) return
     const closeFromEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      const dialogs=document.querySelectorAll('[role=dialog],[role=alertdialog]')
+      if(dialogs[dialogs.length-1]!==panelRef.current)return
       event.preventDefault()
       onClose()
     }
@@ -100,6 +106,7 @@ export function ModalShell({
   }, [closeOnEscape, critical, onClose])
 
   function handleKeyDown(event: KeyboardEvent) {
+    if((event.target as Element).closest('[role=dialog],[role=alertdialog]')!==panelRef.current)return
     onDialogKeyDown?.(event)
     if (event.defaultPrevented) return
     if (event.key === 'Escape' && !critical && closeOnEscape && onClose) {
@@ -227,7 +234,13 @@ export function ModalNotice({ children, title, tone = 'info' }: { children: Reac
 }
 
 export function ModalField({ label, hint, error, children, className = '' }: { label: ReactNode; hint?: ReactNode; error?: ReactNode; children: ReactNode; className?: string }) {
-  return <label className={`frame-modal-field ${className}`.trim()}><span>{label}</span>{children}{error && <small className="frame-modal-field-error" role="alert">{error}</small>}{!error && hint && <small>{hint}</small>}</label>
+  const descriptionId=useId()
+  const controls=Children.map(children,child=>{
+    if(!isValidElement(child)||typeof child.type!=='string'||!['input','select','textarea'].includes(child.type))return child
+    const control=child as ReactElement<{'aria-describedby'?:string;'aria-invalid'?:boolean}>
+    return cloneElement(control,{'aria-invalid':!!error||undefined,'aria-describedby':([control.props['aria-describedby'],error||hint?descriptionId:undefined].filter(Boolean).join(' ')||undefined)})
+  })
+  return <label className={`frame-modal-field ${className}`.trim()}><span>{label}</span>{controls}{error && <small id={descriptionId} className="frame-modal-field-error" role="alert">{error}</small>}{!error && hint && <small id={descriptionId}>{hint}</small>}</label>
 }
 
 export function ModalProgress({ value, label, detail, paused = false }: { value?: number; label: ReactNode; detail?: ReactNode; paused?: boolean }) {

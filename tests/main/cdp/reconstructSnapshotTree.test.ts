@@ -159,7 +159,7 @@ describe('reconstructSnapshotTree', () => {
       ],
       requestedStyles: [],
     })
-    const root = reconstructSnapshotTree(snapshot, [], { width: 1440, height: 1024 }, 2)
+    const root = reconstructSnapshotTree(snapshot, [], { width: 1440, height: 1024 }, 2).children[0]
     expect(root.rect).toEqual({ x: 0, y: 0, width: 1440, height: 3000 })
     expect(root.children[0].rect.y).toBe(1500)
     expect(root.children[0].children[0].rect).toEqual({ x: 20, y: 1510, width: 200, height: 20 })
@@ -190,7 +190,7 @@ describe('reconstructSnapshotTree', () => {
       scrollOffsetY: 20,
     })
 
-    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 300, height: 200 })
+    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 300, height: 200 }).children[0]
 
     expect(root.tag).toBe('body')
     expect(root.rect).toEqual({ x: -10, y: -20, width: 300, height: 200 })
@@ -228,7 +228,7 @@ describe('reconstructSnapshotTree', () => {
       requestedStyles,
     })
 
-    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 100, height: 100 })
+    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 100, height: 100 }).children[0]
     expect(root.children).toEqual([])
   })
 
@@ -251,7 +251,7 @@ describe('reconstructSnapshotTree', () => {
       requestedStyles,
     })
 
-    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 300, height: 100 })
+    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 300, height: 100 }).children[0]
     // The `div` wrapper itself must not appear — its two buttons become
     // direct children of `body`, not dropped along with the wrapper.
     expect(root.children).toHaveLength(2)
@@ -276,7 +276,7 @@ describe('reconstructSnapshotTree', () => {
       requestedStyles,
     })
 
-    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 100, height: 100 })
+    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 100, height: 100 }).children[0]
     expect(root.children).toHaveLength(1)
     expect(root.children[0].styles.opacity).toBe('0')
   })
@@ -300,12 +300,12 @@ describe('reconstructSnapshotTree', () => {
       requestedStyles,
     })
 
-    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 100, height: 100 })
+    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 100, height: 100 }).children[0]
     const span = root.children[0]
     expect(span.children).toHaveLength(1)
     const pseudo = span.children[0]
     expect(pseudo.tag).toBe('frameui-visual')
-    expect(pseudo.textPreview).toBe('»')
+    expect(pseudo.children[0].textPreview).toBe('»')
     expect(pseudo.rect).toEqual({ x: 20, y: 0, width: 10, height: 10 })
     expect(pseudo.styles.color).toBe('rgb(0, 0, 0)')
   })
@@ -336,7 +336,7 @@ describe('reconstructSnapshotTree', () => {
       requestedStyles,
     })
 
-    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 100, height: 100 })
+    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 100, height: 100 }).children[0]
     const p = root.children[0]
     // A single wrapped text node must stay one leaf, not one per rendered
     // line, or wrapped paragraphs/headings fracture into sibling elements
@@ -369,13 +369,32 @@ describe('reconstructSnapshotTree', () => {
       requestedStyles,
     })
 
-    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 100, height: 100 })
+    const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 100, height: 100 }).children[0]
     const p = root.children[0]
     expect(p.children).toHaveLength(2)
     expect(p.children[0].tag).toBe('frameui-text')
-    expect(p.children[0].textPreview).toBe('Hello')
+    expect(p.children[0].textPreview).toBe('Hello ')
     expect(p.children[1].tag).toBe('b')
     expect(p.children[1].children).toHaveLength(1)
     expect(p.children[1].children[0].textPreview).toBe('world')
   })
+})
+
+test('viewport root preserves body margin and fractional text geometry without inherited box paint', () => {
+  const requestedStyles = ['fontSize', 'lineHeight', 'borderWidth', 'backgroundColor', 'whiteSpace']
+  const snapshot = buildSnapshot({
+    nodes: [{ tag: '#document', parent: -1 }, { tag: 'HTML', parent: 0 }, { tag: 'BODY', parent: 1 }, { tag: '#text', parent: 2, text: '  indented\n    next' }],
+    layout: [
+      { node: 2, bounds: [8, 8, 374, 100], styles: { backgroundColor: 'white' } },
+      { node: 3, bounds: [20.25, 22.5, 110.5, 40], text: '  indented\n    next', styles: { whiteSpace: 'pre', fontSize: '16px', lineHeight: '20px', borderWidth: '2px', backgroundColor: 'red' } },
+    ], requestedStyles,
+  })
+  const root = reconstructSnapshotTree(snapshot, requestedStyles, { width: 390, height: 844 })
+  expect(root.rect).toEqual({ x: 0, y: 0, width: 390, height: 844 })
+  expect(root.children[0].rect.x).toBe(8)
+  const text = root.children[0].children[0]
+  expect(text.textPreview).toBe('  indented\n    next')
+  expect(text.rect.x).toBe(20.25)
+  expect(text.styles.borderWidth).toBeUndefined()
+  expect(text.styles.backgroundColor).toBeUndefined()
 })

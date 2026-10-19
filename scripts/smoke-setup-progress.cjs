@@ -10,7 +10,7 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),asse
   app=await _electron.launch({executablePath:executable||require('electron'),args:executable?[]:['.',`--user-data-dir=${path.join(root,'profile')}`],env})
   if(executable){reviewProfile=await app.evaluate(({app})=>app.getPath('userData'));assert(path.basename(reviewProfile).startsWith('review-'))}
   const page=await app.firstWindow();page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>errors.push(String(e)))
-  await page.getByRole('button',{name:'Skip introduction',exact:true}).click()
+  assert.equal(await page.getByRole('dialog').count(),0,'startup must open directly into the workspace')
   // Delay the real handler only in the test, so the transient working state can be inspected reliably.
   await app.evaluate(({ipcMain,dialog},source)=>{
    dialog.showOpenDialog=async()=>({canceled:false,filePaths:[source]})
@@ -29,7 +29,7 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),asse
   await setup.waitFor();fs.mkdirSync('docs/verification/modal-workflows',{recursive:true})
   const shot=async name=>page.screenshot({path:`docs/verification/modal-workflows/${name}.png`,animations:'disabled'})
   await shot('setup-connect-light')
-  assert.equal(await setup.locator('[aria-current=step]').innerText().then(t=>t.includes('Connect')),true)
+  assert.equal(await setup.locator('.setup-workflow-rail').count(),0,'setup stays compact without a second navigation rail')
   await page.getByRole('button',{name:'Prepare project',exact:true}).click()
   await setup.getByRole('progressbar',{name:'Preparing workspace'}).waitFor()
   assert.equal(await setup.getByRole('progressbar').getAttribute('aria-valuenow'),null,'indexing must not invent percentages')

@@ -1,3 +1,4 @@
+import { aiPreviewProcess } from '../ai/process'
 import type { ProjectIndex, FileChangeNotice, DevCommand } from '@shared/types/projectIndex'
 import { ProjectWatcher } from '../watcher/projectWatcher'
 import { broadcast } from '../ipc/rendererEvents'
@@ -47,6 +48,7 @@ export function invalidateCachedIndex(): void {
 }
 
 export function closeActiveProject(): void {
+  aiPreviewProcess.stop()
   active?.watcher.stop()
   active?.indexService.dispose()
   active = null

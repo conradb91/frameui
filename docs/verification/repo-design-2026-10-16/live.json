@@ -1,0 +1,30 @@
+{
+  "status": "PASS",
+  "live": true,
+  "checks": [
+    "real localhost capture and component resolution",
+    "actual project component context",
+    "new composition using bound repository components",
+    "source component variant props and readable label",
+    "rendered text measurement, correction and visual warnings",
+    "explicit editable import",
+    "source files preserved"
+  ],
+  "designReview": {
+    "approach": "explore",
+    "pages": [
+      {
+        "id": "897e5050-d657-46d6-ac6e-deb3bc073183",
+        "name": "Login – Violet",
+        "reusedElements": 0,
+        "components": [
+          "Brand",
+          "Button"
+        ],
+        "warnings": []
+      }
+    ],
+    "errors": [],
+    "reference": "Login"
+  }
+}

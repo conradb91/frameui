@@ -1,0 +1,115 @@
+{
+  "feature": "FrameUI prototype drafts, flows and approved canvas import",
+  "date": "2026-10-15",
+  "architecture": {
+    "inspected": [
+      "VisualDocument and its Zod schema",
+      "native StructuredFrameView and VisualSvg renderers",
+      "DesignIde save queue and undo/redo snapshots",
+      "project index, assets, components and font resolution",
+      "Claude Code subprocess and private MCP bridge",
+      "existing local atomic JSON storage",
+      "legacy source-file flowStore and screenDraftStore"
+    ],
+    "decision": "Extend VisualDocument with a versioned prototype field. Legacy source-file journey maps retain their separate source-draft purpose; editable artboard flows live with the artboards in the same atomic document.",
+    "before": "Claude tool mutations produced a cloned VisualDocument which ClaudePanel immediately applied to the canvas.",
+    "after": "Claude tool mutations produce a durable isolated draft. Review and runner use existing native renderers. Explicit approval validates and merges against the current saved document. One existing undo checkpoint covers the import.",
+    "singleSourceOfTruth": "Graph edges are derived from the same interaction records executed by PrototypeRunner.",
+    "migration": "Existing document version 1 remains readable. Optional prototype schema version 1 migrates legacy per-object interactions without changing artboard IDs.",
+    "persistence": "Atomic local JSON files for drafts and canvas; generation interruption retains the previous completed version. Document import receipts make recovery idempotent.",
+    "security": "Existing Claude authentication retained. No generated JavaScript execution. Existing source-file and command approvals remain separate from canvas import."
+  },
+  "mainFiles": {
+    "modelAndValidation": [
+      "src/core/prototype/schema.ts",
+      "src/core/prototype/model.ts",
+      "src/shared/types/prototype.ts"
+    ],
+    "runtime": [
+      "src/core/prototype/runtime.ts",
+      "src/renderer/components/ide/prototype/PrototypeRunner.tsx",
+      "src/renderer/components/ide/prototype/Screen.tsx"
+    ],
+    "flowAndInteractions": [
+      "src/renderer/components/ide/prototype/FlowWorkspace.tsx",
+      "src/renderer/components/ide/prototype/InteractionInspector.tsx"
+    ],
+    "draftsAndApproval": [
+      "src/main/prototype/drafts.ts",
+      "src/renderer/components/ide/prototype/DraftReview.tsx"
+    ],
+    "claude": [
+      "src/main/prototype/tools.ts",
+      "src/main/ai/tools.ts",
+      "src/main/ipc/handlers/ai.handlers.ts",
+      "src/renderer/components/ide/ClaudePanel.tsx"
+    ],
+    "integration": [
+      "src/renderer/components/ide/DesignIde.tsx",
+      "src/renderer/components/ide/StructuredFrameView.tsx",
+      "src/preload/index.ts",
+      "src/shared/ipc-contract.ts",
+      "src/core/visual/schema.ts"
+    ]
+  },
+  "workflow": [
+    "Create a flow from Flows, add existing or new artboards, and drag handles to connect them. Select a canvas element in the Prototype inspector to define element-level behaviour.",
+    "Choose an artboard, flow or new design target in Claude. Generation creates an isolated draft; it does not change the saved canvas.",
+    "Review Original and Proposed screens, edit interactions manually, run the local prototype, or request a targeted revision in the same conversation. Restore older draft versions when needed.",
+    "Approve and Import opens a concrete confirmation. Validation and conflict checks run again before one atomic save. Existing IDs and unrelated edits are preserved; new artboards receive non-overlapping positions."
+  ],
+  "tests": {
+    "typecheckAndProductionBuild": "passed",
+    "focusedUnitTests": {
+      "passed": 71,
+      "failed": 0,
+      "files": 7,
+      "assertions": 211
+    },
+    "electronPrototypeWorkflow": "passed in development build",
+    "prototypeCoverage": [
+      "isolated generation",
+      "five connected screens",
+      "real form input and preserved state",
+      "back navigation",
+      "targeted stable-ID revision",
+      "version restoration",
+      "failed revision preserves good version",
+      "restart and reopen",
+      "explicit approval",
+      "simulated disk write failure with full rollback and retry",
+      "one-step undo and redo",
+      "editable native import",
+      "manual flow membership",
+      "dragged connection creation, editing and removal",
+      "shared artboard preservation",
+      "20-screen graph"
+    ],
+    "claudeCodeRegression": "passed: login, models, streaming, source-write boundary, reference images, cancellation, failure handling and credential isolation",
+    "anthropicApiRegression": "passed: tool loop, source review/apply/undo, component reuse, commands and runtime comparison",
+    "canvasWorkflowRegression": "passed: drawing, presets, layout grids, components, offline legacy prototype migration and persistence",
+    "mountedDmg": "passed: checksum verification and full Electron prototype workflow",
+    "note": "Prototype generation is tested with deterministic official-CLI protocol fixtures, not a claim of a new live model design-quality evaluation."
+  },
+  "limits": [
+    "Prototype state is local simulation; no application backend or arbitrary project JavaScript is executed.",
+    "Generic component-state feedback supports selected, disabled and default states; arbitrary source-component state machines and custom animation systems are not executed.",
+    "Approval applies the complete draft; partial screen approval is intentionally not offered.",
+    "Undo uses the existing session history; stored designs, flows, conversations and draft versions survive restart.",
+    "The review package is macOS x64 and uses the existing unsigned local review-build configuration."
+  ],
+  "localOnly": true,
+  "releaseStatus": "verified",
+  "release": {
+    "path": "release/FrameUI-0.1.0-x64.dmg",
+    "sha256": "3d286ec6446a375d4d059d3def649eeace19570a270caa7e46462432d0221ca8",
+    "freshProfile": true,
+    "olderArtifactsRemovedAfterVerification": true
+  },
+  "screenshots": [
+    "docs/verification/prototype-review-2026-10-15.png",
+    "docs/verification/prototype-runner-2026-10-15.png",
+    "docs/verification/prototype-flow-2026-10-15.png",
+    "docs/verification/prototype-twenty-2026-10-15.png"
+  ]
+}

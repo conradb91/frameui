@@ -1,0 +1,46 @@
+[
+  {
+    "width": 390,
+    "diffPercent": 0.1771794871794872,
+    "fonts": 1,
+    "warnings": [],
+    "texts": [
+      "Exact capture",
+      "HelloWorld! Italic and bold.",
+      "Padded text stays inside its border.",
+      "First card",
+      "Second card",
+      "const total = 1;\n  total += 2;\n    done();",
+      "Save changes",
+      "NEW",
+      "Ready to capture",
+      "Current value",
+      "7",
+      "on",
+      "on",
+      "End of fixture."
+    ]
+  },
+  {
+    "width": 1440,
+    "diffPercent": 0.04798611111111111,
+    "fonts": 1,
+    "warnings": [],
+    "texts": [
+      "Exact capture",
+      "HelloWorld! Italic and bold.",
+      "Padded text stays inside its border.",
+      "First card",
+      "Second card",
+      "const total = 1;\n  total += 2;\n    done();",
+      "Save changes",
+      "NEW",
+      "Ready to capture",
+      "Current value",
+      "7",
+      "on",
+      "on",
+      "End of fixture."
+    ]
+  }
+]

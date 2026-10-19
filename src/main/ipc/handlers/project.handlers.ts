@@ -1,3 +1,9 @@
+import { beginImport, importSignal, cancelImport, finishImport, disposeImport } from '../../artifacts/importJob'
+import { unpackPrototype, servePrototype, managedPrototypeRoutes } from '../../artifacts/prototypeImport'
+import { randomUUID } from 'node:crypto'
+import {createHash} from 'node:crypto'
+import { z } from 'zod'
+import { configureRuntime, readRuntime, verifyRuntime, runtimeAddress, isLocalRuntime } from '../../security/runtimePolicy'
 import { readProjectVisuals } from '@core/design-system/projectVisuals'
 import electron from 'electron'
 import path from 'node:path'
@@ -17,6 +23,37 @@ import { broadcast } from '../rendererEvents'
 const { app, ipcMain, dialog, BrowserWindow, shell } = electron
 
 export function registerProjectHandlers(): void {
+  const importOwners=new WeakSet<Electron.WebContents>()
+  const runtimeProject = () => {
+    const active = getActiveProject()
+    if (!active) throw new Error('Open a local repository first.')
+    return active.projectId
+  }
+  ipcMain.handle('project:getRuntime', () => readRuntime(app.getPath('userData'), runtimeProject()))
+  ipcMain.handle('project:configureRuntime', (_event, raw) => {
+    const input = z.object({ url: z.string().max(4096), source: z.enum(['local', 'staging', 'production']) }).parse(raw)
+    return configureRuntime(app.getPath('userData'), runtimeProject(), input.url, input.source)
+  })
+  ipcMain.handle('project:verifyRuntime', () => verifyRuntime(app.getPath('userData'), runtimeProject()))
+  ipcMain.handle('project:downloadVerification', async event => {
+    const projectId = runtimeProject()
+    const connection = readRuntime(app.getPath('userData'), projectId)
+    if (!connection || connection.source === 'local') throw new Error('Save a staging or production URL first.')
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    if (!owner) throw new Error('Open verification setup in FrameUI.')
+    const result = await dialog.showSaveDialog(owner, {
+      title: 'Download domain verification file',
+      defaultPath: path.join(app.getPath('downloads'), 'frameui-verification.txt'),
+      filters: [{ name: 'Text file', extensions: ['txt'] }],
+    })
+    if (result.canceled || !result.filePath) return { saved: false }
+    const current = readRuntime(app.getPath('userData'), runtimeProject())
+    if (runtimeProject() !== projectId || current?.token !== connection.token || current.origin !== connection.origin) throw new Error('The runtime changed. Download the verification file again.')
+    await fs.promises.writeFile(result.filePath, connection.token + '\n', 'utf8')
+    return { saved: true }
+  })
+
+
   ipcMain.handle('project:rename', (_event, projectId, name) => {
     if (typeof name !== 'string') throw new Error('Invalid project name.')
     renameProject(app.getPath('userData'), projectIdInputSchema.parse(projectId), name)
@@ -96,16 +133,55 @@ export function registerProjectHandlers(): void {
     return { cancelled: false, project }
   })
 
-  ipcMain.handle('project:openPath', (_event, rawPath): OpenRecentResult => {
+  ipcMain.handle('project:cancelPrototypeImport',(event,raw)=>({ok:cancelImport(event.sender.id,z.string().uuid().parse(raw))}))
+  ipcMain.handle('project:finishPrototypeImport',(event,raw)=>{finishImport(event.sender.id,z.string().uuid().parse(raw))})
+  ipcMain.handle('project:importPrototype',async(event,raw)=>{
+    const id=z.string().uuid().parse(raw),signal=beginImport(event.sender.id,id)
+    if(!importOwners.has(event.sender)){const ownerId=event.sender.id;importOwners.add(event.sender);event.sender.once('destroyed',()=>disposeImport(ownerId))}
+    const owner=BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions={title:'Import HTML prototype',properties:['openFile'],filters:[{name:'HTML artifact or ZIP prototype',extensions:['html','htm','zip']}]}
+    const selected=owner?await dialog.showOpenDialog(owner,options):await dialog.showOpenDialog(options)
+    signal.throwIfAborted()
+    if(selected.canceled||!selected.filePaths[0])return null
+    const file=selected.filePaths[0],name=path.basename(file,path.extname(file))
+    const folder=path.join(app.getPath('userData'),'artifact-projects',randomUUID())
+    try {
+      await unpackPrototype(file,path.join(folder,'prototype'),signal,(completed,total,detail)=>{if(!event.sender.isDestroyed())event.sender.send('project:prototypeImportProgress',{id,stage:'extract',file:path.basename(file),completed,total,detail})})
+      importSignal(event.sender.id,id)
+      const routes=await managedPrototypeRoutes(folder)
+      if(!routes.length||routes.length>100)throw new Error('Choose a runnable prototype with 1–100 HTML pages. Source-only projects need a running app.')
+      fs.writeFileSync(path.join(folder,'frameui-artifact.json'),JSON.stringify({version:1,name}))
+      const url=await servePrototype(folder)
+      signal.throwIfAborted()
+      const project=recordProjectOpened(app.getPath('userData'),folder,name)
+      activateProject(project.id,folder,app.getPath('userData'))
+      configureRuntime(app.getPath('userData'),project.id,url,'local')
+      return {project,url,routes}
+    }catch(error){await fs.promises.rm(folder,{recursive:true,force:true});throw error}
+  })
+  ipcMain.handle('project:connectApplication',(_event,raw)=>{
+    const url=runtimeAddress(z.string().max(4096).parse(raw))
+    const key=createHash('sha256').update(url.origin).digest('hex').slice(0,16)
+    const folder=path.join(app.getPath('userData'),'application-projects',key)
+    fs.mkdirSync(folder,{recursive:true})
+    fs.writeFileSync(path.join(folder,'frameui-application.json'),JSON.stringify({kind:'application-only',origin:url.origin}))
+    const project=recordProjectOpened(app.getPath('userData'),folder,url.host)
+    activateProject(project.id,folder,app.getPath('userData'))
+    configureRuntime(app.getPath('userData'),project.id,url.href,isLocalRuntime(url)?'local':'staging')
+    return project
+  })
+  ipcMain.handle('project:openPath', async (_event, rawPath): Promise<OpenRecentResult> => {
     const folderPath = openPathInputSchema.parse(rawPath)
 
     if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
       return { ok: false, reason: 'missing' }
     }
 
-    const name = path.basename(folderPath)
+    const artifact=folderPath.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep)&&fs.existsSync(path.join(folderPath,'frameui-artifact.json'))
+    const name = artifact ? JSON.parse(fs.readFileSync(path.join(folderPath,'frameui-artifact.json'),'utf8')).name : path.basename(folderPath)
     const project = recordProjectOpened(app.getPath('userData'), folderPath, name)
     activateProject(project.id, folderPath, app.getPath('userData'))
+    if(artifact)configureRuntime(app.getPath('userData'),project.id,await servePrototype(folderPath),'local')
     return { ok: true, project }
   })
 

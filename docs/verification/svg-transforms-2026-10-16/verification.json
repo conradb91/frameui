@@ -1,0 +1,131 @@
+{
+  "date": "2026-10-16",
+  "scope": "Scoped SVG resource replay and measured standalone affine capture",
+  "fixtures": [
+    {
+      "width": 390,
+      "diffPercent": 0,
+      "fonts": 0,
+      "warnings": [
+        "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app.",
+        "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app.",
+        "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app."
+      ],
+      "texts": [
+        "Editable capture"
+      ]
+    },
+    {
+      "width": 1440,
+      "diffPercent": 0,
+      "fonts": 0,
+      "warnings": [
+        "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app.",
+        "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app.",
+        "A referenced SVG clipping or filter definition may not be portable; review this effect against the original app."
+      ],
+      "texts": [
+        "Editable capture"
+      ]
+    }
+  ],
+  "qualityRegression": [
+    {
+      "width": 390,
+      "zooms": [
+        {
+          "zoom": 0.5,
+          "diffPercent": 0.15461538461538463
+        },
+        {
+          "zoom": 1,
+          "diffPercent": 0.0004487179487179487
+        },
+        {
+          "zoom": 2,
+          "diffPercent": 0.003926282051282051
+        }
+      ],
+      "movedDiffPercent": 0.0004487179487179487,
+      "nativeNodes": 22
+    },
+    {
+      "width": 1440,
+      "zooms": [
+        {
+          "zoom": 0.5,
+          "diffPercent": 0.041875
+        },
+        {
+          "zoom": 1,
+          "diffPercent": 0.00012152777777777779
+        },
+        {
+          "zoom": 2,
+          "diffPercent": 0.0010633680555555555
+        }
+      ],
+      "movedDiffPercent": 0.00012152777777777779,
+      "nativeNodes": 22
+    }
+  ],
+  "realApplication": [
+    {
+      "width": 390,
+      "diffPercent": 1.8502564102564103,
+      "fonts": 42,
+      "warnings": [
+        "An image could not be embedded. Check the screenshot preview for its appearance.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ."
+      ],
+      "texts": {
+        "count": 245
+      }
+    },
+    {
+      "width": 1440,
+      "diffPercent": 0.8840972222222222,
+      "fonts": 42,
+      "warnings": [
+        "An image could not be embedded. Check the screenshot preview for its appearance.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ.",
+        "A background resource could not be embedded; its appearance may differ."
+      ],
+      "texts": {
+        "count": 251
+      }
+    }
+  ],
+  "nativeCanvasSmoke": "Native React SVG resources and use references resolved; affine appearance radius edited and matrix persisted through save/reopen.",
+  "recapture": "RasterFallback inspector offers Recapture source screen; opens existing live capture at the saved route. Old pixel data cannot recover missing DOM.",
+  "limitations": [
+    "Nested transformed HTML groups, perspective/3D and fragmented transformed text remain review items.",
+    "SVG resources outside supported SVG roots, external reference files, feImage/foreignObject/animation/script are not replayed.",
+    "Definition resources are retained and scoped; the inspector does not provide a full SVG filter/gradient-definition editor.",
+    "The public site retains existing unavailable/bad source image/background warnings."
+  ],
+  "changedFiles": [
+    "src/main/ipc/handlers/cdp/domSnapshot.ts",
+    "src/main/ipc/handlers/cdp/reconstructSnapshotTree.ts",
+    "src/main/ipc/handlers/cdp/normalizeCaptureScale.ts",
+    "src/main/ipc/handlers/captureResources.ts",
+    "src/shared/captureStyleProperties.ts",
+    "src/shared/types/structuredDesign.ts",
+    "src/core/capture-compiler/compile.ts",
+    "src/core/capture-compiler/schema.ts",
+    "src/core/capture-compiler/structuredNodeStyle.ts",
+    "src/core/capture-compiler/svgDefinitions.ts",
+    "src/core/capture-compiler/renderStructuredFrameToHtml.ts",
+    "src/renderer/components/ide/StructuredFrameView.tsx",
+    "src/renderer/components/ide/StructuredSelectionPanel.tsx",
+    "src/renderer/components/ide/DesignIde.tsx",
+    "tests/main/cdp/normalizeCaptureScale.test.ts",
+    "tests/main/cdp/svgDefinitions.test.ts",
+    "tests/fixtures/capture-svg-transforms.html",
+    "scripts/audit-capture-fidelity.cjs",
+    "scripts/smoke-svg-transforms.cjs"
+  ]
+}

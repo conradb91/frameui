@@ -76,9 +76,32 @@ export interface StructuredConstraints {
 }
 
 export interface StructuredAppearance {
+  /** Recovered CSS affine transform on an untransformed measured border box. */
+  transform?: string
+  transformOrigin?: string
   zIndex?: number
   backgroundColor?: string
   backgroundImage?: string
+  backgroundSize?: string
+  backgroundPosition?: string
+  backgroundRepeat?: string
+  backgroundBlendMode?: string
+  backgroundOrigin?: string
+  backgroundClip?: string
+  clipPath?: string
+  maskImage?: string
+  maskSize?: string
+  maskPosition?: string
+  maskRepeat?: string
+  maskMode?: string
+  maskComposite?: string
+  filter?: string
+  backdropFilter?: string
+  mixBlendMode?: string
+  isolation?: string
+  overflowClipMargin?: string
+
+  objectPosition?: string
   border?: { width: number; style?: string; color?: string }
   /** top-left, top-right, bottom-right, bottom-left — same order as legacy
    * `VisualObject.radius`. */
@@ -94,11 +117,25 @@ export interface StructuredAppearance {
   /** overflow hidden/clip/scroll/auto — boolean only. Full clip-path/mask
    * fidelity (spec §26) is not attempted by this schema. */
   clip: boolean
+  clipX?: boolean
+  clipY?: boolean
+  accentColor?: string
+  colorScheme?: string
 }
 
 export interface StructuredTypography {
+  gradient?: import('./richText').TextGradient | null
+  captureLines?: {text:string;start?:number;x:number;y:number;width:number;height:number}[]
   whiteSpace?: string
   fontStyle?: string
+  textWrap?: string
+  fontFeatureSettings?: string
+  fontVariationSettings?: string
+  fontOpticalSizing?: string
+  fontKerning?: string
+  fontStretch?: string
+  wordSpacing?: string
+  WebkitFontSmoothing?: string
   text: string
   /** Designer-applied character-range overrides; capture leaves this empty. */
   textRuns?: TextStyleRun[]
@@ -133,6 +170,7 @@ export interface StructuredSource {
    * reverse-engineered into a synthesized path string the way legacy's
    * `vector()` does; the eventual renderer re-emits real markup instead. */
   svgGeometry?: Record<string, string>
+  control?: { type: 'text' | 'email' | 'password' | 'number' | 'range' | 'checkbox' | 'radio' | 'date' | 'time'; placeholder?:string; placeholderColor?:string; placeholderOpacity?:number; value?: string; checked?: boolean; disabled?: boolean; min?: string; max?: string; step?: string }
 }
 
 /** Spec §10/§11: store both the raw browser value and the resolved
@@ -214,6 +252,7 @@ export interface StructuredNode {
   source: StructuredSource
   tokenBindings?: StructuredTokenBindings
   /** Always `undefined` in Stage 2. */
+  designProposal?: { kind:'new'|'variant'; reason:string; componentId?:string }
   componentBinding?: StructuredComponentBinding
   constraints: StructuredConstraints
   /** Always `true` — invisible nodes are dropped at compile time entirely,
@@ -231,7 +270,7 @@ export interface StructuredCaptureMetadata {
   capturedAt: string
   /** Which capture technique produced this frame — always `'domSnapshot'`
    * today, room for a future alternative technique without a schema change. */
-  engine: 'domSnapshot'
+  engine: 'domSnapshot' | 'design'
   structuredNodeCount: number
   durationMs: number
   /** Stage 4 (spec §20) — populated asynchronously, after the rest of this
@@ -252,6 +291,8 @@ export interface StructuredCaptureMetadata {
  * `data:` URI — the same already-fetched bytes `captureResources()`
  * downloads for the legacy pipeline, not a live/unstable browser URL. */
 export interface StructuredFont {
+  unicodeRange?: string
+  stretch?: string
   family: string
   weight: string
   style: string

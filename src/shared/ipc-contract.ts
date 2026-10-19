@@ -40,6 +40,8 @@ import type { FrameUiPackageFile } from './types/frameuiExport'
  * its own input (see src/main/ipc/schemas) rather than trusting the renderer.
  */
 export interface FrameUiApi {
+  prototype: import('./types/prototype').PrototypeApi
+  ai: import('./types/ai').AiApi
   design: {
     fromSource(input: { projectId: string; pageId: string; width?: number; state?: string }): Promise<VisualPage>
     /** `pageCount`/`thumbnail` describe the document's own first page (a
@@ -55,6 +57,7 @@ export interface FrameUiApi {
      * check reusing the same guest-browser mechanism as `discover`, but never
      * crawls links or touches the route model. */
     testConnection(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ ok: true; address: string; title: string; route: string; assetsLoaded: number; assetsTotal: number }>
+    discoverArtifact(importId:string): Promise<{token:string;routes:CaptureRoute[];transitions:import('../core/prototype/artifactFlow').DetectedTransition[];warnings:string[]}>
     prepareCapture(input: { url: string; profile?: 'standard' | 'admin' | 'super-admin'; routes: { pattern: string; path: string; name: string }[] }): Promise<{ token: string }>
     discover(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ token: string; routes: CaptureRoute[]; components: number; layouts: number; warnings: string[] }>
     addRoute(token: string, address: string): Promise<CaptureRoute[]>
@@ -66,7 +69,7 @@ export interface FrameUiApi {
      * mouse off whatever's hovered in the webview. */
     captureLiveVisualStates(guestId: number, objects: VisualObject[]): Promise<VisualObject[]>
     cancelCapture(): Promise<{ ok: boolean }>
-    capture(input: { token: string; routes?: string[]; controlStates?: boolean; overlays?: boolean; widths: number[]; unchanged: { route: string; hash: string }[] }): Promise<VisualPage[]>
+    capture(input: { token: string; artifactImportId?:string; routes?: string[]; controlStates?: boolean; overlays?: boolean; widths: number[]; unchanged: { route: string; hash: string }[] }): Promise<VisualPage[]>
     /** Stage 3 of the capture-engine rebuild (docs/CAPTURE_ENGINE_REBUILD_SPEC.md):
      * dev-only read-back for `StructuredCapturePreview.tsx`, the "render
      * captured models beside the existing SVG output" debug view. Lists the
@@ -234,6 +237,16 @@ export interface FrameUiApi {
     setObservationApproved(projectId: string, observationId: string, approved: boolean): Promise<DesignSystemWorkspaceData>
   }
   project: {
+    cancelPrototypeImport(id:string):Promise<{ok:boolean}>
+    finishPrototypeImport(id:string):Promise<void>
+    onPrototypeImportProgress(callback:(progress:import('./types/artifactImport').ArtifactImportProgress)=>void):()=>void
+    importPrototype(id:string): Promise<{project:RecentProject;url:string;routes:string[]} | null>
+    connectApplication(url:string): Promise<RecentProject>
+    getRuntime(): Promise<import('./types/project').RuntimeConnection | null>
+    configureRuntime(url: string, source: import('./types/project').RuntimeSource): Promise<import('./types/project').RuntimeConnection>
+    verifyRuntime(): Promise<import('./types/project').RuntimeConnection>
+    downloadVerification(): Promise<{ saved: boolean }>
+
     rename(projectId: string, name: string): Promise<{ ok: true }>
     listLibrary(): Promise<ProjectLibraryEntry[]>
     removeFromRecent(projectId: string): Promise<{ ok: true }>
@@ -292,6 +305,9 @@ export interface FrameUiApi {
     openExternal(url: string): Promise<{ ok: boolean }>
   }
   export: {
+    saveSketch(request: import('./types/sketchExport').SketchExportRequest): Promise<import('./types/sketchExport').SketchExportResult>
+    cancelSketch(jobId: string): Promise<void>
+    onSketchProgress(listener: (event: {jobId:string;stage:string}) => void): () => void
     saveFrameUiPackage(files: FrameUiPackageFile[], suggestedName: string): Promise<{ ok: boolean; filePath?: string; byteLength?: number; error?: string }>
     revealSaved(filePath: string): Promise<{ ok: boolean }>
     revealFigmaImporter(): Promise<{ ok: boolean }>

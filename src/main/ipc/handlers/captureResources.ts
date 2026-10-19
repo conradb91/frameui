@@ -1,3 +1,4 @@
+import {captureImageMime} from '@core/capture-compiler/imageMime'
 import type { WebContents } from 'electron'
 import type { CapturedElement } from '@shared/types/runtimeCapture'
 import type { VisualPage } from '@shared/types/visualDesign'
@@ -159,6 +160,8 @@ export async function embedIframeFallbacks(contents: WebContents, root: Captured
   const viewport = await contents.executeJavaScript('({width:innerWidth,height:innerHeight})') as { width: number; height: number }
   async function walk(el: CapturedElement): Promise<void> {
     signal.throwIfAborted()
+    if(el.styles.transform?.startsWith('matrix3d('))warnings.push('A 3D transform may need visual review; its layers remain editable.')
+    if(['clipPath','filter','maskImage'].some(key=>/url\(["']?#/.test(el.styles[key]||'')))warnings.push('A referenced SVG clipping or filter definition may not be portable; review this effect against the original app.')
     if (el.tag === 'iframe' || el.tag === 'frame') {
       await spliceIframeFallback(contents, el, viewport, signal, warnings)
       return
@@ -187,16 +190,19 @@ export async function captureResources(contents: WebContents, root: CapturedElem
       })()`)
       const response = await contents.session.fetch(asset.href, { signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]) })
       const mime = response.headers.get('content-type')?.split(';')[0] || ''
-      if (!response.ok || (image && !mime.startsWith('image/'))) throw new Error('Resource unavailable')
+      if (!response.ok) throw new Error('Resource unavailable')
       const data = Buffer.from(await response.arrayBuffer())
       if (data.length > (image ? 20000000 : 5000000)) throw new Error('Resource too large')
-      return `data:${mime || 'font/woff2'};base64,${data.toString('base64')}`
+      return `data:${image?captureImageMime(data,mime):mime||'font/woff2'};base64,${data.toString('base64')}`
     })())
     return cache.get(key)!
   }
   const viewport = await contents.executeJavaScript('({width:innerWidth,height:innerHeight})') as {width:number;height:number}
-  async function embed(el: CapturedElement): Promise<void> {
+  async function embed(el: CapturedElement, svgResources=false): Promise<void> {
+    svgResources=svgResources||!!el.attributes?.['data-frameui-svg-definitions']&&el.attributes['data-frameui-svg-definitions']!=='[]'
     signal.throwIfAborted()
+    if(el.styles.transform?.startsWith('matrix3d('))warnings.push('A 3D transform may need visual review; its layers remain editable.')
+    if(['clipPath','filter','maskImage'].some(key=>/url\(["']?#/.test(el.styles[key]||'')))warnings.push('A referenced SVG clipping or filter definition may not be portable; review this effect against the original app.')
     if (el.tag === 'iframe' || el.tag === 'frame') {
       await spliceIframeFallback(contents, el, viewport, signal, warnings)
       return
@@ -208,9 +214,19 @@ export async function captureResources(contents: WebContents, root: CapturedElem
       if (key === 'poster' && el.tag !== 'video') continue
       if (address.startsWith('data:image/') && address.length < 28000000) continue
       try { el.attributes![key] = await read(address, true) }
-      catch { signal.throwIfAborted(); warnings.push('An image could not be embedded. Check the screenshot preview for its appearance.'); delete el.attributes![key] }
+      catch (error) { if(process.env.FRAMEUI_AUDIT_DEBUG)console.warn('Image embed diagnostic',new URL(address,url).pathname,(error as Error).message);signal.throwIfAborted(); warnings.push('An image could not be embedded. Check the screenshot preview for its appearance.'); delete el.attributes![key] }
     }
-    for (const child of el.children) await embed(child)
+    for(const key of ['backgroundImage','maskImage']){
+      const css=el.styles[key];if(!css)continue
+      let result=css
+      for(const match of css.matchAll(/url\((?:"([^"]+)"|'([^']+)'|([^)]*))\)/g)){
+        const address=match[1]||match[2]||match[3].trim()
+        if(svgResources){try{const reference=new URL(address,url);if(reference.hash&&reference.href.split('#')[0]===new URL(url).href.split('#')[0])continue}catch{/* handled by the normal resource warning */}}
+        try{result=result.replace(match[0],`url("${await read(address,true)}")`)}catch{signal.throwIfAborted();warnings.push(`A ${key==='maskImage'?'mask':'background'} resource could not be embedded; its appearance may differ.`)}
+      }
+      el.styles[key]=result
+    }
+    for (const child of el.children) await embed(child,svgResources)
   }
   await embed(root)
   // A stylesheet loaded cross-origin without `crossorigin` set (the
@@ -222,10 +238,10 @@ export async function captureResources(contents: WebContents, root: CapturedElem
   // page's CORS policy — it's the same mechanism already used for images).
   const { fonts: directRules, externalSheets } = await contents.executeJavaScript(`(() => {
     const fonts=[]; const visited=new Set(); const externalSheets=new Set();
-    const walk=(rules,base)=>{for(const rule of rules){if(rule.type===5){const match=rule.style.src.match(/url\\(["']?([^"')]+)["']?\\)/);if(match)fonts.push({family:rule.style.fontFamily,weight:rule.style.fontWeight||'400',style:rule.style.fontStyle||'normal',url:new URL(match[1],base).href})}try{if(rule.cssRules)walk(rule.cssRules,base)}catch{}}};
+    const walk=(rules,base)=>{for(const rule of rules){if(rule.type===5){const match=rule.style.src.match(/url\\(["']?([^"')]+)["']?\\)/);if(match)fonts.push({family:rule.style.fontFamily,weight:rule.style.fontWeight||'400',style:rule.style.fontStyle||'normal',unicodeRange:rule.style.unicodeRange||undefined,stretch:rule.style.fontStretch||undefined,url:new URL(match[1],base).href})}try{if(rule.styleSheet){const sheet=rule.styleSheet;try{walk(sheet.cssRules,sheet.href||base)}catch{if(sheet.href)externalSheets.add(sheet.href)}}else if(rule.cssRules)walk(rule.cssRules,base)}catch{}}};
     const sheets=scope=>{for(const sheet of [...(scope.styleSheets||[]),...(scope.adoptedStyleSheets||[]),...Array.from(scope.querySelectorAll('style,link[rel=stylesheet]')).map(el=>el.sheet).filter(Boolean)]){if(visited.has(sheet))continue;visited.add(sheet);try{walk(sheet.cssRules,sheet.href||document.baseURI)}catch{if(sheet.href)externalSheets.add(sheet.href)}};for(const el of scope.querySelectorAll('*'))if(el.shadowRoot)sheets(el.shadowRoot)};
     sheets(document);return {fonts:fonts.slice(0,40),externalSheets:[...externalSheets].slice(0,20)}
-  })()`) as {fonts:{family:string;weight:string;style:string;url:string}[];externalSheets:string[]}
+  })()`) as {fonts:{family:string;weight:string;style:string;unicodeRange?:string;stretch?:string;url:string}[];externalSheets:string[]}
   const rules = [...directRules]
   for (const sheetUrl of externalSheets) {
     signal.throwIfAborted()
@@ -240,16 +256,18 @@ export async function captureResources(contents: WebContents, root: CapturedElem
         const family = /font-family\s*:\s*['"]?([^;'"]+)['"]?\s*;/.exec(block)?.[1]?.trim()
         const weight = /font-weight\s*:\s*([^;]+);/.exec(block)?.[1]?.trim() || '400'
         const style = /font-style\s*:\s*([^;]+);/.exec(block)?.[1]?.trim() || 'normal'
+        const unicodeRange = /unicode-range\s*:\s*([^;]+);/.exec(block)?.[1]?.trim()
+        const stretch = /font-stretch\s*:\s*([^;]+);/.exec(block)?.[1]?.trim()
         const urlMatch = /url\(["']?([^"')]+)["']?\)/.exec(block)
         if (!family || !urlMatch) continue
-        try { rules.push({ family, weight, style, url: new URL(urlMatch[1], sheetUrl).href }) } catch { /* malformed url */ }
+        try { rules.push({ family, weight, style, unicodeRange, stretch, url: new URL(urlMatch[1], sheetUrl).href }) } catch { /* malformed url */ }
       }
     } catch { /* best-effort — this stylesheet's fonts just won't embed */ }
   }
   const fonts: NonNullable<VisualPage['fonts']> = []
   for (const rule of rules) {
     signal.throwIfAborted()
-    try { fonts.push({family:rule.family,weight:rule.weight,style:rule.style,data:await read(rule.url,false)}) }
+    try { fonts.push({family:rule.family,weight:rule.weight,style:rule.style,unicodeRange:rule.unicodeRange,stretch:rule.stretch,data:await read(rule.url,false)}) }
     catch { signal.throwIfAborted(); warnings.push('A font could not be embedded; a fallback font may be used.') }
   }
   return fonts

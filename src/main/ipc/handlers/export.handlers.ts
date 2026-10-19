@@ -1,5 +1,9 @@
 import electron from 'electron'
 import fs from 'node:fs'
+import { Worker } from 'node:worker_threads'
+import { randomUUID } from 'node:crypto'
+import { visualDocumentSchema } from '@core/visual/schema'
+import type { SketchExportResult, SketchExportReport } from '@shared/types/sketchExport'
 import path from 'node:path'
 import { z } from 'zod'
 import { createStoredZip } from '../../export/storedZip'
@@ -35,6 +39,39 @@ async function pickSavePath(defaultName: string, extensionLabel: string, extensi
 }
 
 export function registerExportHandlers(): void {
+  const jobs = new Map<string, {senderId:number;cancel:()=>void}>()
+  ipcMain.handle('export:cancelSketch', (event, raw) => { const id=z.string().uuid().parse(raw); const job=jobs.get(id); if(job?.senderId===event.sender.id)job.cancel() })
+  ipcMain.handle('export:saveSketch', async (event,raw):Promise<SketchExportResult> => {
+    const request=z.object({jobId:z.string().uuid(),document:visualDocumentSchema,documents:z.array(visualDocumentSchema).max(200).optional(),scope:z.enum(['artboard','flow','project']),pageId:z.string().optional(),flowId:z.string().optional(),includePrototype:z.boolean()}).parse(raw)
+    if([...jobs.values()].some(job=>job.senderId===event.sender.id))return {ok:false,error:'An export is already running in this window.'}
+    if(jobs.has(request.jobId))return {ok:false,error:'This export is already running.'}
+    // Keep the user's project and any existing output untouched until validation finishes.
+    let canceled=false;let worker:Worker|undefined
+    const cancel=()=>{canceled=true;void worker?.terminate()}
+    jobs.set(request.jobId,{senderId:event.sender.id,cancel})
+    const destroyed=()=>cancel();event.sender.once('destroyed',destroyed)
+    let tempPath:string|undefined
+    try {
+      const filePath=await pickSavePath(request.document.name.replace(/[^a-zA-Z0-9._ -]/g,'-')+'.sketch','Sketch document for Adobe XD','sketch')
+      if(!filePath||canceled)return {ok:false,canceled:true}
+      if(path.extname(filePath).toLowerCase()!=='.sketch')throw new Error('Save this bridge document with the .sketch extension.')
+      if(path.extname(filePath).toLowerCase()==='.frameui')throw new Error('The source design cannot be overwritten.')
+      tempPath=path.join(path.dirname(filePath),'.frameui-export-'+randomUUID()+'.tmp')
+      const report=await new Promise<SketchExportReport>((resolve,reject)=>{
+        worker=new Worker(path.join(__dirname,'sketchWorker.cjs'),{workerData:{request,tempPath}})
+        worker.on('message',(message:{stage?:string;report?:SketchExportReport;error?:string})=>{
+          if(message.stage&&!event.sender.isDestroyed())event.sender.send('export:sketchProgress',{jobId:request.jobId,stage:message.stage})
+          if(message.error)reject(new Error(message.error));if(message.report)resolve(message.report)
+        })
+        worker.on('error',reject);worker.on('exit',()=>reject(new Error(canceled?'Export canceled.':'Export worker stopped before producing a document.')))
+      })
+      if(canceled)return {ok:false,canceled:true}
+      await fs.promises.rename(tempPath,filePath);tempPath=undefined
+      savedExportPaths.add(path.resolve(filePath))
+      return {ok:true,filePath,report}
+    }catch(error){return canceled?{ok:false,canceled:true}:{ok:false,error:error instanceof Error?error.message:String(error)}}
+    finally {event.sender.removeListener('destroyed',destroyed);jobs.delete(request.jobId);await worker?.terminate();if(tempPath)await fs.promises.rm(tempPath,{force:true})}
+  })
   ipcMain.handle('export:saveFrameUiPackage', async (_event, raw): Promise<{ ok: boolean; filePath?: string; byteLength?: number; error?: string }> => {
     const { files, suggestedName } = saveFrameUiSchema.parse(raw)
     const filePath = await pickSavePath(suggestedName.replace(/\.frameui$/i, '') + '.frameui', 'FrameUI Design Package', 'frameui')

@@ -65,6 +65,7 @@ export function updateStructuredNodeBounds(
       return {
         ...node,
         bounds: boundsPatch ? { ...node.bounds, ...boundsPatch } : node.bounds,
+        typography: node.typography&&boundsPatch&&(boundsPatch.width!==undefined||boundsPatch.height!==undefined)?{...node.typography,captureLines:undefined}:node.typography,
         children,
       }
     })
@@ -126,10 +127,17 @@ export function removeStructuredNodes(frame: StructuredFrame, ids: string[]): St
  * target node has no `typography` at all, i.e. isn't actually a Text node. */
 export function updateStructuredNodeText(frame: StructuredFrame, id: string, text: string, textRuns?: TextStyleRun[]): StructuredFrame {
   const node = findStructuredNode(frame.children, id)
+  if (node?.source.control) {
+    if(node.locked)return frame
+    const control=node.source.control
+    const field=control.placeholder!==undefined?'placeholder':'value'
+    if(control[field]===text)return frame
+    return patchStructuredNode(frame,id,{source:{...node.source,control:{...control,[field]:text}}})
+  }
   if (!node?.typography || (node.typography.text === text && node.typography.textRuns === textRuns)) return frame
   function patch(nodes: StructuredNode[]): StructuredNode[] {
     return mapShared(nodes, (n) => {
-      if (n.id === id) return { ...n, typography: { ...n.typography!, text, textRuns } }
+      if (n.id === id) return { ...n, typography: { ...n.typography!, text, textRuns, captureLines:undefined } }
       const children = patch(n.children)
       return children === n.children ? n : { ...n, children }
     })
@@ -215,4 +223,12 @@ export function ungroupStructuredNodes(frame: StructuredFrame, groupIds: string[
     })
   }
   return { ...frame, children: transform(frame.children) }
+}
+
+/** Intentional auto-layout edits reflow stored boxes; capture itself never reflows. */
+export function layoutStructured(node:StructuredNode){
+ if(node.layout.mode!=='stack')return
+ const horizontal=node.layout.direction==='horizontal',padding=node.layout.padding??{top:0,left:0,right:0,bottom:0}
+ let cursor=horizontal?padding.left:padding.top
+ for(const child of node.children){child.bounds.x=horizontal?cursor:padding.left;child.bounds.y=horizontal?padding.top:cursor;cursor+=(horizontal?child.bounds.width:child.bounds.height)+(node.layout.gap??0)}
 }
