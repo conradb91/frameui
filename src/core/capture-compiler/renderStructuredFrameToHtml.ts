@@ -57,7 +57,7 @@ export function renderStructuredFrameToHtml(frame: StructuredFrame): string {
 }
 
 function renderText(t:StructuredTypography):string{
- if(t.captureLines?.length)return capturedTextParts(t).map(line=>'<span style="'+styleToInlineCss({position:'absolute',left:line.x,top:line.y,width:line.width,height:line.height,whiteSpace:'pre',textAlign:'left',lineHeight:line.height+'px',...gradientTextStyle(t.gradient,line)})+'">'+line.segments.map(segment=>'<span style="'+styleToInlineCss(textRunStyle(segment,line))+'">'+esc(segment.text)+'</span>').join('')+'</span>').join('')
+ if(t.captureLines?.length&&t.textOverflow!=='ellipsis')return capturedTextParts(t).map(line=>'<span style="'+styleToInlineCss({position:'absolute',left:line.x,top:line.y,width:line.width,height:line.height,whiteSpace:'pre',textAlign:'left',lineHeight:line.height+'px',...gradientTextStyle(t.gradient,line)})+'">'+line.segments.map(segment=>'<span style="'+styleToInlineCss(textRunStyle(segment,line))+'">'+esc(segment.text)+'</span>').join('')+'</span>').join('')
  return textSegments(t.text,t.textRuns).map(segment=>'<span style="'+styleToInlineCss(textRunStyle(segment))+'">'+esc(segment.text)+'</span>').join('')
 }
 function renderNode(node: StructuredNode,inheritedGradient?:import('@shared/types/richText').TextGradient): string {
@@ -97,7 +97,7 @@ function renderNode(node: StructuredNode,inheritedGradient?:import('@shared/type
   }
 
   if (node.type === 'SVG') {
-    const shapes = node.children.filter((child) => child.type === 'Shape').map(child=>renderShape(child,node.id)).join('')
+    const shapes = node.children.filter((child) => child.type === 'Shape'||child.source.tag==='frameui-richtext').map(child=>renderShape(child,node.id)).join('')
     return `<svg fill="${esc(node.appearance.fill??'black')}" stroke="${esc(node.appearance.stroke??'none')}" stroke-width="${node.appearance.strokeWidth??1}" stroke-linecap="${esc(node.source.svgGeometry?.['stroke-linecap']??'butt')}" stroke-linejoin="${esc(node.source.svgGeometry?.['stroke-linejoin']??'miter')}" style="${styleToInlineCss({ ...positionStyle, ...appearanceStyle, color:node.source.svgGeometry?.color })}" viewBox="${esc(node.source.svgGeometry?.viewBox ?? '')}" width="${node.bounds.width}" height="${node.bounds.height}"><defs>${renderSvgDefinitions(node.source.svgGeometry?.definitions,node.id)}</defs>${shapes}</svg>`
   }
 
@@ -114,6 +114,7 @@ function renderShape(node: StructuredNode,scope:string): string {
   const paint = (node.appearance.opacity===1?'':` opacity="${node.appearance.opacity}"`)+ extra + `${node.appearance.fill ? ` fill="${esc(scopeSvgValue(node.appearance.fill,scope)!)}"` : ''}${node.appearance.stroke ? ` stroke="${esc(scopeSvgValue(node.appearance.stroke,scope)!)}"` : ''}${node.appearance.strokeWidth ? ` stroke-width="${node.appearance.strokeWidth}"` : ''}`
   switch (node.source.tag) {
     case 'use': { const href=geo.href??geo['xlink:href'];return href?.startsWith('#')?`<use href="${esc(scopeSvgValue('url('+href+')',scope)!.slice(4,-1))}" x="${esc(geo.x??'0')}" y="${esc(geo.y??'0')}" width="${esc(geo.width??'100%')}" height="${esc(geo.height??'100%')}"${paint}/>`:'' }
+    case 'frameui-richtext':
     case 'g':
       return `<g${paint}>${node.children.map(child=>renderShape(child,scope)).join('')}</g>`
     case 'rect':

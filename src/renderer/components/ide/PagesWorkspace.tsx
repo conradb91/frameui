@@ -1,3 +1,4 @@
+import {capturePages} from '../../lib/capturePages'
 import { userFacingError } from '../../lib/userFacingError'
 import { applicationAddress,localAppAddress } from '@core/runtime/address'
 import { RuntimeSettings } from './RuntimeSettings'
@@ -150,7 +151,7 @@ export function PagesWorkspace({ document, initialAddress, archivedPages, onCapt
       const {token} = await window.frameui.design.prepareCapture({url:job.address, profile:job.profile, routes:patterns.map(pattern => ({pattern, path:jobUrl(job,pattern), name:routes.find(r=>r.pattern===pattern)?.name || pattern}))})
       if (stopRequested.current) { setSummary('Capture stopped before any pages were captured.'); return }
       setBusy('Capturing pages')
-      const pages = await window.frameui.design.capture({token, routes:patterns, widths:job.widths, unchanged:[]})
+      const pages = await capturePages({token, routes:patterns, widths:job.widths, unchanged:[]})
       const existing = [...latest.current.pages]
       for (const page of pages) {
         const i = existing.findIndex(p => p.route === page.route && p.state === page.state && (p.authProfile || 'standard') === (page.authProfile || 'standard'))

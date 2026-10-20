@@ -1031,7 +1031,7 @@ test('CSS positioned content paints above later zero-index pseudo gradients and 
   const all = b.entries.filter((e) => e.path.startsWith('artwork/') && e.path.endsWith('.agc')).flatMap((e) => nodes(JSON.parse(e.data.toString()))) as any[]
   const group = all.find((n) => n.name === 'hero')
   expect(group.group.children.map((n: any) => n.name)).toEqual(['hero background 1', 'hero image', 'hero gradient', 'hero heading'])
-  const text = all.find((n) => n.name === 'hero heading')
+  const text = all.find((n) => n.name === 'hero heading' && n.type === 'text')
   expect(text.meta.ux.rangedStyles[0].charSpacing).toBeCloseTo(-45)
   expect(text.style.stroke).toBeUndefined()
   expect(text.style.fill.color.value).toEqual({ r: 22, g: 36, b: 58 })
@@ -1097,4 +1097,71 @@ test('centered editable point text caches negative measured advance and preserve
  expect(text.transform).toMatchObject({tx:-391,ty:159})
  expect(text.transform.tx+line.x).toBe(-439)
  expect(text.style.textAttributes.paragraphAlign).toBe('center')
+})
+
+test('clipped editable text keeps its mask at the original box rather than the text baseline',()=>{
+ const d=fixture();d.pages=d.pages.slice(0,1);d.pages[0].objects=[object('Text',{id:'clipped-label',text:'Compliant:',x:24,y:32,width:1,height:1,clip:true,fontFamily:'Arial',fontSize:12,lineHeight:18})]
+ const result=buildXdDocument({jobId:'clip-label',document:d,scope:'all',includePrototype:false},()=>{})
+ const scene=JSON.parse(result.entries.find(e=>e.path.startsWith('artwork/artboard-')&&e.path.endsWith('.agc'))!.data.toString())
+ const n=scene.children[0].artboard.children[0]
+ expect(n.type).toBe('group')
+ expect(n.group.children[0].type).toBe('text')
+ const resources=JSON.parse(result.entries.find(e=>e.path==='resources/graphics/graphicContent.agc')!.data.toString())
+ const clip=resources.resources.clipPaths[n.style.clipPath.ref].children[0]
+ expect(clip.shape).toMatchObject({width:1,height:1})
+ expect(clip.transform).toBeUndefined()
+ expect(n.group.children[0].transform.ty).toBeGreaterThan(0)
+ expect(n.transform.ty+Number(clip.transform?.ty??0)).toBe(32+d.pages[0].canvasY!)
+ expect(n.transform.tx+Number(clip.transform?.tx??0)).toBe(24+d.pages[0].canvasX!)
+})
+
+test('captured text avatars retain their coloured background and original text position',()=>{
+ const d=fixture();d.pages=d.pages.slice(0,1);d.pages[0].objects=[]
+ d.pages[0].structured={id:'avatar-frame',name:'Avatar',viewport:'390x844',sourceRoute:'/',width:390,height:844,captureMetadata:{capturedAt:'now',engine:'domSnapshot',structuredNodeCount:1,durationMs:0},children:[{id:'avatar',name:'JM',type:'Text',parentId:null,children:[],bounds:{x:30,y:50,width:40,height:40},layout:{mode:'free'},appearance:{backgroundColor:'#2266ee',radius:[20,20,20,20],opacity:1,rotation:0,clip:false},source:{tag:'span'},constraints:{position:'static'},visibility:true,locked:false,typography:{text:'JM',fontFamily:'Arial',fontWeight:'700',fontSize:14,lineHeight:20,letterSpacing:0,textAlign:'center',color:'#ffffff',captureLines:[{text:'JM',start:0,x:10,y:10,width:20,height:20}]}}]}
+ const result=buildXdDocument({jobId:'avatar',document:d,scope:'all',includePrototype:false},()=>{})
+ const scene=JSON.parse(result.entries.find(e=>e.path.startsWith('artwork/artboard-')&&e.path.endsWith('.agc'))!.data.toString())
+ const n=scene.children[0].artboard.children[0]
+ expect(n.type).toBe('group')
+ expect(n.group.children[0].type).toBe('shape')
+ expect(n.group.children[0].shape).toMatchObject({width:40,height:40,r:[20,20,20,20]})
+ expect(n.group.children[0].style.fill.color.value).toMatchObject({r:34,g:102,b:238})
+ expect(n.group.children[1].type).toBe('text')
+ expect(n.group.children[1].text.rawText).toBe('JM')
+ expect(n.transform.tx+n.group.children[1].transform.tx).toBe(40+d.pages[0].canvasX!)
+})
+
+test('positioned lines use their active run size rather than the inherited wrapper baseline',()=>{
+ const d=fixture()
+ d.pages[0].objects=[object('Text',{name:'Run baselines',fontFamily:'Arial',fontSize:20,lineHeight:30,text:'Title\nSubtitle',textRuns:[{start:0,end:5,fontSize:12},{start:6,end:14,fontSize:11}]})]
+ const b=buildXdDocument({jobId:'run-baselines',document:d,scope:'all',includePrototype:false},()=>{},[],[{stack:'Arial',weight:'400',style:'normal',family:'Arial',postscript:'ArialMT',sourceBaselineBySize:{20:7,12:4,11:3}}])
+ const all=b.entries.filter(e=>e.path.startsWith('artwork/')&&e.path.endsWith('.agc')).flatMap(e=>nodes(JSON.parse(e.data.toString())))
+ const text=all.find(n=>n.name==='Run baselines') as any
+ expect(text.transform.ty).toBe(120+15+4)
+ expect(text.text.paragraphs[1].lines[0][0].y).toBe(29)
+})
+
+test('normal-size clipped category labels keep their full box, source weight and single opacity',()=>{
+ const d=fixture();d.pages=d.pages.slice(0,1);d.pages[0].objects=[object('Text',{id:'category-label',name:'Category label',text:'Crew Member Details',x:38,y:52,width:140,height:16,clip:true,fontFamily:'Arial',fontWeight:'700',fontSize:12,lineHeight:15.6,opacity:.5})]
+ const result=buildXdDocument({jobId:'category-mask',document:d,scope:'all',includePrototype:false},()=>{},[{family:'Arial',style:'Bold',postscript:'Arial-BoldMT'}])
+ const scene=JSON.parse(result.entries.find(e=>e.path.startsWith('artwork/artboard-')&&e.path.endsWith('.agc'))!.data.toString())
+ const group=scene.children[0].artboard.children[0],text=group.group.children[0]
+ const resources=JSON.parse(result.entries.find(e=>e.path==='resources/graphics/graphicContent.agc')!.data.toString())
+ const mask=resources.resources.clipPaths[group.style.clipPath.ref].children[0]
+ expect(group.transform.tx).toBe(38+d.pages[0].canvasX!)
+ expect(group.transform.ty).toBe(52+d.pages[0].canvasY!)
+ expect(mask.shape).toMatchObject({width:140,height:16})
+ expect(mask.transform).toBeUndefined()
+ expect(text.transform.ty).toBe(12)
+ expect(text.style.font.style).toBe('Bold')
+ expect(text.style.opacity).toBe(1)
+ expect(group.style.opacity).toBe(.5)
+})
+
+test('missing exact source faces warn about XD weight and metric substitution',()=>{
+ const d=fixture();d.pages[0].objects=[object('Text',{text:'Source heading',fontFamily:'Source Family',fontWeight:'500'})]
+ const measured=[{stack:'Source Family',weight:'500',style:'normal',family:'Source Family',fontStyle:'Medium',postscript:'SourceFamily-Medium'}]
+ const result=buildXdDocument({jobId:'missing-face',document:d,scope:'all',includePrototype:false},()=>{},[{family:'Arial',style:'Regular',postscript:'ArialMT'}],measured)
+ expect(result.report.warnings.some(w=>w.includes('Source font face is not installed: Source Family Medium (SourceFamily-Medium)'))).toBe(true)
+ const matched=buildXdDocument({jobId:'installed-face',document:d,scope:'all',includePrototype:false},()=>{},[{family:'Source Family',style:'Medium',postscript:'SourceFamily-Medium'}],measured)
+ expect(matched.report.warnings.some(w=>w.includes('Source font face is not installed:'))).toBe(false)
 })

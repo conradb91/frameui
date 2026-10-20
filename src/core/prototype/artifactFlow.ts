@@ -15,7 +15,12 @@ export function artifactFlow(pages:VisualPage[],transitions:DetectedTransition[]
     const find=(nodes:StructuredNode[])=>{for(const item of nodes){if(item.source.selector===edge.selector)node=item;find(item.children)}}
     find(source.structured.children)
     if(!node)continue
-    interactions.push({id:crypto.randomUUID(),sourceArtboardId:source.id,sourceElementId:node.id,trigger:'click',action:'navigate',destinationId:destination.id,transition:'instant',label:edge.label.slice(0,200)})
+    const boldLabel=(item:StructuredNode):string|undefined=>{
+      if(['b','strong'].includes(item.source.tag??'')&&item.typography?.text)return item.typography.text
+      for(const child of item.children){const found=boldLabel(child);if(found)return found}
+    }
+    const label=(boldLabel(node)||edge.label).replace(/[\uE000-\uF8FF]|[\u{F0000}-\u{FFFFD}]|[\u{100000}-\u{10FFFD}]/gu,'').replace(/\s+/g,' ').trim()
+    interactions.push({id:crypto.randomUUID(),sourceArtboardId:source.id,sourceElementId:node.id,trigger:'click',action:'navigate',destinationId:destination.id,transition:'instant',label:label.slice(0,200)})
   }
   const flows:PrototypeData['flows']=[],covered=new Set<string>()
   const make=(root:string,label:string,destination?:string)=>{

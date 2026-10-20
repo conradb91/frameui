@@ -7,7 +7,7 @@ import {
 } from '@core/capture-compiler/textPaint'
 import { textSegments } from '@core/visual/textRuns'
 export function StructuredTextContent({ typography: t }: { typography: StructuredTypography }) {
-  if (t.captureLines?.length)
+  if (t.captureLines?.length && t.textOverflow !== 'ellipsis')
     return (
       <>
         {capturedTextParts(t).map((line, i) => (

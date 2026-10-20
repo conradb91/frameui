@@ -73,8 +73,16 @@ export async function renderAndCompareStructuredCapture(params: {
   const viewportHeight = Math.round(originalSize.height * frame.width / originalSize.width)
   const renderPng = await renderFrameToScreenshotPng(frame, dir, slug, signal, '', viewportHeight)
   if (!renderPng) return undefined
-  const diffed = diffAgainstOriginal(originalPng, renderPng, dir, slug)
+  let diffed = diffAgainstOriginal(originalPng, renderPng, dir, slug)
   if (!diffed) return undefined
+  // A hidden Chromium window can expose a stale compositor surface even
+  // after layout/RAF readiness. Confirm an unexpectedly large mismatch with
+  // an independent render before diagnosing missing layers or rasterizing.
+  if(diffed.visualMatch.diffPercent>CORRECTION_ATTEMPT_THRESHOLD_PERCENT){
+    const confirmation=await renderFrameToScreenshotPng(frame,dir,slug,signal,'verified',viewportHeight)
+    const checked=confirmation&&diffAgainstOriginal(originalPng,confirmation,dir,slug,'verified')
+    if(checked&&checked.visualMatch.diffPercent<diffed.visualMatch.diffPercent)diffed=checked
+  }
   const { visualMatch, original, render } = diffed
   if (visualMatch.diffPercent <= CORRECTION_ATTEMPT_THRESHOLD_PERCENT) return { visualMatch }
 
@@ -132,6 +140,10 @@ async function renderFrameToScreenshotPng(
       'Promise.all([document.fonts.ready, ...[...document.images].map(img => img.decode().catch(()=>{}))])',
     )
     await (signal ? raceAbort(settle, signal) : settle)
+    // Font/image readiness precedes compositor painting. Hidden review windows
+    // can otherwise return only the first painted background (a false mismatch).
+    const painted=win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{document.body.getBoundingClientRect();resolve()})))')
+    await (signal ? raceAbort(painted, signal) : painted)
     const capture = win.webContents.capturePage()
     const renderImage = await (signal ? raceAbort(capture, signal) : capture)
     return renderImage.toPNG()

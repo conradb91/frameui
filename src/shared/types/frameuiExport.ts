@@ -73,6 +73,7 @@ export interface FrameUiExportNode {
   text?: {
     gradient?: import('./richText').TextGradient | null
     color?: string
+    textOverflow?: string
     captureLines?: import('./structuredDesign').StructuredTypography['captureLines']
     characters: string
     fontFamily: string

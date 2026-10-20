@@ -1,3 +1,4 @@
+import {CSS_SVG_MASK_ICONS_SCRIPT,attachCssSvgMaskIcons} from './cssSvgMaskIcons'
 import { raceAbort } from '../capture/raceAbort'
 import { CONTENT_METRICS_SCRIPT } from '../capture/contentHeight'
 import { SVG_RESOURCE_TAGS, SVG_RESOURCE_ATTRIBUTES } from '@core/capture-compiler/svgDefinitions'
@@ -113,6 +114,7 @@ export async function captureDomSnapshot(
   const ratio = snapshotBodyWidth && liveBodyWidth > 0 ? snapshotBodyWidth / liveBodyWidth : 1
   const coordinateScale = Number.isFinite(ratio) && ratio > 0 ? ratio : 1
   const root = reconstructSnapshotTree(snapshot, CAPTURED_STYLE_PROPERTIES, viewport, coordinateScale)
+  attachCssSvgMaskIcons(root,await execute(CSS_SVG_MASK_ICONS_SCRIPT) as Parameters<typeof attachCssSvgMaskIcons>[1])
   const placeholderStyles = await execute(`(() => {
     const result = {};
     for (const input of document.querySelectorAll('input[placeholder]')) {
@@ -178,8 +180,8 @@ export async function captureDomSnapshot(
   attachGradientPaint(root)
   if(root.tag==='frameui-root'&&Number.isFinite(contentMetrics.height)){
     root.rect.height=contentMetrics.height
-    const containsModal=(el:CapturedElement):boolean=>el.aria?.['aria-modal']==='true'||el.aria?.role==='dialog'||el.attributes?.role==='dialog'||el.tag==='dialog'||el.children.some(containsModal)
-    const expandBackdrops=(el:CapturedElement):void=>{if(el.styles.position==='fixed'&&el.rect.x<=1&&el.rect.y<=1&&el.rect.width>=viewport.width-2&&el.rect.height>=viewport.height-2&&containsModal(el))el.rect.height=Math.max(el.rect.height,contentMetrics.height-el.rect.y);el.children.forEach(expandBackdrops)};expandBackdrops(root)
+    const containsModal=(el:CapturedElement):boolean=>el.attributes?.['data-drawer']!==undefined||el.attributes?.['data-side-panel']!==undefined||/\b(drawer|side-panel)\b/.test(el.classes??'')||el.aria?.['aria-modal']==='true'||el.aria?.role==='dialog'||el.attributes?.role==='dialog'||el.tag==='dialog'||el.children.some(containsModal)
+    const expandBackdrops=(el:CapturedElement):void=>{if(el.styles.position==='fixed'&&el.rect.x<=1&&el.rect.y<=1&&el.rect.width>=viewport.width-2&&el.rect.height>=viewport.height-2&&(containsModal(el)||/backdrop|scrim/.test(el.classes??'')))el.rect.height=Math.max(1,contentMetrics.height-el.rect.y);el.children.forEach(expandBackdrops)};expandBackdrops(root)
   }
   return normalizeCaptureScale(root)
 }

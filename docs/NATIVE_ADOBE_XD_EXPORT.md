@@ -6,7 +6,7 @@ The Adobe XD choice previously called `export.saveSketch`, generated a `.sketch`
 
 `src/core/export/xdDocument.ts` uses the same FrameUI model normalizer as other exporters (`buildFrameUiPackage`), then serializes the normalized design directly into XD AGC nodes. It never calls the Sketch document builder. Small existing font-resolution, SVG-resource and geometry helpers are reused; they do not generate Sketch documents.
 
-The renderer lets a user choose all artboards, a checkbox selection of artboards, or the current artboard. All requested artboards go into one document. Saved canvas coordinates, artboard sizes and names are retained.
+The renderer lets a user choose all artboards, a checkbox selection of artboards, or the current artboard. All requested artboards go into one document. Saved canvas coordinates, artboard sizes and names are retained. If a composition lies outside XD’s visible canvas but fits as a whole, it is translated intact. Larger compositions are packed as flow groups across the available canvas, keeping each guide beside its screens without scaling artboards. Shared screens are exported once. A document that cannot fit is rejected instead of clipping or shrinking it.
 
 `src/main/export/xdWorker.ts` runs serialization off the Electron main thread, checks the archive in memory, writes a temporary file exclusively, re-reads and validates it, then returns its report. The main process atomically renames the output only after these checks. Cancellation terminates the worker and removes temporary output. The source design and existing destination remain untouched until validation completes.
 
@@ -105,3 +105,67 @@ Browser-default radio controls can have no computed CSS border or background whi
 ### HTML border containing-block coordinates (20 October)
 
 FrameUI's HTML renderer places captured children absolutely inside bordered divs. Their CSS containing-block origin is the padding edge, adding the parent's border width to `left`/`top`; native groups have no such implicit border box. Neutral export now explicitly adds an effective HTML parent border inset to each immediate child. It does not add padding or alter SVG geometry coordinates. An independent Chromium fixture confirmed nested global bounds against the normalized local coordinates. In the actual 40-screen source, 887 bordered parents affected 5,373 descendants, with at most 2px cumulative drift. This is a small verified placement correction, not an explanation for every observed spacing difference. Evidence: `verification/native-xd-2026-10-20/border-containing-block.json`.
+
+## Flow explanations
+
+Flow guide frames contain numbered, editable action descriptions: source screen, captured control label, trigger, and resulting screen or overlay. Only recorded connections within the flow are described; sibling branches are not invented as sequential steps. Shared screens are identified in the introduction. Untouched legacy guide cards are upgraded on open and export; user-edited guide text is retained. Expanded guides that would collide with another frame move above the composition while actual screen positions remain unchanged.
+
+The global save status reads “XD file saved”. Archive validation and the separate, unverified Adobe XD application compatibility status remain available in the export compatibility report.
+
+## Embedded icon fonts and editable text wrapping
+
+Private-use glyphs are resolved from each captured page’s embedded font bytes and exported as editable native paths, using the captured font size, line positions, colour and browser baseline. This works with arbitrary CSS font-family aliases; it does not substitute icons by name or require the recipient to install the icon font. Font parsing is cached across exported artboards. Ordinary words remain editable text. Missing or undecodable icon fonts produce a specific report entry rather than invented replacement geometry.
+
+Edited and native text without capture-line metadata is measured in Chromium using FrameUI’s typography styles and rich-text runs before export. Those visible lines become positioned editable XD paragraphs. Existing captured lines remain authoritative. Export probes are temporary and cancellable; font bytes are shared rather than repeated for every text layer.
+
+Large XD requests use a serialized bridge message and the shared lossless resource table for IPC and worker transfer. Batch captures similarly return serialized resource-table data. This avoids Electron context isolation recursively copying and freezing large design trees while retaining all layers, typography, fonts and media. Opening a design activates its registered project and reloads its index; background HTML import remains scoped to its own runtime and session.
+
+### Captured text alignment and clipping
+
+Capture retains legacy CSS `clip: rect(...)` and drops zero-area clipped content, including screen-reader-only table status labels. Nonempty legacy clips become equivalent inset masks. Native XD text uses the same clipping geometry as other layers; masks stay anchored to the captured container rather than shifting with the text baseline. Older one-pixel clipped `sr-only` / `visually-hidden` layers receive an empty mask on export. Captured text backgrounds (for example coloured initials avatars) are exported as separate editable geometry behind editable text, with the original container transform applied once.
+
+One Glance table capture comparison at 1440 px: 0.363% differing pixels against Chromium HTML rendering. This verifies capture positioning; it is not a substitute for opening the resulting native file in Adobe XD and checking its renderer.
+
+### Capture width and line wrapping
+
+HTML/ZIP import asks for 1440 px or 1920 px before file selection. Safe flow discovery uses that viewport too, so it observes the same responsive controls as capture. Capture uses a 1024 px or 1080 px browser viewport respectively and retains the full content height. Native XD retains each artboard's source dimensions; it does not stretch a 1440 px capture to simulate a 1920 px layout. Recapture the HTML at the desired width to change the responsive composition.
+
+Adjacent inline text fragments with matching line geometry retain their original whitespace and weight ranges in one editable XD line. Browser soft wraps, explicit newlines, different-size fragments and intentionally separated text stay positioned. One Glance table capture comparison: 0.362% differing pixels at 1440 px and 0.271% at 1920 px. These are Chromium capture comparisons, not claims of Adobe XD pixel identity.
+
+Open drawer states retain their complete viewport context, original panel width and right-edge position. Explicit `data-drawer` markup is retained during DOM capture so full-viewport backdrops can extend to the content height even when the drawer lacks ARIA dialog markup. The synthetic wide-drawer fixture verifies both 1440 px and 1920 px capture and native XD artboard sizes, with no differing pixels in the Chromium viewport comparison.
+
+Prototype playback uses safe alignment and horizontal scrolling for oversized artboards and drawers, retaining access to both edges instead of clipping the leading edge when a 1920 px screen is wider than the player window.
+
+### Full scrolling drawer content
+
+Artifact capture expands narrow drawer/side-panel scroll regions as well as large page panels. Fixed top/bottom constraints are released while the rendered width and translation are preserved. Full-window backdrop wrappers extend with the revealed content. Full-page reference images use the same rendered content height as the editable artboard, including fixed panels that extend beyond the document's ordinary scroll height. A 360 px drawer with 32 rows verifies the last row and footer, a 2920 px artboard/backdrop height and native XD dimensions at both desktop widths.
+
+### Automatic capture diagnostics and repeatable regression checks
+
+Every batch/HTML import and interactive capture now compares captured text fragments, native form controls and SVG shape counts with editable output. It also checks whether meaningful visible content extends below the artboard. Failures become deduplicated import notes and carry through to the XD report; editable compilation failures are no longer silent. These structural checks complement the existing visual comparison and font/resource diagnostics; they do not prove arbitrary JavaScript behavior or Adobe XD pixel identity.
+
+Run `bun run verify:capture` for isolated local Chromium comparisons covering rich text/gradients, list markers, SVG transforms/filters, wide drawers and full scrolling drawers. It writes screenshots and a summary to a temporary directory (or the directory passed as its argument). The suite exposed and now guards against collapsed heights on absolutely positioned pages and SVG geometry being grouped as inline rich text. Older synthetic SVG groups are also rendered by the canvas and HTML preview so their shapes are retained.
+
+### Category cards, mixed text metrics and ellipsis
+
+Flex/grid text wrappers remain layout containers rather than being collapsed into one rich-text layer. This preserves separate title/subtitle bounds, gaps and overflow rules. Homogeneous text runs provide the base font metrics rather than inheriting a larger wrapper font. XD positioned lines use the font size and browser baseline of the active run.
+
+CSS `text-overflow: ellipsis` is retained in capture and canvas playback. Export measures the visible prefix with Chromium and emits that prefix and ellipsis as editable XD text; the full original subtitle remains in the FrameUI document. This avoids exporting clipped-away words into neighboring badges. Existing captures whose layout boundaries were already merged require recapture.
+
+The category-card/table fixture is part of `bun run verify:capture`, including explicit layout-boundary, font-size, truncation and visual-difference assertions at 1440 and 1920 px. Actual One Glance category capture comparisons were 0.658% and 0.493% differing viewport pixels respectively. Browser comparisons do not establish pixel identity in the Adobe XD application.
+
+Hidden comparison windows wait for two compositor frames after fonts/images settle before taking a screenshot. This avoids false blank-page comparisons during large imports. Rechecking the three previously flagged One Glance states against the unchanged captured layers produced 0.096–0.176% differing pixels.
+
+Clipped text uses an outer group anchored at the captured container, with the baseline translation on the inner editable text only. Clip-path children stay in the original container coordinates. Compensating the baseline by translating clip-path children can cause XD to hide the first line or most of a short category label. Regression tests cover both visually hidden 1 px labels and normal category text, including original weight and opacity.
+
+### CSS mask icons and installed font faces
+
+Monochrome inline-SVG CSS masks, including `::before` and `::after` icons omitted from DOMSnapshot's layout table, are recovered from the running DOM as editable SVG geometry. The original paint color, disabled opacity, viewBox and non-scaling stroke are retained. Complex gradient/filter/image masks stay on the existing effect path rather than being simplified into monochrome vectors. The CSS-mask pagination fixture verifies geometry in capture and native XD at 1440/1920 px.
+
+A native font reference is not an embedded XD font. When a font catalog is available, export reports missing exact source PostScript faces, including the family/style and the risk of weight/metric substitution. The local One Glance review uses static Public Sans faces instantiated from the captured variable font, retaining its original PostScript instance names and outline metrics. These are installed in the current macOS user's Fonts folder and copied beside the Desktop font package; the application does not silently install arbitrary imported fonts.
+
+The One Glance feature drawer's original `.kfp-scrim` is explicitly transparent. Crew detail `.cdp-scrim` uses a dark RGBA paint. Capture/export preserve that distinction instead of inventing a dark backdrop for every drawer.
+
+### Generated circular counter badges
+
+For absolutely positioned generated text, DOMSnapshot can report the glyph ink bounds instead of the pseudo-element's CSS box. Capture now recovers the explicit CSS width/height and containing-block position for that case, while preserving the separately measured glyph position. The One Glance numbered steps are 21 × 21 px with 10.5 px corner radii; their earlier glyph-sized bounds produced narrow pills. Empty decorative pseudo-elements retain the existing transform/bounds path. The circular-counter regression checks badge geometry, native XD backgrounds, avatars, pills and radio controls at 1440/1920 px.

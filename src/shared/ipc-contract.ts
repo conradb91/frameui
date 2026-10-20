@@ -58,7 +58,7 @@ export interface FrameUiApi {
      * check reusing the same guest-browser mechanism as `discover`, but never
      * crawls links or touches the route model. */
     testConnection(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ ok: true; address: string; title: string; route: string; assetsLoaded: number; assetsTotal: number }>
-    discoverArtifact(importId:string): Promise<{token:string;routes:CaptureRoute[];transitions:import('../core/prototype/artifactFlow').DetectedTransition[];warnings:string[]}>
+    discoverArtifact(importId:string,width?:number): Promise<{token:string;routes:CaptureRoute[];transitions:import('../core/prototype/artifactFlow').DetectedTransition[];warnings:string[]}>
     prepareCapture(input: { url: string; profile?: 'standard' | 'admin' | 'super-admin'; routes: { pattern: string; path: string; name: string }[] }): Promise<{ token: string }>
     discover(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ token: string; routes: CaptureRoute[]; components: number; layouts: number; warnings: string[] }>
     addRoute(token: string, address: string): Promise<CaptureRoute[]>
@@ -71,6 +71,7 @@ export interface FrameUiApi {
     captureLiveVisualStates(guestId: number, objects: VisualObject[]): Promise<VisualObject[]>
     cancelCapture(): Promise<{ ok: boolean }>
     capture(input: { token: string; artifactImportId?:string; routes?: string[]; controlStates?: boolean; overlays?: boolean; widths: number[]; unchanged: { route: string; hash: string }[] }): Promise<VisualPage[]>
+    captureSerialized(input: { token: string; artifactImportId?:string; routes?: string[]; controlStates?: boolean; overlays?: boolean; widths: number[]; unchanged: { route: string; hash: string }[] }): Promise<string>
     /** Stage 3 of the capture-engine rebuild (docs/CAPTURE_ENGINE_REBUILD_SPEC.md):
      * dev-only read-back for `StructuredCapturePreview.tsx`, the "render
      * captured models beside the existing SVG output" debug view. Lists the
@@ -266,6 +267,7 @@ export interface FrameUiApi {
     openDialog(relinkId?: string): Promise<OpenProjectResult>
     /** Re-opens a folder already in Recent Projects without a picker. */
     openPath(path: string): Promise<OpenRecentResult>
+    activate(projectId:string):Promise<{url?:string}>
     /** Returns the cached index for the currently active project, computing
      * it on first call. Null if no project is active. */
     getIndex(): Promise<ProjectIndex | null>
@@ -306,7 +308,7 @@ export interface FrameUiApi {
     openExternal(url: string): Promise<{ ok: boolean }>
   }
   export: {
-    saveXd(request: import('./types/xdExport').XdExportRequest): Promise<import('./types/xdExport').XdExportResult>
+    saveXd(request: import('./types/xdExport').XdExportRequest | string): Promise<import('./types/xdExport').XdExportResult>
     cancelXd(jobId: string): Promise<void>
     onXdProgress(callback: (event: { jobId: string; stage: string }) => void): () => void
     saveSketch(request: import('./types/sketchExport').SketchExportRequest): Promise<import('./types/sketchExport').SketchExportResult>

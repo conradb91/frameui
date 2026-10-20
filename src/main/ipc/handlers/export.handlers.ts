@@ -1,3 +1,6 @@
+import {restoreArtifactFonts} from '../../export/sourceFonts'
+import {packDocument,unpackDocument} from '../../../shared/documentResources'
+import {renderedExportText} from '../../export/renderedText'
 import {renderedExportImages} from '../../export/renderedImages'
 import electron from 'electron'
 import {renderedExportFonts} from '../../export/renderedFonts'
@@ -77,7 +80,7 @@ export function registerExportHandlers(): void {
     finally {event.sender.removeListener('destroyed',destroyed);jobs.delete(request.jobId);await worker?.terminate();if(tempPath)await fs.promises.rm(tempPath,{force:true})}
   })
   ipcMain.handle('export:saveXd', async (event,raw):Promise<XdExportResult> => {
-    const request=z.object({jobId:z.string().uuid(),document:visualDocumentSchema,scope:z.enum(['all','selected','current']),pageIds:z.array(z.string()).max(10000).optional(),pageId:z.string().optional(),flowId:z.string().optional(),includePrototype:z.boolean()}).parse(raw)
+    const request=z.object({jobId:z.string().uuid(),document:visualDocumentSchema,scope:z.enum(['all','selected','current']),pageIds:z.array(z.string()).max(10000).optional(),pageId:z.string().optional(),flowId:z.string().optional(),includePrototype:z.boolean()}).parse(unpackDocument(raw))
     if([...jobs.values()].some(job=>job.senderId===event.sender.id))return {ok:false,error:'An export is already running in this window.'}
     if(jobs.has(request.jobId))return {ok:false,error:'This export is already running.'}
     // Keep the user's project and any existing output untouched until validation finishes.
@@ -92,13 +95,15 @@ export function registerExportHandlers(): void {
       if(!filePath||canceled)return {ok:false,canceled:true}
       if(path.extname(filePath).toLowerCase()!=='.xd')throw new Error('Save this native document with the .xd extension.')
       if(path.extname(filePath).toLowerCase()==='.frameui')throw new Error('The source design cannot be overwritten.')
+      request.document=await restoreArtifactFonts(request.document as import('../../../shared/types/visualDesign').VisualDocument,event.sender,app.getPath('userData'),fontAbort.signal)
       if(!event.sender.isDestroyed())event.sender.send('export:xdProgress',{jobId:request.jobId,stage:'Matching fonts to the FrameUI canvas'})
       const renderedFonts=await renderedExportFonts(event.sender,request.document,fontAbort.signal)
+      const renderedLines=await renderedExportText(event.sender,request.document,fontAbort.signal)
       const renderedImages=await renderedExportImages(event.sender,request.document,fontAbort.signal)
       if(canceled)return {ok:false,canceled:true}
       tempPath=path.join(path.dirname(filePath),'.frameui-export-'+randomUUID()+'.tmp')
       const report=await new Promise<XdExportReport>((resolve,reject)=>{
-        worker=new Worker(path.join(__dirname,'xdWorker.cjs'),{workerData:{request,tempPath,renderedFonts,renderedImages}})
+        worker=new Worker(path.join(__dirname,'xdWorker.cjs'),{workerData:{request:packDocument(request),tempPath,renderedFonts,renderedImages,renderedLines}})
         worker.on('message',(message:{stage?:string;report?:XdExportReport;error?:string})=>{
           if(message.stage&&!event.sender.isDestroyed())event.sender.send('export:xdProgress',{jobId:request.jobId,stage:message.stage})
           if(message.error)reject(new Error(message.error));if(message.report)resolve(message.report)

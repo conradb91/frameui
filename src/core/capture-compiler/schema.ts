@@ -84,6 +84,7 @@ const structuredAppearanceSchema = z.object({
 
 const structuredTypographySchema = z.object({
   captureLines: z.array(z.object({text:z.string(),start:finite.optional(),x:finite,y:finite,width:finite,height:finite})).optional(),
+  textOverflow: z.string().optional(),
   whiteSpace: z.string().optional(),
   fontStyle: z.string().optional(),
   textWrap: z.string().optional(),

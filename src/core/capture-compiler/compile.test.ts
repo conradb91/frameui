@@ -419,3 +419,21 @@ test('percentage corner radii retain circular controls instead of becoming liter
  const nodes=compileStructuredNodes(el({rect:{x:0,y:0,width:40,height:40},styles:{backgroundColor:'#148b82',borderRadius:'50%'}}))
  expect(nodes[0].appearance.radius).toEqual([20,20,20,20])
 })
+
+test('SVG inline geometry stays as shapes instead of being grouped as rich text',()=>{
+ const [svg]=compileStructuredNodes(el({tag:'svg',attributes:{viewBox:'0 0 100 100'},children:[el({tag:'g',children:[el({tag:'circle',attributes:{cx:'25',cy:'25',r:'10'},styles:{display:'inline',fill:'#128e83'}}),el({tag:'path',attributes:{d:'M0 0L10 10'},styles:{display:'inline',stroke:'#000'}})]})]}))
+ expect(svg.type).toBe('SVG')
+ expect(svg.children[0].source.tag).toBe('g')
+ expect(svg.children[0].children.map(n=>n.source.tag)).toEqual(['circle','path'])
+ expect(svg.children[0].children.every(n=>n.type==='Shape')).toBe(true)
+})
+
+test('flex column titles and ellipsized subtitles retain independent typography and clipping',()=>{
+ const leaf=(text:string,size:string)=>el({tag:'frameui-text',textPreview:text,attributes:{'data-frameui-exact-text':'true'},styles:{fontSize:size,lineHeight:'15px',fontFamily:'Arial',fontWeight:'400'}})
+ const [column]=compileStructuredNodes(el({tag:'span',styles:{display:'flex',flexDirection:'column',fontSize:'14px'},children:[el({tag:'span',children:[leaf('Seaman’s Discharge Book','12px')]}),el({tag:'span',styles:{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'},children:[leaf('Seafarer record and discharge book validity','11px')]})]}))
+ expect(column.typography).toBeUndefined()
+ expect(column.children).toHaveLength(2)
+ expect(column.children[0].typography?.fontSize).toBe(12)
+ expect(column.children[1].typography).toMatchObject({fontSize:11,textOverflow:'ellipsis',whiteSpace:'nowrap'})
+ expect(column.children[1].appearance.clipX).toBe(true)
+})

@@ -1,3 +1,4 @@
+import {emptyLegacyClip,legacyClipPath} from './legacyClip'
 import {richTextFromCapture,captureTextGradient} from './capturedRichText'
 import type { CapturedElement } from '@shared/types/runtimeCapture'
 import type {
@@ -139,13 +140,14 @@ const TEXT_OWNER_EXCLUDED_DESCENDANT_TAGS = new Set([
  * elements (`span`/`strong`/`em`/…) or rendered lines the browser used. */
 function isPureTextSubtree(el: CapturedElement): boolean {
   const tag = el.tag.toLowerCase()
+  if(/^(?:inline-)?(?:flex|grid)$/.test(el.styles.display??''))return false
   if (tag === 'frameui-text' || tag === 'br') return true
   if (tag === 'frameui-visual') return false
   if (TEXT_OWNER_EXCLUDED_DESCENDANT_TAGS.has(tag)) return false
   return el.children.every(isPureTextSubtree)
 }
 function inlineTextGroups(parent:CapturedElement):CapturedElement[] {
- if(parent.tag==='frameui-richtext')return parent.children
+ if(parent.tag==='frameui-richtext'||['svg','g','defs','symbol','mask','clippath','marker','pattern','text','tspan'].includes(parent.tag.toLowerCase()))return parent.children
  const out:CapturedElement[]=[];let group:CapturedElement[]=[]
  const flush=()=>{if(group.length>1){const x=Math.min(...group.map(n=>n.rect.x)),y=Math.min(...group.map(n=>n.rect.y)),right=Math.max(...group.map(n=>n.rect.x+n.rect.width)),bottom=Math.max(...group.map(n=>n.rect.y+n.rect.height));out.push({tag:'frameui-richtext',styles:{...parent.styles,backgroundImage:'none',backgroundColor:'transparent',borderWidth:'0',padding:'0',opacity:'1',transform:'none'},rect:{x,y,width:right-x,height:bottom-y},children:group})}else out.push(...group);group=[]}
  for(const child of parent.children){if((child.tag==='frameui-text'||child.styles.display==='inline')&&isPureTextSubtree(child))group.push(child);else{flush();out.push(child)}}flush();return out
@@ -157,6 +159,7 @@ function collectOwnerText(el: CapturedElement): string {
   const parts: string[] = []
   let exact = false
   const walk = (e: CapturedElement): void => {
+    if(emptyLegacyClip(e.styles.clip)||e.styles.display==='none'||e.styles.visibility==='hidden'||e.styles.opacity==='0')return
     const tag = e.tag.toLowerCase()
     if (tag === 'frameui-text') { if (e.textPreview) parts.push(e.textPreview); if (e.attributes?.['data-frameui-exact-text']) exact = true }
     else if (tag === 'br') parts.push('\n')
@@ -212,7 +215,7 @@ function constraintsOf(s: Record<string, string>): StructuredConstraints {
   return { position: (s.position as StructuredConstraints['position']) || 'static' }
 }
 
-function appearanceOf(s: Record<string, string>, tag?: string, elementHeight = 0): StructuredAppearance {
+function appearanceOf(s: Record<string, string>, tag?: string, elementHeight = 0, elementWidth = 0): StructuredAppearance {
   const overflow = (s.overflow || '').split(/\s+/)
   const clips = (value: string) => ['hidden', 'clip', 'scroll', 'auto'].includes(value)
   const clipX = clips(s.overflowX || overflow[0])
@@ -232,7 +235,7 @@ function appearanceOf(s: Record<string, string>, tag?: string, elementHeight = 0
     backgroundBlendMode: s.backgroundBlendMode && s.backgroundBlendMode !== 'none' ? s.backgroundBlendMode : undefined,
     backgroundOrigin: s.backgroundOrigin && s.backgroundOrigin !== 'none' ? s.backgroundOrigin : undefined,
     backgroundClip: s.backgroundClip && s.backgroundClip !== 'none' ? s.backgroundClip : undefined,
-    clipPath: s.clipPath && s.clipPath !== 'none' ? s.clipPath : undefined,
+    clipPath: s.clipPath && s.clipPath !== 'none' ? s.clipPath : legacyClipPath(s.clip,elementWidth,elementHeight),
     maskImage: s.maskImage && s.maskImage !== 'none' ? s.maskImage : undefined,
     maskSize: s.maskSize && s.maskSize !== 'none' ? s.maskSize : undefined,
     maskPosition: s.maskPosition && s.maskPosition !== 'none' ? s.maskPosition : undefined,
@@ -278,6 +281,7 @@ function appearanceOf(s: Record<string, string>, tag?: string, elementHeight = 0
 function typographyOf(s: Record<string, string>, text: string): StructuredTypography {
   return {
     text,
+    textOverflow: s.textOverflow,
     whiteSpace: s.whiteSpace,
     fontStyle: s.fontStyle,
     textWrap: s.textWrap || undefined,
@@ -323,7 +327,7 @@ function tokenBindingsOf(s: Record<string, string>): StructuredTokenBindings | u
  * for `SVG`/`Shape`-type nodes — deliberately not every attribute, just
  * enough to redraw the primitive (fill/stroke come from `appearance`
  * already, via computed style, not from here). */
-const SVG_GEOMETRY_ATTRS = ['href','xlink:href','filter','mask','clip-path','d', 'points', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'y1', 'x2', 'y2', 'x', 'y', 'width', 'height', 'viewBox', 'transform', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'fill-rule']
+const SVG_GEOMETRY_ATTRS = ['vector-effect','href','xlink:href','filter','mask','clip-path','d', 'points', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'y1', 'x2', 'y2', 'x', 'y', 'width', 'height', 'viewBox', 'transform', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'fill-rule']
 function svgGeometryOf(el: CapturedElement, tag: string): Record<string, string> | undefined {
   if (tag !== 'svg' && !SVG_SHAPE_TAGS.has(tag)) return undefined
   const a = el.attributes ?? {}
@@ -376,6 +380,7 @@ export function compileStructuredNodes(
     const tag = el.tag.toLowerCase()
     if (s.display === 'contents') return el.children.flatMap((child) => convert(child, parentX, parentY, parentId))
     if (
+      emptyLegacyClip(s.clip) ||
       s.display === 'none' ||
       s.visibility === 'hidden' ||
       (number(s.opacity) === 0 && s.opacity !== undefined)
@@ -393,6 +398,9 @@ export function compileStructuredNodes(
       const ownerText = rich.text || collectOwnerText(el)
       if (ownerText) {
         const id = crypto.randomUUID()
+        const typography={...typographyOf(s,ownerText),...rich,text:ownerText}
+        const runs=rich.textRuns??[],first=runs[0]
+        if(first)Object.assign(typography,Object.fromEntries((['fontFamily','fontSize','fontWeight','fontStyle','lineHeight','letterSpacing'] as const).flatMap(key=>first[key]!==undefined&&runs.every(run=>run[key]===first[key])?[[key,first[key]]]:[])))
         return [
           {
             id,
@@ -402,8 +410,8 @@ export function compileStructuredNodes(
             children: [],
             bounds: { x: el.rect.x - parentX, y: el.rect.y - parentY, width: el.rect.width, height: el.rect.height },
             layout: layoutOf(s),
-            appearance: appearanceOf(s, tag, el.rect.height),
-            typography: {...typographyOf(s, ownerText),...rich,text:ownerText},
+            appearance: appearanceOf(s, tag, el.rect.height, el.rect.width),
+            typography,
             source: sourceOf(el, tag, ctx),
             tokenBindings: tokenBindingsOf(s),
             componentBinding: undefined,
@@ -417,7 +425,7 @@ export function compileStructuredNodes(
     }
 
     const layout = layoutOf(s)
-    const appearance = appearanceOf(s, tag, el.rect.height)
+    const appearance = appearanceOf(s, tag, el.rect.height, el.rect.width)
     const a = el.attributes ?? {}
     if (a.backgroundSrc?.startsWith('data:image/') && appearance.backgroundImage)
       appearance.backgroundImage = appearance.backgroundImage.replace(/url\((?:"[^"]+"|'[^']+'|[^)]*)\)/, `url("${a.backgroundSrc}")`)

@@ -27,6 +27,7 @@ const NON_VISUAL_TAGS = new Set([
   'title',
 ])
 const ATTRIBUTE_ALLOWLIST = new Set([
+  'data-drawer', 'data-side-panel',
   'src', 'href', 'xlink:href', 'filter', 'mask', 'clip-path',
   'alt',
   'placeholder',
@@ -265,10 +266,11 @@ export function reconstructSnapshotTree(
       try { content = JSON.parse(rawContent) } catch { /* unsupported CSS content */ }
     }
     let rect = rectAt(layoutIdx)
+    const contentRect={...rect}
     // Chromium can report an empty bounds rect for filtered negative-z-index
     // pseudo-elements even while they visibly paint. Recover their used box
     // from computed pixel dimensions and the actual containing block.
-    if((!rect.width||!rect.height)&&styles.position==='absolute'&&/px$/.test(styles.width||'')&&/px$/.test(styles.height||'')){
+    if(styles.position==='absolute'&&/px$/.test(styles.width||'')&&/px$/.test(styles.height||'')&&(!rect.width||!rect.height||(!!content&&(Math.abs(rect.width-parseFloat(styles.width))>.5||Math.abs(rect.height-parseFloat(styles.height))>.5)))){
       let owner=parentIndex[domIndex],ownerLayout=layoutIndexOf.get(owner)
       while(owner>=0&&ownerLayout!==undefined){const style=stylesAt(ownerLayout);if(style.position!=='static'||style.transform&&style.transform!=='none')break;owner=parentIndex[owner];ownerLayout=layoutIndexOf.get(owner)}
       const box=ownerLayout===undefined?{x:0,y:0,width:viewport.width,height:viewport.height}:rectAt(ownerLayout)
@@ -285,9 +287,10 @@ export function reconstructSnapshotTree(
     const childStyles = Object.fromEntries(Object.entries(styles).filter(([key]) => ['color', 'fontSize', 'fontWeight', 'fontFamily', 'fontStyle', 'textWrap', 'fontFeatureSettings', 'fontVariationSettings', 'fontOpticalSizing', 'fontKerning', 'fontStretch', 'wordSpacing', 'WebkitFontSmoothing', 'lineHeight', 'letterSpacing', 'textDecoration'].includes(key)))
     return [{
       tag: 'frameui-visual',
+      attributes: {'data-frameui-pseudo':pseudoType},
       rect: inline ? { x: rect.x - left, y: rect.y - top, width: rect.width + left + right, height: rect.height + top + bottom } : rect,
       styles,
-      children: content ? [{ tag: 'frameui-text', textPreview: redactText(content), attributes: { 'data-frameui-exact-text': 'true' }, rect: { ...rect, y: rect.y - Math.max(0, lineHeight - rect.height) / 2, height: lineHeight }, styles: { ...childStyles, whiteSpace: 'pre' }, children: [] }] : [],
+      children: content ? [{ tag: 'frameui-text', textPreview: redactText(content), attributes: { 'data-frameui-exact-text': 'true' }, rect: { ...contentRect, y: contentRect.y - Math.max(0, lineHeight - contentRect.height) / 2, height: lineHeight }, styles: { ...childStyles, whiteSpace: 'pre' }, children: [] }] : [],
     }]
   }
 

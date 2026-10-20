@@ -1,4 +1,6 @@
-import {ArtifactImportModal,ArtifactImportBackground,type ArtifactImportStatus} from './ArtifactImportModal'
+import {capturePages} from '../../lib/capturePages'
+import { upgradeFlowGuides } from '../../../core/prototype/flowIntroductions'
+import {ArtifactImportModal,ArtifactImportBackground,ArtifactImportSetup,type ArtifactImportStatus} from './ArtifactImportModal'
 import {userFacingError} from '../../lib/userFacingError'
 import {ImportReviewNotice} from './ImportReviewNotice'
 import {readableImportNote} from '../../lib/importNotes'
@@ -900,8 +902,18 @@ export function DesignIde() {
     targetPage.canvasY = (targetPage.canvasY ?? fallbackY) + screenDy / camera.zoom
     docRef.current=next;setDoc(next)
   }
+  const projectActivation=useRef<Promise<unknown>>(Promise.resolve())
   function open(next: VisualDocument) {
+    if(next.projectId){
+      const id=next.id
+      projectActivation.current=window.frameui.project.activate(next.projectId).then(({url})=>{
+        if(url&&docRef.current?.id===id&&docRef.current.appUrl!==url){const updated={...docRef.current,appUrl:url};docRef.current=updated;setDoc(updated)}
+      }).catch(error=>{if(docRef.current?.id===id)setError(userFacingError(error));throw error})
+      void projectActivation.current.catch(()=>{})
+    }else projectActivation.current=Promise.resolve()
+
     if(recents.some(d=>d.id===next.id)&&!(next.prototype&&next.pages.every(p=>p.canvasX===undefined)))savedDocuments.current.set(next.id,saveBaseline(next))
+    if(next.prototype) next={...next,pages:upgradeFlowGuides(next.pages,next.prototype)}
     if(next.prototype&&next.pages.some(p=>p.artifactSource)&&next.pages.every(p=>p.canvasX===undefined))layoutArtifactScreens(next.pages,next.prototype)
     setDoc(next)
     setMode(next.libraryId ? 'Layers' : 'Pages')
@@ -961,6 +973,8 @@ export function DesignIde() {
       }))
     return next
   }
+  const [artifactSetup,setArtifactSetup]=useState(false)
+  const [artifactWidth,setArtifactWidth]=useState<1440|1920>(1440)
   const [artifactImportStage,setArtifactImportStage]=useState('')
   const [artifactProgress,setArtifactProgress]=useState<ArtifactImportStatus>({detail:''})
   const [artifactSummary,setArtifactSummary]=useState<{title:string;notes:string[]}|null>(null)
@@ -976,7 +990,8 @@ export function DesignIde() {
     void window.frameui.project.cancelPrototypeImport(job.id).catch(()=>{})
     job.stop()
   }
-  async function importClaudePrototype(){
+  async function importClaudePrototype(width:1440|1920){
+    setArtifactSetup(false);setArtifactWidth(width)
     if(artifactJob.current)return
     const id=crypto.randomUUID(),startedAt=Date.now()
     const job={id,cancelled:false,stop:()=>{}}
@@ -1003,10 +1018,10 @@ export function DesignIde() {
       save(library)
       setArtifactImportStage('Stage 2 of 4 · Discovering screens and connections')
       setArtifactProgress(previous=>({...previous,value:undefined,detail:'Opening the prototype and checking its controls…'}))
-      const plan=await wait(window.frameui.design.discoverArtifact(id))
+      const plan=await wait(window.frameui.design.discoverArtifact(id,width))
       setArtifactImportStage('Stage 3 of 4 · Creating editable screens')
       setArtifactProgress(previous=>({...previous,value:0,detail:`Preparing ${plan.routes.length} screens`,screens:plan.routes.length,connections:plan.transitions.length}))
-      const pages=await wait(window.frameui.design.capture({token:plan.token,artifactImportId:id,widths:[1440],unchanged:[]}))
+      const pages=await wait(capturePages({token:plan.token,artifactImportId:id,widths:[width],unchanged:[]}))
       if(job.cancelled)return
       pages.sort((a,b)=>plan.routes.findIndex(r=>r.pattern===a.route)-plan.routes.findIndex(r=>r.pattern===b.route))
       if(!pages.length)throw new Error('No screens could be captured. Open the prototype as a running app to check its rendering.')
@@ -1014,7 +1029,7 @@ export function DesignIde() {
       design.projectId=result.project.id;design.libraryId=library.id;design.appUrl=result.url
       const capturedScreens=pages.length
       design.pages=pages;design.prototype=artifactFlow(pages,plan.transitions,result.project.name)
-      const warnings=[...plan.warnings,...(capturedScreens<plan.routes.length?['Some screens could not be captured. Open Capture page to retry them.']:[])]
+      const warnings=[...new Set([...plan.warnings,...pages.flatMap(page=>page.captureWarnings??[]),...(capturedScreens<plan.routes.length?['Some screens could not be captured. Open Capture page to retry them.']:[])])]
       if(warnings.length)design.pages[0].captureWarnings=[...(design.pages[0].captureWarnings??[]),...warnings]
       save({...library,pages:structuredClone(design.pages),updatedAt:new Date().toISOString()})
       save(design)
@@ -1022,7 +1037,7 @@ export function DesignIde() {
       setArtifactProgress(previous=>({...previous,value:undefined,detail:'Saving editable screens and flow guides…'}))
       await saveQueue.current
       if(saveError.current){open(design);throw new Error('The imported design is still open but has not been saved. Use Save to retry.')}
-      const summary=`${warnings.length?'Partial discovery':'Import complete'} · ${capturedScreens} of ${plan.routes.length} discovered screens captured · ${design.prototype.interactions.length} connections · Desktop (1440 px)`
+      const summary=`${warnings.length?'Partial discovery':'Import complete'} · ${capturedScreens} of ${plan.routes.length} discovered screens captured · ${design.prototype.interactions.length} connections · Desktop (${width} px)`
       setStatus(`Imported ${capturedScreens} ${capturedScreens===1?'screen':'screens'}${warnings.length?' · Review notes':''}`)
       if(artifactHiddenRef.current)setArtifactReady({id:design.id,name:design.name,summary,notes:warnings})
       else{open(design);fitAllAfterCapture.current=true;setArtifactSummary({title:summary,notes:warnings})}
@@ -2080,10 +2095,11 @@ export function DesignIde() {
     }
   }
   async function openCaptureWorkspace() {
+    try{await projectActivation.current}catch{return}
     const current = docRef.current
     if (!current) return
-    let projectUrl = current.appUrl
-    if (current.libraryId) {
+    let projectUrl = current.projectId?(await window.frameui.project.getRuntime().catch(()=>null))?.url??current.appUrl:current.appUrl
+    if (!projectUrl && current.libraryId) {
       const library = await window.frameui.design.load(current.libraryId).catch(() => null)
       if (library?.appUrl && !/^about:blank\/?$/i.test(library.appUrl.trim())) projectUrl = library.appUrl
     }
@@ -2512,7 +2528,7 @@ export function DesignIde() {
         <Welcome
           recents={recents.filter((r) => !r.libraryId && !hiddenRecent.includes(r.id))}
           projects={projectLibrary}
-          onImportPrototype={()=>void importClaudePrototype()}
+          onImportPrototype={()=>setArtifactSetup(true)}
           onConnectApplication={()=>{setConnectAppError('');setConnectAppOpen(true)}}
           onOpen={() => void openProject()}
           onOpenProject={path => void openProject(path)}
@@ -2545,7 +2561,8 @@ export function DesignIde() {
           error={error}
           onGettingStarted={openFirstRunOnboarding}
         />
-        {artifactImportStage&&!artifactHidden&&<ArtifactImportModal stage={artifactImportStage} progress={artifactProgress} startedAt={artifactStartedAt} onStop={stopArtifactImport} onBackground={hideArtifactProgress}/>}
+        {artifactSetup&&<ArtifactImportSetup width={artifactWidth} onClose={()=>setArtifactSetup(false)} onImport={width=>void importClaudePrototype(width)}/>}
+        {artifactImportStage&&!artifactHidden&&<ArtifactImportModal width={artifactWidth} stage={artifactImportStage} progress={artifactProgress} startedAt={artifactStartedAt} onStop={stopArtifactImport} onBackground={hideArtifactProgress}/>}
         {artifactImportStage&&artifactHidden&&<ArtifactImportBackground stage={artifactImportStage} progress={artifactProgress} onOpen={showArtifactProgress} onStop={stopArtifactImport}/>}
         {artifactReady&&!artifactImportStage&&<aside className="artifact-import-background" aria-label="Prototype import ready"><div><strong>Prototype ready</strong><span>{artifactReady.name}</span></div><button onClick={()=>void openImportedPrototype()}>Open design</button><button onClick={()=>setArtifactReady(null)}>Dismiss</button></aside>}
 
@@ -3095,7 +3112,7 @@ export function DesignIde() {
                 {page.sourceDesign.states.map(state => <option key={state}>{state}</option>)}
               </select>
               <select aria-label="Source viewport" value={page.width} disabled={sourceBusy} onChange={event => { void renderSource(page.route ?? page.sourceDesign!.pageId, page.state, Number(event.target.value)) }}>
-                {[...new Set([375, 768, 1440, page.width])].sort((a,b) => a-b).map(width => <option key={width} value={width}>{width <= 480 ? 'Mobile' : width <= 1024 ? 'Tablet' : 'Desktop'} · {width}px</option>)}
+                {[...new Set([375, 768, 1440, 1920, page.width])].sort((a,b) => a-b).map(width => <option key={width} value={width}>{width <= 480 ? 'Mobile' : width <= 1024 ? 'Tablet' : 'Desktop'} · {width}px</option>)}
               </select>
             </div>
           )}

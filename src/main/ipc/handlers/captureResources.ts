@@ -1,3 +1,4 @@
+import {unicodeRangeKey} from './capture/fontFaces'
 import {captureImageMime} from '@core/capture-compiler/imageMime'
 import type { WebContents } from 'electron'
 import type { CapturedElement } from '@shared/types/runtimeCapture'
@@ -268,7 +269,7 @@ export async function captureResources(contents: WebContents, root: CapturedElem
   const canonical=(s:string)=>s.replace(/["']/g,'').replace(/\s/g,'').toLowerCase()
   const used=new Set<string>()
   const walk=(el:CapturedElement)=>{for(const f of (el.styles.fontFamily??'').split(','))used.add(canonical(f));el.children.forEach(walk)};walk(root)
-  const unique=[...new Map(rules.filter(rule=>used.has(canonical(rule.family))&&(!loadedFaces?.length||loadedFaces.some(face=>canonical(face.family)===canonical(rule.family)&&canonical(face.unicodeRange??'U+0-10FFFF')===canonical(rule.unicodeRange??'U+0-10FFFF')))).map(rule=>[JSON.stringify(rule),rule])).values()].slice(0,256)
+  const unique=[...new Map(rules.filter(rule=>used.has(canonical(rule.family))&&(!loadedFaces?.length||loadedFaces.some(face=>canonical(face.family)===canonical(rule.family)&&unicodeRangeKey(face.unicodeRange)===unicodeRangeKey(rule.unicodeRange)))).map(rule=>[JSON.stringify(rule),rule])).values()].slice(0,256)
   // Fetch a small batch concurrently: a missing remote font must not hold every face serially.
   for(let start=0;start<unique.length;start+=6){
     signal.throwIfAborted()

@@ -70,3 +70,11 @@ export function xdFontKey(stack: string, weight: string, style: string): string 
     /italic|oblique/i.test(style) ? 'italic' : 'normal',
   ].join('|')
 }
+
+/** Keep named intermediate weights (Medium/SemiBold/etc.) in editable XD text. */
+export function xdFontStyle(weight:string,style:string):string {
+ const number=weight==='bold'?700:Number(weight)||400
+ const names:Record<number,string>={100:'Thin',200:'ExtraLight',300:'Light',400:'Regular',500:'Medium',600:'SemiBold',700:'Bold',800:'ExtraBold',900:'Black'}
+ const face=names[Math.max(100,Math.min(900,Math.round(number/100)*100))]
+ return /italic|oblique/i.test(style)?face==='Regular'?'Italic':face+' Italic':face
+}

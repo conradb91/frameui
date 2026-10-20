@@ -1,3 +1,4 @@
+import {capturePages} from '../../lib/capturePages'
 import {connectApplication} from '../../lib/connectApplication'
 import { RuntimeSettings } from './RuntimeSettings'
 import { mergeCapturedPage } from '@core/visual/refresh'
@@ -21,7 +22,7 @@ import type {
 import type { FrameUiApi } from '@shared/ipc-contract'
 import { ModalBody, ModalHeader, ModalProgress, ModalShell } from '../ui/Modal'
 type Plan = Awaited<ReturnType<FrameUiApi['design']['discover']>>
-const WIDTH_STATE: Record<number, 'Desktop' | 'Tablet' | 'Mobile'> = { 1440: 'Desktop', 768: 'Tablet', 390: 'Mobile' }
+const WIDTH_STATE: Record<number, 'Desktop' | 'Tablet' | 'Mobile'> = { 1920: 'Desktop', 1440: 'Desktop', 768: 'Tablet', 390: 'Mobile' }
 
 /**
  * The multi-route headless batch capture flow — discover -> select routes
@@ -177,7 +178,7 @@ export function ImportApplication({
     failures.current = []
     setProgress([])
     try {
-      const pages = await window.frameui.design.capture({
+      const pages = await capturePages({
         token: plan.token,
         routes: selected,
         overlays,
@@ -509,7 +510,7 @@ export function ImportApplication({
 
             <fieldset className="ide-capture-sizes">
               <legend>Capture sizes</legend>
-              {([[1440, 'Desktop · 1440×1024'], [768, 'Tablet · 768×1024'], [390, 'Mobile · 390×844']] as const).map(([w, labelText]) => (
+              {([[1920, 'Wide desktop · 1920×1080'], [1440, 'Desktop · 1440×1024'], [768, 'Tablet · 768×1024'], [390, 'Mobile · 390×844']] as const).map(([w, labelText]) => (
                 <label key={w} className="ide-check">
                   <input
                     type="checkbox"

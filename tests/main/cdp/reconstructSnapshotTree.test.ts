@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import type {CapturedElement} from '../../../src/shared/types/runtimeCapture'
 import type { Protocol } from 'devtools-protocol'
 import { reconstructSnapshotTree } from '../../../src/main/ipc/handlers/cdp/reconstructSnapshotTree'
 
@@ -423,4 +424,15 @@ test('list markers retain browser-resolved bullets and ordered numbering as edit
  const texts:string[]=[];const visit=(n:any)=>{if(n.textPreview)texts.push(n.textPreview);n.children.forEach(visit)};visit(root)
  expect(texts).toContain(marker)
  }
+})
+
+test('absolute generated circular badges retain their CSS box independently from glyph bounds',()=>{
+ const requestedStyles=['position','width','height','left','top','borderRadius','backgroundColor','content','lineHeight','display']
+ const snapshot=buildSnapshot({requestedStyles,nodes:[{tag:'#document',parent:-1},{tag:'HTML',parent:0},{tag:'BODY',parent:1},{tag:'LI',parent:2},{tag:'SPAN',parent:3},{tag:'::before',parent:4,pseudoType:'before'},{tag:'#text',parent:5,text:'1'}],layout:[{node:2,bounds:[0,0,300,100]},{node:3,bounds:[40,20,200,24],styles:{position:'relative'}},{node:4,bounds:[40,20,0,0],styles:{position:'static'}},{node:5,bounds:[46.5,24.7,8,13],text:'1',styles:{position:'absolute',left:'0px',top:'1px',width:'21px',height:'21px',borderRadius:'50%',backgroundColor:'#e6eefc',lineHeight:'17.6px',display:'grid'}}]})
+ const root=reconstructSnapshotTree(snapshot,requestedStyles,{width:300,height:100})
+ const all:CapturedElement[]=[];const walk=(n:CapturedElement)=>{all.push(n);n.children.forEach(walk)};walk(root)
+ const badge=all.find(n=>n.tag==='frameui-visual')!
+ expect(badge.rect).toEqual({x:40,y:21,width:21,height:21})
+ expect(badge.children[0].rect.x).toBe(46.5)
+ expect(badge.children[0].rect.y).toBeCloseTo(22.4)
 })

@@ -1,7 +1,9 @@
+import {captureCompletenessWarnings} from '../../../core/capture-compiler/completeness'
+import {packDocument} from '../../../shared/documentResources'
 import {referenceImage} from './capture/referenceImages'
 import {documentRequest} from '../../design/documentStore'
 import { EXPAND_ARTIFACT_PANELS_SCRIPT } from './capture/contentHeight'
-import { importSignal, abortable } from '../../artifacts/importJob'
+import { importSignal, importProject, abortable } from '../../artifacts/importJob'
 import { explorePrototype, replayPrototype } from '../../artifacts/explorePrototype'
 import { managedPrototypeRoutes, servePrototype } from '../../artifacts/prototypeImport'
 import { runtimeAllowed } from '../../security/runtimePolicy'
@@ -86,7 +88,7 @@ function writeStructuredCapture(
   // project's already-built component index — same "resolve before the
   // first write" reasoning as `tokens` above.
   components?: Component[],
-): { frame: StructuredFrame; document: StructuredDesignDocument; dir: string; slug: string } {
+): { frame: StructuredFrame; document: StructuredDesignDocument; dir: string; slug: string; warnings:string[] } {
   const model = getCachedIndex()?.projectModel
   const matchedRoute = matchRoutePattern(ctx.route, model?.routes ?? [])
   const sourceFile = model?.pages.find(page => page.id === matchedRoute?.route.pageId)?.source.filePath
@@ -105,7 +107,7 @@ function writeStructuredCapture(
   const slug = `${slugify(ctx.route)}-${ctx.width}x${ctx.height}`
   writeJsonFileAtomic(path.join(dir, `${slug}.json`), document)
   if (legacy) writeJsonFileAtomic(path.join(dir, `${slug}.legacy.json`), legacy)
-  return { frame, document, dir, slug }
+  return { frame, document, dir, slug, warnings:captureCompletenessWarnings(root,frame) }
 }
 /** Shared by both the structured-v2 (awaited) and legacy (fire-and-forget)
  * branches of `design:captureCurrentState` — compiles+writes the structured
@@ -187,8 +189,8 @@ const file = (id: string) =>
     'design-files',
     `${idSchema.parse(id)}.json`,
   )
-const partition = (profile = 'standard') =>
-  `persist:project-${getActiveProject()?.projectId ?? 'design'}${profile === 'standard' ? '' : `-${profile}`}`
+const partition = (profile = 'standard',projectId=getActiveProject()?.projectId) =>
+  `persist:project-${projectId ?? 'design'}${profile === 'standard' ? '' : `-${profile}`}`
 let approved: {
   token: string
   routes: CaptureRoute[]
@@ -457,20 +459,20 @@ async function collectRuntimeRoutes(
  * silently misrender them. Any width outside this feature's three sizes
  * (link-crawling during discovery, legacy/arbitrary add-route captures)
  * falls back to the pre-existing 1000, unaffected by this lookup. */
-const CAPTURE_VIEWPORT_HEIGHTS: Record<number, number> = { 1440: 1024, 768: 1024, 390: 844 }
+const CAPTURE_VIEWPORT_HEIGHTS: Record<number, number> = { 1920: 1080, 1440: 1024, 768: 1024, 390: 844 }
 function heightForWidth(width: number): number {
   return CAPTURE_VIEWPORT_HEIGHTS[width] ?? 1000
 }
-async function browser(url: string, width = 1440, height = 1000, signal?: AbortSignal, profile = 'standard') {
+async function browser(url: string, width = 1440, height = 1000, signal?: AbortSignal, profile = 'standard',project=getActiveProject()) {
   signal?.throwIfAborted()
-  runtimeUrl.parse(url)
+  if(!runtimeAllowed(app.getPath('userData'),project?.projectId,url))throw new Error('Connect this app address to its project before capturing.')
   const win = new BrowserWindow({
     show: false,
     useContentSize: true,
     width,
     height,
     webPreferences: {
-      partition: partition(profile),
+      partition: partition(profile,project?.projectId),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -549,7 +551,7 @@ async function browser(url: string, width = 1440, height = 1000, signal?: AbortS
       if (!password) return false;
       return Array.from((password.form || document).querySelectorAll('button,input[type="submit"]')).some(el => visible(el) && /^(sign[ -]?in|log[ -]?in)$/i.test((el.textContent || el.value || '').trim()));
     })()`)
-    if (loginForm && !getActiveProject()?.rootPath.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep) && !/\/(?:login|sign-in|signin|auth)(?:\/|$)/i.test(new URL(url).pathname))
+    if (loginForm && !project?.rootPath.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep) && !/\/(?:login|sign-in|signin|auth)(?:\/|$)/i.test(new URL(url).pathname))
       throw new Error('Sign in to your application before capturing this page.')
     return win
   } catch (e) {
@@ -689,9 +691,9 @@ export function registerDesignIdeHandlers() {
   // Source routes are already indexed. Approve only the user-selected paths;
   // do not crawl the whole application before a single-page capture.
   ipcMain.handle('design:discoverArtifact', async (event,raw) => {
-    const id=z.string().uuid().parse(raw),signal=importSignal(event.sender.id,id)
-    const active=getActiveProject()
-    if(!active||!active.rootPath.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep))throw new Error('Import a local HTML or ZIP prototype first.')
+    const {id,width}=z.object({id:z.string().uuid(),width:z.number().int().min(240).max(3840).default(1440)}).parse(typeof raw==='string'?{id:raw}:raw),signal=importSignal(event.sender.id,id)
+    const active=importProject(event.sender.id,id)
+    if(!active.rootPath.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep))throw new Error('Import a local HTML or ZIP prototype first.')
     if(capturing)throw new Error('Wait for capture to finish.')
     const controller=new AbortController(),abort=()=>controller.abort(signal.reason)
     signal.addEventListener('abort',abort,{once:true})
@@ -699,7 +701,7 @@ export function registerDesignIdeHandlers() {
     try {
       signal.throwIfAborted()
       const url=await servePrototype(active.rootPath)
-      const result=await abortable(explorePrototype(url,await managedPrototypeRoutes(active.rootPath),address=>browser(address,1440,1000,controller.signal),controller.signal,progress=>{
+      const result=await abortable(explorePrototype(url,await managedPrototypeRoutes(active.rootPath),address=>browser(address,width,heightForWidth(width),controller.signal,'standard',active),controller.signal,progress=>{
         if(!event.sender.isDestroyed())event.sender.send('project:prototypeImportProgress',{...progress,id,stage:'discover'})
       }),controller.signal)
       signal.throwIfAborted()
@@ -926,6 +928,7 @@ export function registerDesignIdeHandlers() {
         name: captureName, route: url, width: metadata.width, height: metadata.height, startedAt: domSnapshotStartedAt,
       }, fonts)
       structured = captured?.frame
+      if(captured)warnings.push(...captured.warnings);else warnings.push('Capture review: editable layer compilation failed. Recapture this screen before handoff.')
       // Stage 4: heavier than the compile+write above (spawns another
       // hidden window, real render + screenshot + Pixelmatch) — stays
       // fire-and-forget even though the compile+write itself is now awaited.
@@ -1008,11 +1011,12 @@ export function registerDesignIdeHandlers() {
     const input = z
       .object({
         token: z.string(),
+        transport:z.literal('json').optional(),
         artifactImportId:z.string().uuid().optional(),
         overlays: z.boolean().default(false),
         routes: z.array(z.string()).optional(),
         controlStates: z.boolean().default(false),
-        widths: z.array(z.number().int().min(240).max(3840)).min(1).max(3),
+        widths: z.array(z.number().int().min(240).max(3840)).min(1).max(4),
         unchanged: z
           .array(z.object({ route: z.string(), hash: z.string() }))
           .default([]),
@@ -1022,12 +1026,14 @@ export function registerDesignIdeHandlers() {
       capturing ||
       !approved ||
       approved.token !== input.token ||
-      approved.projectId !== getActiveProject()?.projectId
+      approved.projectId !== (input.artifactImportId?importProject(event.sender.id,input.artifactImportId).projectId:getActiveProject()?.projectId)
     )
       throw new Error(
         'Discover the application and approve this capture first.',
       )
     const plan = approved
+    const captureProject=input.artifactImportId?importProject(event.sender.id,input.artifactImportId):getActiveProject()
+    const projectIndex=getActiveProject()?.projectId===plan.projectId?getCachedIndex():null
     const importAbort=input.artifactImportId?importSignal(event.sender.id,input.artifactImportId):undefined
     capturing = true
     const controller = new AbortController()
@@ -1069,7 +1075,7 @@ export function registerDesignIdeHandlers() {
               status: 'Processing',
             })
             try {
-              win = await browser(r.url, width, heightForWidth(width), signal, plan.profile)
+              win = await browser(r.url, width, heightForWidth(width), signal, plan.profile,captureProject)
               if (new URL(win.webContents.getURL()).origin !== plan.origin)
                 throw new Error('The page left the connected application.')
               const finalPath = runtimeRoutePath(win.webContents.getURL())
@@ -1094,7 +1100,7 @@ export function registerDesignIdeHandlers() {
               })
               visit(objects, (o) => {
                 if (o.source?.component) {
-                  const match = getCachedIndex()?.projectModel.components.find(
+                  const match = projectIndex?.projectModel.components.find(
                     (c) =>
                       c.name.replace(/([a-z])([A-Z])/g, '$1 $2') ===
                       o.source?.component,
@@ -1119,9 +1125,9 @@ export function registerDesignIdeHandlers() {
                   width: viewportWidth,
                   height: viewportHeight,
                   durationMs: Math.round(performance.now() - domSnapshotStartedAt),
-                }, { objects, fonts }, getCachedIndex()?.projectModel.tokens, getCachedIndex()?.projectModel.components)
+                }, { objects, fonts }, projectIndex?.projectModel.tokens, projectIndex?.projectModel.components)
                 structuredDocuments++
-              } catch { /* diagnostic only — never fails the real capture job */ }
+              } catch { captureWarnings.push('Capture review: editable layer compilation failed. Recapture this screen before handoff.') }
               if (input.controlStates) await captureVisualStates(win.webContents, objects)
               signal.throwIfAborted()
               // Stage 4: heavier than the compile+write above (spawns
@@ -1129,6 +1135,7 @@ export function registerDesignIdeHandlers() {
               // Pixelmatch) — fire-and-forget even on this otherwise-awaited
               // path, with the job's own `signal` so an aborted run doesn't
               // leave a stray render window behind.
+              if(captured)captureWarnings.push(...captured.warnings)
               if (captured) await scheduleVisualMatch(captured, screenshot.toPNG(), signal)
               if(captured?.frame.captureMetadata.visualMatch&&captured.frame.captureMetadata.visualMatch.diffPercent>2)captureWarnings.push(`Visual comparison found ${captured.frame.captureMetadata.visualMatch.diffPercent.toFixed(1)}% differing pixels. Native layers were preserved; review the capture against your app.`)
               pages.push({
@@ -1227,7 +1234,7 @@ export function registerDesignIdeHandlers() {
           }
         }),
       )
-      return pages
+      return input.transport==='json'?JSON.stringify(packDocument(pages)):pages
     } finally {
       console.info('[FrameUI capture]', { durationMs: Math.round(performance.now() - startedAt), jobs: jobs.length, completed, variants: pages.length, cancelled: signal.aborted, structuredDocuments })
       importAbort?.removeEventListener('abort',stopImport)

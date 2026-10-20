@@ -1,3 +1,4 @@
+import {emptyLegacyClip} from './legacyClip'
 import type { CapturedElement } from '@shared/types/runtimeCapture'
 import type { TextStyleRun, TextGradient } from '@shared/types/richText'
 import type { StructuredTypography } from '@shared/types/structuredDesign'
@@ -54,6 +55,7 @@ export function richTextFromCapture(
     lines: NonNullable<StructuredTypography['captureLines']> = []
   const walk = (el: CapturedElement, paint?: TextGradient) => {
     if (
+      emptyLegacyClip(el.styles.clip) ||
       el.styles.visibility === 'hidden' ||
       el.styles.display === 'none' ||
       el.styles.opacity === '0'

@@ -1,3 +1,6 @@
+import {embeddedFontResolver} from './embeddedFonts'
+import {iconFontResolver,isIconFontText,type IconFontCache} from './xdIconFonts'
+import { upgradeFlowGuides } from '../prototype/flowIntroductions'
 import {xdPositionedText} from './xdText'
 /** Native AGC/DCX writer. No Sketch serialization or conversion is involved.
  * Structure is based on AdobeXD/xd-to-flutter-plugin/test_suite/tests_suite.xd.
@@ -8,7 +11,7 @@ import { parse, converter } from 'culori'
 import svgpath from 'svgpath'
 import { imageSize } from 'image-size'
 import type { ExportFontFace } from './sketchFonts'
-import { resolveXdCssFont, xdFontKey, type XdRenderedFontFace } from './xdFonts'
+import { resolveXdCssFont, xdFontKey, xdFontStyle, type XdRenderedFontFace } from './xdFonts'
 import { buildFrameUiPackage } from './frameuiPackage'
 import { geometryPath } from './sketchGeometry'
 import { xdClipGeometry } from './xdClipping'
@@ -70,16 +73,20 @@ export function buildXdDocument(
   fonts: ExportFontFace[] = [],
   renderedFonts: XdRenderedFontFace[] = [],
   renderedImages: XdRenderedImageEffect[] = [],
+  renderedLines: Record<string,NonNullable<NonNullable<FrameUiExportNode['text']>['captureLines']>> = {},
 ) {
   const measured = new Map(
     renderedFonts.map((face) => [xdFontKey(face.stack, face.weight, face.style), face]),
   )
+  const embeddedFont=embeddedFontResolver(request.document.pages.flatMap(p=>p.structured?.fonts??p.fonts??[]))
   const resolvedCache = new Map<string, ExportFontFace | undefined>()
   const resolveFont = (
     stack: string,
     weight: string,
     style: string,
   ): ExportFontFace | undefined => {
+    const embedded=embeddedFont(stack,weight,style)
+    if(embedded)return embedded
     const actual = measured.get(xdFontKey(stack, weight, style))
     if (actual)
       return {
@@ -87,7 +94,7 @@ export function buildXdDocument(
         postscript: actual.postscript,
         style:
           actual.fontStyle ??
-          (/italic|oblique/i.test(style) ? 'Italic' : Number(weight) >= 600 ? 'Bold' : 'Regular'),
+          xdFontStyle(weight,style),
       }
     const key = xdFontKey(stack, weight, style)
     if (resolvedCache.has(key)) return resolvedCache.get(key)
@@ -95,11 +102,14 @@ export function buildXdDocument(
     resolvedCache.set(key, fallback)
     return fallback
   }
-  const selected = request.document.pages.filter(
+  const sourcePages = request.document.prototype ? upgradeFlowGuides(request.document.pages, request.document.prototype) : request.document.pages
+  const selected = sourcePages.filter(
     (p) =>
       request.scope === 'all' ||
       (request.scope === 'current' ? p.id === request.pageId : request.pageIds?.includes(p.id)),
   )
+  const iconFontCache:IconFontCache=new Map()
+  const iconResolvers = new Map(selected.map(p=>[p.id,iconFontResolver(p.structured?.fonts??p.fonts??[],iconFontCache)]))
   if (!selected.length) throw new Error('Select at least one artboard to export.')
   const built = buildFrameUiPackage({
     documents: [{ ...request.document, pages: selected }],
@@ -152,6 +162,8 @@ export function buildXdDocument(
     const message = xdDiagnostic(input)
     if (!report.warnings.includes(message)) report.warnings.push(message)
   }
+  for(const page of selected)for(const note of page.captureWarnings??[])warn(`Capture note: ${note}`)
+  if(request.includePrototype&&selected.some(p=>p.artifactSource))warn('Imported HTML interactions represent captured states and observed click connections. JavaScript execution, data filtering, file generation and other HTML runtime behaviour are not embedded in Adobe XD.')
   const safeColor = (value: string) => {
     try {
       return color(value)
@@ -519,6 +531,8 @@ export function buildXdDocument(
     svg?: { transform: string; definitions: Map<string, SvgDefinition>; strokeScale?: number; viewportWidth?: number; viewportHeight?: number },
     ancestors = new Set<string>(),
   ): Agc {
+    const lines=renderedLines[pageNamespace+':'+n.id]
+    if(n.text&&lines?.length)n={...n,text:{...n.text,captureLines:lines}}
     report.layers++
     const a = (n.rotation * Math.PI) / 180
     const transform = {
@@ -792,6 +806,17 @@ export function buildXdDocument(
       r: n.radius,
     }
     if (n.text && !n.control) {
+      if(isIconFontText(n.text.characters)){
+        const t=n.text,face=measured.get(xdFontKey(t.fontFamily,t.fontWeight,t.fontStyle))
+        const delta=face?.sourceBaselineBySize?.[String(t.fontSize)]??face?.baselineBySize?.[String(t.fontSize)]
+        const path=iconResolvers.get(pageNamespace)?.(t,Number.isFinite(delta)?height=>height/2+delta!:undefined)
+        if(path){report.editableVectors++;nativeStyle.fill=paint({type:'SOLID',color:t.color??'#000000',opacity:1},n.width,n.height);delete nativeStyle.stroke;return clipped({...base,type:'shape',shape:{type:'path',path}},n,svg?.definitions)}
+        warn(`Icon font outline unavailable: ${n.name}. Recapture with its embedded font available.`)
+      }
+      const originalTransform={...transform}
+      const appearance=n.captureAppearance
+      const hasSurface=!!appearance && (!!appearance.backgroundColor || (!!appearance.backgroundImage&&appearance.backgroundImage!=='none') || !!appearance.border || !!appearance.boxShadow)
+      const surface=hasSurface?node({...n,id:n.id+':text-surface',name:n.name+' background',type:'RECTANGLE',x:0,y:0,rotation:0,opacity:1,fills:appearance?.backgroundColor?[{type:'SOLID',color:appearance.backgroundColor,opacity:1}]:[],text:undefined,children:[],childIds:[],captureAppearance:{...appearance,transform:undefined}},undefined,ancestors):undefined
       report.editableText++
       const positioned = xdPositionedText(n.text)
       const t = {...n.text, characters:positioned.characters, runs:positioned.runs}
@@ -808,6 +833,8 @@ export function buildXdDocument(
         )
       if (!postscript)
         warn(`Install and verify font face: ${family} ${t.fontWeight} ${t.fontStyle}`)
+      else if(fonts.length&&!fonts.some(face=>face.postscript===postscript))
+        warn(`Source font face is not installed: ${resolved?.family??family} ${resolved?.style??t.fontWeight} (${postscript}). XD may substitute its weight and metrics; install the matching source font before reviewing.`)
       const font = {
         family: resolved?.family ?? 'Arial',
         style: resolved?.style ?? 'Regular',
@@ -879,8 +906,6 @@ export function buildXdDocument(
       const rawText = t.characters
       const measuredFace = measured.get(xdFontKey(t.fontFamily, t.fontWeight, t.fontStyle))
       const baselineDelta = measuredFace?.sourceBaselineBySize?.[String(t.fontSize)] ?? measuredFace?.baselineBySize?.[String(t.fontSize)]
-      const baseline = (height: number) =>
-        Number.isFinite(baselineDelta) ? height / 2 + baselineDelta! : t.fontSize
       if (!Number.isFinite(baselineDelta))
         warn(
           'Text baselines are not browser-measured; Adobe XD font metrics require visual validation.',
@@ -889,14 +914,19 @@ export function buildXdDocument(
       const factor=alignment==='center'?0.5:alignment==='right'?1:0
       const positionedLines=positioned.lines.map(l=>{
         const text=t.characters.slice(l.from,l.to)
-        const metric=measuredFace?.inkByText?.[JSON.stringify([t.fontSize,text])]
+        const active=(t.runs??[]).find(run=>run.start<=l.from&&run.end>l.from)
+        const lineSize=active?.fontSize??t.fontSize,lineFamily=active?.fontFamily??t.fontFamily,lineWeight=active?.fontWeight??t.fontWeight,lineStyle=active?.fontStyle??t.fontStyle
+        const lineFace=measured.get(xdFontKey(lineFamily,lineWeight,lineStyle))??measuredFace
+        const lineDelta=lineFace?.sourceBaselineBySize?.[String(lineSize)]??lineFace?.baselineBySize?.[String(lineSize)]
+        const lineBaseline=Number.isFinite(lineDelta)?l.height/2+lineDelta!:lineSize
+        const metric=lineFace?.inkByText?.[JSON.stringify([lineSize,text])]
         const mixed=(t.runs??[]).some(r=>r.start<l.to&&r.end>l.from&&((r.fontFamily&&r.fontFamily!==t.fontFamily)||(r.fontSize&&r.fontSize!==t.fontSize)||(r.fontWeight&&r.fontWeight!==t.fontWeight)||(r.fontStyle&&r.fontStyle!==t.fontStyle)))
         const sourceAdvance=metric&&!mixed?metric.sourceWidth+text.length*t.letterSpacing:n.width
         const targetAdvance=metric&&!mixed?metric.targetWidth+Math.max(0,text.length-1)*t.letterSpacing:n.width
         const dx=metric&&!mixed?metric.targetLeft-metric.sourceLeft:0
         const dy=metric&&!mixed?metric.targetAscent-metric.sourceAscent:0
         const pointX=l.x+factor*n.width+factor*(targetAdvance-sourceAdvance)+dx
-        return {pointX,x:pointX-factor*targetAdvance,y:l.y+baseline(l.height)+dy,from:l.from,to:l.to}
+        return {pointX,x:pointX-factor*targetAdvance,y:l.y+lineBaseline+dy,from:l.from,to:l.to}
       })
       // Native centered/right point text caches a negative line advance; its anchor is distinct.
       const anchorX=positionedLines[0]?.pointX??0,anchorY=positionedLines[0]?.y??0
@@ -905,15 +935,19 @@ export function buildXdDocument(
       const lines=positionedLines.map(({x,y,from,to})=>({x:x-anchorX,y:y-anchorY,from,to}))
       // Captured x/y already include browser alignment; do not align them a second time.
       nativeStyle.textAttributes = {paragraphAlign:alignment,lineHeight:t.lineHeight,letterSpacing:(t.letterSpacing/t.fontSize)*1000}
-      return {
-        ...base,
-        type: 'text',
-        text: {
-          frame: { type: 'positioned' },
-          paragraphs: lines.map(l=>({lines:[[l]]})),
-          rawText,
-        },
+      const textNode:Agc={...base,type:'text',text:{frame:{type:'positioned'},paragraphs:lines.map(l=>({lines:[[l]]})),rawText}}
+      if(surface){
+        delete nativeStyle.stroke
+        delete nativeStyle.filters
+        nativeStyle.opacity=1
+        return clipped({...base,transform:originalTransform,type:'group',style:{opacity:n.visible?n.opacity:0},group:{children:[surface,{...textNode,id:idFor(pageNamespace+':'+n.id+':editable-text'),transform:{a:1,b:0,c:0,d:1,tx:anchorX,ty:anchorY}}]}},n,svg?.definitions)
       }
+      // Keep the clipping coordinate system at the captured box. XD does not
+      // reliably apply transforms on clipPath children; translating those by
+      // the text baseline can mask almost the entire line. Move only the text.
+      if(xdClipGeometry(n,svg?.definitions).regions.length)
+        return clipped({...base,transform:originalTransform,type:'group',style:{opacity:n.visible?n.opacity:0},group:{children:[{...textNode,id:idFor(pageNamespace+':'+n.id+':editable-text'),style:{...nativeStyle,opacity:1},transform:{a:1,b:0,c:0,d:1,tx:anchorX,ty:anchorY}}]}},n,svg?.definitions)
+      return textNode
     }
     let shape: Agc = rect
     if (n.type === 'ELLIPSE')
@@ -1166,7 +1200,7 @@ export function buildXdDocument(
   }
   const artboards: Record<string, unknown> = {}
   const artwork: Agc[] = []
-  const placement = xdCanvasPlacement(selected)
+  const placement = xdCanvasPlacement(selected, request.document.prototype?.flows)
   if (placement.rearranged) warn('Artboards rearranged within Adobe XD canvas limits; original pixel dimensions are preserved.')
   for (const [index, p] of pages.entries()) {
     progress(`Serializing artboard ${index + 1} of ${pages.length}`)

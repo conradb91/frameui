@@ -1,3 +1,4 @@
+import {unpackDocument} from '../../shared/documentResources'
 import { parentPort, workerData } from 'node:worker_threads'
 import fs from 'node:fs/promises'
 import { localExportFonts } from './localFonts'
@@ -5,12 +6,14 @@ import { buildXdDocument, validateXdArchive } from '../../core/export/xdDocument
 import { createStoredZip } from './storedZip'
 import type {XdRenderedFontFace} from '../../core/export/xdFonts'
 import type { XdExportRequest } from '../../shared/types/xdExport'
-const { request, tempPath, renderedFonts, renderedImages } = workerData as {
-  request: XdExportRequest
+const { request:packedRequest, tempPath, renderedFonts, renderedImages, renderedLines } = workerData as {
+  request: unknown
   tempPath: string
+  renderedLines?:import('./renderedText').ExportTextLines
   renderedImages?:import('../../core/export/xdImages').XdRenderedImageEffect[]
   renderedFonts?:XdRenderedFontFace[]
 }
+const request=unpackDocument<XdExportRequest>(packedRequest)
 async function run() {
   try {
     parentPort?.postMessage({stage:'Checking local font references'})
@@ -21,6 +24,7 @@ async function run() {
       fonts,
       renderedFonts,
       renderedImages,
+      renderedLines,
     )
     const archive = createStoredZip(entries)
     validateXdArchive(archive)

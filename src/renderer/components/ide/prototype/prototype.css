@@ -46,3 +46,9 @@
 .studio-page-preview{width:80px;height:64px;overflow:hidden;border:1px solid var(--proto-line);border-radius:5px;background:var(--ide-hover);flex:none}.studio-page-preview .prototype-thumbnail{width:80px!important;max-height:64px}.studio-page-preview .prototype-thumbnail>div{width:max-content}
 @media(max-width:1200px){.ai-studio-toolbar-location>strong{max-width:100px}.studio-save-dot{display:none}.ai-studio-primary-toolbar{gap:6px}.ai-studio-toolbar-secondary>button>span{display:none}.ai-studio-structure-shortcuts{display:none}.ai-studio-body{grid-template-columns:var(--studio-chat-width) 5px minmax(220px,1fr) 5px var(--studio-structure-width)}.ai-studio-body.ai-studio-structure-hidden{grid-template-columns:var(--studio-chat-width) 5px minmax(220px,1fr)}.ai-studio-body.ai-studio-chat-hidden{grid-template-columns:minmax(220px,1fr) 5px var(--studio-structure-width)}.ai-studio-body.ai-studio-chat-hidden.ai-studio-structure-hidden{grid-template-columns:minmax(220px,1fr)}}
 .prototype-player [data-structured-id][role=button]{cursor:pointer}.prototype-player [data-structured-id][role=button]:focus-visible{outline:2px solid var(--ide-accent);outline-offset:3px}
+
+/* Wide artboards and drawer states must remain reachable at both scroll edges. */
+.prototype-stage{justify-content:safe center}
+.prototype-stage>[class^="prototype-transition-"]{flex:0 0 auto}
+.prototype-overlay{overflow:auto;justify-content:safe center}
+.prototype-overlay.open-drawer{justify-content:safe flex-end}

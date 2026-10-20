@@ -36,3 +36,12 @@ test('discovery reuses an already observed state inspection while each action st
  expect(opens).toBe(2);expect(destroyed).toBe(opens)
  expect(result.transitions[0]).toMatchObject({source:'/index.html',label:'Open details'})
 })
+
+test('safe local navigation recognizes dialog triggers and state tabs without guessing from label wording',()=>{
+ const control=(attrs:Record<string,string>,textContent:string)=>({tagName:'BUTTON',textContent,disabled:false,form:null,parentElement:null,getAttribute:(k:string)=>attrs[k]??null,hasAttribute:(k:string)=>k in attrs,closest:()=>null,getBoundingClientRect:()=>({width:100,height:30}),getClientRects:()=>[{}]})
+ const controls=[control({'aria-haspopup':'dialog'},'Passports'),control({'aria-pressed':'false'},'Needs attention'),control({'data-go':'overview'},'Overview'),control({'data-cat':'visas'},'Visas'),control({'aria-haspopup':'dialog'},'Delete record')]
+ const document={body:{innerText:'Fixture'},documentElement:{},title:'Fixture',querySelector:()=>null,querySelectorAll:(s:string)=>s.startsWith('a[href]')?controls:[]}
+ const info=new Function('document','getComputedStyle',`return ${inspectScript}`)(document,()=>({display:'block',visibility:'visible'}))
+ expect(info.controls.map((c:{label:string})=>c.label)).toEqual(['Passports','Needs attention','Overview','Visas'])
+ expect(info.skippedControls).toBe(1)
+})

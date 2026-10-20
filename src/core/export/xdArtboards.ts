@@ -72,23 +72,55 @@ export function xdArtboardProjection(
   return { children: visit(nodes), background }
 }
 
-/** XD's visible canvas spans -25,000..25,000 on each axis. Never scale source designs. */
-export function xdCanvasPlacement(pages: { id: string; width: number; height: number; canvasX?: number; canvasY?: number }[]): { bounds: Map<string, { x: number; y: number; width: number; height: number }>; rearranged: boolean } {
-  const bounds = new Map(pages.map((p, i) => [p.id, { x: p.canvasX ?? i * (p.width + 160), y: p.canvasY ?? 0, width: p.width, height: p.height }]))
-  if ([...bounds.values()].every((b) => b.x >= -25000 && b.y >= -25000 && b.x + b.width <= 25000 && b.y + b.height <= 25000)) return { bounds, rearranged: false }
-  const gap = 240
-  const area = pages.reduce((sum, p) => sum + (p.width + gap) * (p.height + gap), 0)
-  const rowWidth = Math.min(49000, Math.max(...pages.map((p) => p.width), Math.sqrt(area)))
-  let x = 0, y = 0, rowHeight = 0, width = 0
-  for (const p of pages) {
-    if (p.width > 49000 || p.height > 49000) throw new Error('An artboard exceeds Adobe XD canvas limits. Split the source screen before exporting; dimensions were not scaled.')
-    if (x > 0 && x + p.width > rowWidth) { x = 0; y += rowHeight + gap; rowHeight = 0 }
-    bounds.set(p.id, { x, y, width: p.width, height: p.height })
-    width = Math.max(width, x + p.width)
-    x += p.width + gap; rowHeight = Math.max(rowHeight, p.height)
+type CanvasPage = Pick<VisualPage, 'id' | 'width' | 'height' | 'canvasX' | 'canvasY' | 'flowIntroductionFor'>
+type Bounds = { x: number; y: number; width: number; height: number }
+/** Use XD's full -25,000..25,000 canvas without scaling any artboard.
+ * Translate a fitting composition intact; otherwise pack whole flow groups together.
+ */
+export function xdCanvasPlacement(pages: CanvasPage[], flows: {id:string;artboardIds:string[]}[] = []): { bounds: Map<string, Bounds>; rearranged: boolean } {
+ const gap=240, limit=49000
+ const bounds=new Map(pages.map((p,i)=>[p.id,{x:p.canvasX??i*(p.width+gap),y:p.canvasY??0,width:p.width,height:p.height}]))
+ if(!pages.length)return {bounds,rearranged:false}
+ for(const p of pages)if(p.width>limit||p.height>limit)throw new Error('An artboard exceeds Adobe XD canvas limits. Split the source screen before exporting; dimensions were not scaled.')
+ const values=[...bounds.values()],left=Math.min(...values.map(b=>b.x)),top=Math.min(...values.map(b=>b.y)),right=Math.max(...values.map(b=>b.x+b.width)),bottom=Math.max(...values.map(b=>b.y+b.height))
+ if(right-left<=limit&&bottom-top<=limit){
+  if(values.every(b=>b.x>=-25000&&b.y>=-25000&&b.x+b.width<=25000&&b.y+b.height<=25000))return {bounds,rearranged:false}
+  const dx=-(left+right)/2,dy=-(top+bottom)/2
+  for(const b of values){b.x+=dx;b.y+=dy}
+  return {bounds,rearranged:true}
+ }
+ const byId=new Map(pages.map(p=>[p.id,p])),placed=new Set<string>()
+ const groups:CanvasPage[][]=[]
+ for(const flow of flows){
+  const guide=pages.find(p=>p.flowIntroductionFor===flow.id)
+  const ids=[...(guide?[guide.id]:[]),...flow.artboardIds]
+  const group=ids.flatMap(id=>{const p=byId.get(id);if(!p||placed.has(id))return [];placed.add(id);return [p]})
+  if(group.length)groups.push(group)
+ }
+ for(const p of pages)if(!placed.has(p.id))groups.push([p])
+ // Each group is a small shelf composition. Try several widths, keeping the full canvas
+ // available to the outer shelves rather than forcing everything into a narrow square.
+ const shelf=(items:CanvasPage[],width:number)=>{
+  let x=0,y=0,rowHeight=0,usedWidth=0
+  const positions=new Map<string,Bounds>()
+  for(const p of items){if(x&&x+p.width>width){x=0;y+=rowHeight+gap;rowHeight=0}positions.set(p.id,{x,y,width:p.width,height:p.height});usedWidth=Math.max(usedWidth,x+p.width);x+=p.width+gap;rowHeight=Math.max(rowHeight,p.height)}
+  return {positions,width:usedWidth,height:y+rowHeight}
+ }
+ let best: {positions:Map<string,Bounds>;width:number;height:number;score:number}|undefined
+ for(const groupWidth of [6000,10000,16000,24000,32000,limit]){
+  const units=groups.map(g=>shelf(g,Math.max(groupWidth,...g.map(p=>p.width))))
+  if(units.some(u=>u.height>limit||u.width>limit))continue
+  let x=0,y=0,rowHeight=0,width=0
+  const positions=new Map<string,Bounds>()
+  for(const unit of units){
+   if(x&&x+unit.width>limit){x=0;y+=rowHeight+gap;rowHeight=0}
+   for(const [id,b] of unit.positions)positions.set(id,{...b,x:b.x+x,y:b.y+y})
+   width=Math.max(width,x+unit.width);x+=unit.width+gap;rowHeight=Math.max(rowHeight,unit.height)
   }
-  const height = y + rowHeight
-  if (height > 49000) throw new Error('The selected artboards exceed Adobe XD canvas limits. Export fewer artboards; dimensions were not scaled.')
-  for (const b of bounds.values()) { b.x -= width / 2; b.y -= height / 2 }
-  return { bounds, rearranged: true }
+  const height=y+rowHeight,score=Math.max(width,height)
+  if(height<=limit&&(!best||score<best.score))best={positions,width,height,score}
+ }
+ if(!best)throw new Error('The selected flow groups exceed Adobe XD canvas limits. Export fewer flows; dimensions were not scaled.')
+ for(const b of best.positions.values()){b.x-=best.width/2;b.y-=best.height/2}
+ return {bounds:best.positions,rearranged:true}
 }

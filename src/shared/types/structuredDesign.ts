@@ -126,6 +126,7 @@ export interface StructuredAppearance {
 export interface StructuredTypography {
   gradient?: import('./richText').TextGradient | null
   captureLines?: {text:string;start?:number;x:number;y:number;width:number;height:number}[]
+  textOverflow?: string
   whiteSpace?: string
   fontStyle?: string
   textWrap?: string

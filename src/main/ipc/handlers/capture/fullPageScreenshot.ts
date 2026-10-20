@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron'
 import type { Protocol } from 'devtools-protocol'
 import { withDebugger } from '../cdp/withDebugger'
 import { raceAbort } from './raceAbort'
+import {CONTENT_METRICS_SCRIPT} from './contentHeight'
 
 /**
  * A true full-page screenshot via CDP's `captureBeyondViewport`, meant to be
@@ -27,6 +28,8 @@ export async function captureFullPageScreenshot(
       const { cssContentSize } = await send<Protocol.Page.GetLayoutMetricsResponse>(
         'Page.getLayoutMetrics',
       )
+      const rendered=await raceAbort(win.webContents.executeJavaScript(CONTENT_METRICS_SCRIPT),signal) as {height:number}
+      if(Number.isFinite(rendered.height))cssContentSize.height=Math.max(cssContentSize.height,rendered.height)
       // Retina full-page captures otherwise exceed Chromium's GPU texture
       // limit (e.g. a 14k CSS-pixel page becomes a 28k-pixel render target).
       // Bound only the reference image; editable geometry stays full size.

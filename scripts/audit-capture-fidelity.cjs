@@ -24,6 +24,10 @@ import {enableCaptureMotion} from './src/main/ipc/handlers/cdp/captureMotion'
 import {captureFullPageScreenshot} from './src/main/ipc/handlers/capture/fullPageScreenshot'
 import assert from 'node:assert/strict'
 import {scrollToSettle} from './src/main/ipc/handlers/capture/scrollToSettle'
+import {EXPAND_ARTIFACT_PANELS_SCRIPT} from './src/main/ipc/handlers/capture/contentHeight'
+import {renderAndCompareStructuredCapture} from './src/main/ipc/handlers/capture/renderAndCompareStructuredCapture'
+import {renderedExportText} from './src/main/export/renderedText'
+import {captureCompletenessWarnings} from './src/core/capture-compiler/completeness'
 import fs from 'node:fs'
 import http from 'node:http'
 import {PNG} from 'pngjs'
@@ -54,14 +58,17 @@ app.whenReady().then(async()=>{
  }
  if(process.env.FRAMEUI_AUDIT_URL) session.fromPartition(partition).webRequest.onBeforeRequest((details,callback)=>callback({cancel:!['GET','HEAD','OPTIONS'].includes(details.method)}))
  const results=[]
- for(const width of [390,1440]){
+ for(const width of (process.env.FRAMEUI_AUDIT_WIDTHS?process.env.FRAMEUI_AUDIT_WIDTHS.split(',').map(Number):[390,1440])){
+  assert(Number.isInteger(width)&&width>=240&&width<=3840,'Supported capture width');
   const height=1000
   const win=new BrowserWindow({show:false,width,height,useContentSize:true,webPreferences:{backgroundThrottling:false,partition}})
   const render=new BrowserWindow({show:false,width,height,useContentSize:true,webPreferences:{backgroundThrottling:false}})
   await win.loadURL('about:blank')
   await enableCaptureMotion(win.webContents)
   await win.loadURL(url)
-  if(process.env.FRAMEUI_AUDIT_URL) await scrollToSettle(win,AbortSignal.timeout(120000))
+  if(process.env.FRAMEUI_AUDIT_CLICK_SELECTOR)await win.webContents.executeJavaScript('document.querySelector('+JSON.stringify(process.env.FRAMEUI_AUDIT_CLICK_SELECTOR)+')?.click()')
+  if(process.env.FRAMEUI_AUDIT_EXPAND_PANELS)await win.webContents.executeJavaScript(EXPAND_ARTIFACT_PANELS_SCRIPT)
+  if(process.env.FRAMEUI_AUDIT_URL||process.env.FRAMEUI_AUDIT_EXPAND_PANELS) await scrollToSettle(win,AbortSignal.timeout(120000))
   if(process.env.FRAMEUI_AUDIT_SCROLL_SELECTOR)await win.webContents.executeJavaScript('document.querySelector('+JSON.stringify(process.env.FRAMEUI_AUDIT_SCROLL_SELECTOR)+')?.scrollIntoView({block:"center"})')
   await win.webContents.executeJavaScript('document.fonts.ready.then(()=>Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))))')
   await win.webContents.insertCSS('*,*::before,*::after{transition:none!important;animation-play-state:paused!important}')
@@ -70,20 +77,22 @@ app.whenReady().then(async()=>{
   const warnings=[]
   const fonts=await captureResources(win.webContents,tree,url,AbortSignal.timeout(30000),new Map(),warnings)
   const frame=makeStructuredFrame(tree,{name:'Audit',route:url,width,height,durationMs:0});frame.fonts=fonts
+  if(process.env.FRAMEUI_ASSERT_COMPLETENESS)assert.deepEqual(captureCompletenessWarnings(tree,frame),[],'Capture structural checks must pass')
   const html=renderStructuredFrameToHtml(frame)
   const htmlPath=output+'/'+width+'.html';fs.writeFileSync(htmlPath,html)
   fs.writeFileSync(output+'/'+width+'.json',JSON.stringify({tree,frame,warnings},null,2))
   await render.loadFile(htmlPath)
   await render.webContents.executeJavaScript('document.fonts.ready.then(()=>Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))))')
-  const original=sourceImage.resize({width,height}).toPNG()
-  const captured=(await render.webContents.capturePage()).resize({width,height}).toPNG()
+  const comparisonHeight=Math.max(1,Math.min(height,frame.height))
+  const original=sourceImage.resize({width,height}).crop({x:0,y:0,width,height:comparisonHeight}).toPNG()
+  const captured=(await render.webContents.capturePage()).resize({width,height}).crop({x:0,y:0,width,height:comparisonHeight}).toPNG()
   fs.writeFileSync(output+'/'+width+'-original.png',original);fs.writeFileSync(output+'/'+width+'-captured.png',captured)
-  const a=PNG.sync.read(original),b=PNG.sync.read(captured),diff=new PNG({width,height})
-  const changed=pixelmatch(a.data,b.data,diff.data,width,height,{threshold:0.15})
+  const a=PNG.sync.read(original),b=PNG.sync.read(captured),diff=new PNG({width,height:comparisonHeight})
+  const changed=pixelmatch(a.data,b.data,diff.data,width,comparisonHeight,{threshold:0.15})
   fs.writeFileSync(output+'/'+width+'-diff.png',PNG.sync.write(diff))
   const texts=[];const visit=ns=>ns.forEach(n=>{if(n.typography)texts.push(n.typography.text);visit(n.children)});visit(frame.children)
   if(!process.env.FRAMEUI_AUDIT_URL&&!process.env.FRAMEUI_QUALITY_AUDIT&&!process.env.FRAMEUI_AUDIT_FIXTURE){
-    assert(changed/(width*height)<0.005,'Fixture must remain below 0.5% pixel difference')
+    assert(changed/(width*comparisonHeight)<0.005,'Fixture must remain below 0.5% pixel difference')
     assert(texts.includes('NEW'));assert(texts.includes('Current value'))
     const controls=[];const collect=ns=>ns.forEach(n=>{if(n.source.control)controls.push(n.source.control);collect(n.children)});collect(frame.children)
     assert(controls.some(c=>c.type==='range' && c.value==='7' && c.min==='1' && c.max==='9'))
@@ -91,18 +100,68 @@ app.whenReady().then(async()=>{
     assert(texts.includes('const total = 1;\\n  total += 2;\\n    done();'))
     assert(fonts.some(font=>font.unicodeRange),'Imported font unicode ranges must survive capture')
   }
-  if(process.env.FRAMEUI_AUDIT_FIXTURE&&!process.env.FRAMEUI_TEXT_AUDIT&&!process.env.FRAMEUI_GENERAL_AUDIT&&!process.env.FRAMEUI_LIST_AUDIT){const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children);assert(!all.some(n=>n.type==='RasterFallback'));assert(all.some(n=>n.appearance.transform),'Affine geometry must be recovered');assert(all.some(n=>n.source.svgGeometry?.definitions?.includes('feGaussianBlur')),'Referenced SVG filter must survive');assert(changed/(width*height)<0.005,'SVG and affine fixture must remain below 0.5% pixel difference')}
+  if(process.env.FRAMEUI_AUDIT_FIXTURE&&!process.env.FRAMEUI_TEXT_AUDIT&&!process.env.FRAMEUI_GENERAL_AUDIT&&!process.env.FRAMEUI_LIST_AUDIT){const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children);assert(!all.some(n=>n.type==='RasterFallback'));assert(all.some(n=>n.appearance.transform),'Affine geometry must be recovered');assert(all.some(n=>n.source.svgGeometry?.definitions?.includes('feGaussianBlur')),'Referenced SVG filter must survive');assert(changed/(width*comparisonHeight)<0.005,'SVG and affine fixture must remain below 0.5% pixel difference')}
   if(process.env.FRAMEUI_LIST_AUDIT){
     for(const marker of ['• ','■ ','III. ','IV. '])assert(texts.includes(marker),'Editable list marker missing: '+marker)
-    assert(changed/(width*height)<.002,'List capture must remain below 0.2% pixel difference')
+    assert(changed/(width*comparisonHeight)<.002,'List capture must remain below 0.2% pixel difference')
     const built=buildXdDocument({jobId:'list-audit',scope:'all',includePrototype:false,document:{version:1,id:'list-design',name:'Lists',updatedAt:new Date().toISOString(),pages:[{id:'list-page',name:'Lists',folder:'',pinned:false,state:'Desktop',width:frame.width,height:frame.height,structured:frame,objects:[]}],components:[],variables:[]}})
     validateXdEntries(built.entries)
     const nativeTexts=[];const walk=value=>{if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object'){if(value.type==='text')nativeTexts.push(value.text.rawText);Object.values(value).forEach(walk)}}
     for(const entry of built.entries)if(entry.path.startsWith('artwork/')&&entry.path.endsWith('.agc'))walk(JSON.parse(entry.data.toString()))
     for(const marker of ['• ','■ ','III. ','IV. '])assert(nativeTexts.includes(marker),'Native XD list marker missing: '+marker)
-    fs.writeFileSync(output+'/'+width+'-lists.json',JSON.stringify({editableMarkers:texts.filter(t=>['• ','■ ','III. ','IV. '].includes(t)),nativeXdMarkers:nativeTexts.filter(t=>['• ','■ ','III. ','IV. '].includes(t)),diffPercent:changed/(width*height)*100},null,2))
+    fs.writeFileSync(output+'/'+width+'-lists.json',JSON.stringify({editableMarkers:texts.filter(t=>['• ','■ ','III. ','IV. '].includes(t)),nativeXdMarkers:nativeTexts.filter(t=>['• ','■ ','III. ','IV. '].includes(t)),diffPercent:changed/(width*comparisonHeight)*100},null,2))
   }
-  if(process.env.FRAMEUI_TEXT_AUDIT){const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children);assert(all.some(n=>n.typography?.text==='1 Admin'&&n.typography.textRuns.some(r=>r.fontWeight==='700')),'Mixed weights must remain one editable text layer');assert(all.some(n=>n.typography?.text.includes('No surprises')&&n.typography.textRuns.some(r=>r.gradient)),'Gradient range must survive');assert(all.some(n=>n.appearance.clipX&&n.appearance.clipY&&n.appearance.radius[0]===32),'Rounded container clipping must survive');assert(!all.some(n=>n.type==='RasterFallback'));console.log('Text capture difference',width,changed/(width*height)*100);assert(changed/(width*height)<.002,'Rich text fixture must stay below 0.2% pixel difference')}
+  if(process.env.FRAMEUI_SCROLL_DRAWER_AUDIT){
+    const all=[];const visit=ns=>ns.forEach(n=>{all.push(n);visit(n.children)});visit(frame.children)
+    const drawer=all.find(n=>n.source.classes==='drawer'),body=all.find(n=>n.source.classes==='drawer-body'),backdrop=all.find(n=>n.source.classes?.split(' ').includes('drawer-scrim'));assert(drawer&&body&&backdrop)
+    assert.equal(drawer.bounds.width,360);assert.equal(drawer.bounds.x,width-360);assert.equal(drawer.bounds.y,0,'Expanding translated drawers must preserve their top edge');assert(drawer.bounds.height>2500,'Narrow fixed drawer must reveal its complete scrolling content');assert(body.bounds.height>2400);assert(backdrop.bounds.height>=drawer.bounds.height);assert(frame.height>=drawer.bounds.height)
+    assert(all.some(n=>n.typography?.text==='Record 32'),'Last scroll row must remain editable')
+    const reference=nativeImage.createFromDataURL(await captureFullPageScreenshot(win,AbortSignal.timeout(30000))),size=reference.getSize();assert(Math.abs(size.height/size.width-frame.height/width)<.005,'Full reference image must include fixed drawer overflow');fs.writeFileSync(output+'/'+width+'-full-reference.png',reference.toPNG())
+    const doc={version:1,id:'scroll-drawer-audit',name:'Full scrolling drawer',updatedAt:'now',components:[],variables:[],pages:[{id:'drawer-page',name:'Open drawer',width,height:frame.height,folder:'',state:'',pinned:false,objects:[],structured:frame}]}
+    const native=buildXdDocument({jobId:'scroll-drawer-audit',document:doc,scope:'all',includePrototype:false});validateXdEntries(native.entries)
+    const resources=JSON.parse(native.entries.find(e=>e.path==='resources/graphics/graphicContent.agc').data.toString());assert(Object.values(resources.artboards).every(a=>a.width===width&&a.height===frame.height))
+    assert(changed/(width*comparisonHeight)<.005,'Expanded drawer must match HTML aside from browser scrollbar chrome')
+  }
+  if(process.env.FRAMEUI_DRAWER_AUDIT){
+    const all=[];const visit=ns=>ns.forEach(n=>{all.push(n);visit(n.children)});visit(frame.children)
+    const drawer=all.find(n=>n.source.classes==='drawer'),backdrop=all.find(n=>n.source.classes==='backdrop');assert(drawer&&backdrop)
+    assert.equal(frame.width,width);assert.equal(drawer.bounds.x,96);assert.equal(drawer.bounds.width,width-96);assert.equal(backdrop.bounds.width,width);assert.equal(backdrop.bounds.height,1800)
+    const doc={version:1,id:'drawer-audit',name:'Drawer audit',updatedAt:'now',components:[],variables:[],pages:[{id:'drawer-page',name:'Open drawer',width,height:frame.height,folder:'',state:'',pinned:false,objects:[],structured:frame}]}
+    const native=buildXdDocument({jobId:'drawer-audit',document:doc,scope:'all',includePrototype:false});validateXdEntries(native.entries)
+    const resources=JSON.parse(native.entries.find(e=>e.path==='resources/graphics/graphicContent.agc').data.toString());assert(Object.values(resources.artboards).every(a=>a.width===width))
+    assert(changed/(width*comparisonHeight)<.001,'Open drawer must visually match the original HTML')
+  }
+  if(process.env.FRAMEUI_CIRCLE_AUDIT){
+    const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children)
+    const badges=all.filter(n=>n.source.tag==='frameui-visual'&&n.appearance.backgroundColor==='rgb(230, 238, 252)');assert.equal(badges.length,6)
+    assert(badges.every(n=>n.bounds.width===21&&n.bounds.height===21&&n.appearance.radius.every(r=>r===10.5)),'Counter circles must use their CSS box, not glyph bounds')
+    assert(changed/(width*comparisonHeight)<.012,'Circle fixture must stay within 1.2% differing pixels, including text antialiasing')
+    const doc={version:1,id:'circles',name:'Circles',updatedAt:'now',components:[],variables:[],pages:[{id:'circles',name:'Circles',width,height:frame.height,folder:'',state:'',pinned:false,objects:[],structured:frame}]}
+    const native=buildXdDocument({jobId:'circles',document:doc,scope:'all',includePrototype:false});validateXdEntries(native.entries)
+    let circles=0;const visit=v=>{if(Array.isArray(v))v.forEach(visit);else if(v&&typeof v==='object'){if(v.type==='rect'&&v.width===21&&v.height===21&&v.r?.every(r=>r===10.5))circles++;Object.values(v).forEach(visit)}};native.entries.filter(e=>e.path.startsWith('artwork/')&&e.path.endsWith('.agc')).forEach(e=>visit(JSON.parse(e.data.toString())));assert.equal(circles,6,'XD must retain all six circular backgrounds')
+  }
+  if(process.env.FRAMEUI_MASK_ICON_AUDIT){
+    const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children)
+    assert.equal(all.filter(n=>n.source.tag==='path').length,4,'Every CSS pseudo mask arrow must remain editable geometry')
+    assert(changed/(width*comparisonHeight)<.003,'CSS mask icons must preserve their appearance and disabled opacity')
+    const doc={version:1,id:'mask-icons',name:'Mask icons',updatedAt:'now',components:[],variables:[],pages:[{id:'icons',name:'Pagination',width,height:frame.height,folder:'',state:'',pinned:false,objects:[],structured:frame}]}
+    const native=buildXdDocument({jobId:'mask-icons',document:doc,scope:'all',includePrototype:false});validateXdEntries(native.entries)
+    const scene=native.entries.filter(e=>e.path.startsWith('artwork/')&&e.path.endsWith('.agc')).map(e=>JSON.parse(e.data.toString()));let paths=0;const visit=v=>{if(Array.isArray(v))v.forEach(visit);else if(v&&typeof v==='object'){if(v.type==='path')paths++;Object.values(v).forEach(visit)}};visit(scene);assert.equal(paths,4,'Native XD must retain every arrow path')
+  }
+  if(process.env.FRAMEUI_CARD_AUDIT){
+    const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children)
+    assert.equal(all.filter(n=>n.source.classes==='ct').length,3)
+    assert(all.filter(n=>n.source.classes==='ct').every(n=>!n.typography&&n.children.length===2),'Flex columns must keep title and subtitle boundaries')
+    assert(all.filter(n=>n.source.classes==='sb2').every(n=>n.typography?.fontSize===11&&n.typography.textOverflow==='ellipsis'),'Subtitle size and ellipsis must survive')
+    assert(changed/(width*comparisonHeight)<.005,'Category card and table geometry must remain within 0.5% pixel difference')
+    const doc={pages:[{id:'cards',objects:[],structured:frame}]}
+    const measured=await renderedExportText(render.webContents,doc,new AbortController().signal)
+    const subtitle=all.find(n=>n.typography?.text==='Familiarisation, reading, knowledge and drills')
+    assert(measured['cards:'+subtitle.id]?.[0]?.text.endsWith('…'),'XD must preserve the browser ellipsis instead of overflowing the subtitle')
+    const reviewed=await renderAndCompareStructuredCapture({frame,originalPng:sourceImage.toPNG(),dir:output,slug:width+'-paint-review',signal:AbortSignal.timeout(30000)});assert(reviewed&&reviewed.visualMatch.diffPercent<.5,'Hidden review screenshots must wait for actual paint')
+
+  }
+  if(process.env.FRAMEUI_TEXT_AUDIT){const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children);assert(all.some(n=>n.typography?.text==='1 Admin'&&n.typography.textRuns.some(r=>r.fontWeight==='700')),'Mixed weights must remain one editable text layer');assert(all.some(n=>n.typography?.text.includes('No surprises')&&n.typography.textRuns.some(r=>r.gradient)),'Gradient range must survive');assert(all.some(n=>n.appearance.clipX&&n.appearance.clipY&&n.appearance.radius[0]===32),'Rounded container clipping must survive');assert(!all.some(n=>n.type==='RasterFallback'));console.log('Text capture difference',width,changed/(width*comparisonHeight)*100);assert(changed/(width*comparisonHeight)<.002,'Rich text fixture must stay below 0.2% pixel difference')}
   if(process.env.FRAMEUI_QUALITY_AUDIT){
     const all=[];const collect=ns=>ns.forEach(n=>{all.push(n);collect(n.children)});collect(frame.children)
     assert(!all.some(n=>n.type==='RasterFallback'),'Supported fixture layers must remain native')
@@ -137,7 +196,7 @@ app.whenReady().then(async()=>{
     fs.writeFileSync(output+'/'+width+'-full-original.png',raw);fs.writeFileSync(output+'/'+width+'-full-captured.png',capturedFull);fs.writeFileSync(output+'/'+width+'-full-diff.png',PNG.sync.write(fullDiff))
     console.log('Full page comparison',JSON.stringify({width,frameHeight:frame.height,diffPercent:different/(size.width*size.height)*100}))
   }
-  results.push({width,diffPercent:changed/(width*height)*100,fonts:fonts.length,warnings,texts:process.env.FRAMEUI_AUDIT_URL ? {count:texts.length} : texts})
+  results.push({width,diffPercent:changed/(width*comparisonHeight)*100,fonts:fonts.length,warnings,texts:process.env.FRAMEUI_AUDIT_URL ? {count:texts.length} : texts})
   render.destroy();win.destroy()
  }
  fs.writeFileSync(output+'/results.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results,null,2));server.close();app.quit()

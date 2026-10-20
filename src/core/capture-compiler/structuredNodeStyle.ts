@@ -132,6 +132,7 @@ export function appearanceStyleFor(appearance: StructuredAppearance): CSSLikeSty
 
 export function typographyStyleFor(typography: StructuredTypography): CSSLikeStyle {
   return {
+    textOverflow: typography.textOverflow,
     whiteSpace: typography.whiteSpace === 'normal' ? 'pre-wrap' : typography.whiteSpace || 'pre-wrap',
     fontStyle: typography.fontStyle,
     textWrap: ['pre', 'nowrap'].includes(typography.whiteSpace || '') ? 'nowrap' : typography.textWrap,

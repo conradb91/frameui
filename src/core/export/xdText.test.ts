@@ -19,3 +19,24 @@ test('stale captured lines cannot replace edited design text',()=>{
  const t=xdPositionedText({...base,characters:'Updated title',captureLines:[{text:'Old title',start:0,x:0,y:0,width:100,height:30}]})
  expect(t.characters).toBe('Updated title')
 })
+
+test('inline mixed weights retain one browser line and its original space',()=>{
+ const t=xdPositionedText({...base,characters:'Your crew compliance',fontSize:16,lineHeight:24,runs:[{start:10,end:20,fontWeight:'700'}],captureLines:[{text:'Your crew',start:0,x:12,y:8,width:74,height:24},{text:'compliance',start:10,x:90,y:8,width:90,height:24}]})
+ expect(t.characters).toBe('Your crew compliance')
+ expect(t.lines).toEqual([{x:12,y:8,height:24,from:0,to:20}])
+ expect(t.runs).toEqual([{start:10,end:20,fontWeight:'700'}])
+})
+test('inline fragments never merge across a hard newline or deliberate layout gap',()=>{
+ const hard=xdPositionedText({...base,characters:'First\nSecond',captureLines:[{text:'First',start:0,x:0,y:0,width:70,height:24},{text:'Second',start:6,x:75,y:0,width:90,height:24}]})
+ expect(hard.lines).toHaveLength(2)
+ const spaced=xdPositionedText({...base,characters:'First Second',fontSize:16,captureLines:[{text:'First',start:0,x:0,y:0,width:70,height:24},{text:'Second',start:6,x:300,y:0,width:90,height:24}]})
+ expect(spaced.lines).toHaveLength(2)
+})
+
+test('measured CSS ellipsis exports the visible editable prefix without accepting stale text',()=>{
+ const captureLines=[{text:'Seafarer record…',start:0,x:0,y:0,width:140,height:14.3}]
+ const t=xdPositionedText({...base,characters:'Seafarer record and discharge book validity',textOverflow:'ellipsis',captureLines})
+ expect(t.characters).toBe('Seafarer record…')
+ expect(t.lines).toHaveLength(1)
+ expect(xdPositionedText({...base,characters:'New subtitle',textOverflow:'ellipsis',captureLines}).characters).toBe('New subtitle')
+})

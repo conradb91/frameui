@@ -1,5 +1,5 @@
 /** One cancellable import per renderer, spanning extraction, discovery and capture. */
-const jobs=new Map<number,{id:string;controller:AbortController}>()
+const jobs=new Map<number,{id:string;controller:AbortController;project?:{projectId:string;rootPath:string}}>()
 export function beginImport(owner:number,id:string){
   jobs.get(owner)?.controller.abort(new Error('Import stopped'))
   const job={id,controller:new AbortController()};jobs.set(owner,job);return job.controller.signal
@@ -26,3 +26,6 @@ export function abortable<T>(work:Promise<T>,signal?:AbortSignal):Promise<T>{
 }
 
 export function disposeImport(owner:number){jobs.get(owner)?.controller.abort(new Error('Import window closed'));jobs.delete(owner)}
+
+export function setImportProject(owner:number,id:string,project:{projectId:string;rootPath:string}){importSignal(owner,id);jobs.get(owner)!.project=project}
+export function importProject(owner:number,id:string){importSignal(owner,id);const project=jobs.get(owner)!.project;if(!project)throw new Error('Choose an HTML or ZIP prototype first.');return project}

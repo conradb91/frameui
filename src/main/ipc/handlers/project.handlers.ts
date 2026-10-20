@@ -1,4 +1,4 @@
-import { beginImport, importSignal, cancelImport, finishImport, disposeImport } from '../../artifacts/importJob'
+import { beginImport, importSignal, setImportProject, cancelImport, finishImport, disposeImport } from '../../artifacts/importJob'
 import { unpackPrototype, servePrototype, managedPrototypeRoutes } from '../../artifacts/prototypeImport'
 import { randomUUID } from 'node:crypto'
 import {createHash} from 'node:crypto'
@@ -24,6 +24,7 @@ const { app, ipcMain, dialog, BrowserWindow, shell } = electron
 
 export function registerProjectHandlers(): void {
   const importOwners=new WeakSet<Electron.WebContents>()
+  let activationSequence=0
   const runtimeProject = () => {
     const active = getActiveProject()
     if (!active) throw new Error('Open a local repository first.')
@@ -114,6 +115,19 @@ export function registerProjectHandlers(): void {
     return selected ? captureStore.getCaptureScreenshotDataUrl(app.getPath('userData'), projectId, selected.id) : null
   })
 
+  ipcMain.handle('project:activate',async(_event,raw)=>{
+    const sequence=++activationSequence
+    const project=getRegisteredProject(app.getPath('userData'),projectIdInputSchema.parse(raw))
+    if(!project||!fs.existsSync(project.path))throw new Error('The project folder is unavailable. Reconnect its repository.')
+    const artifact=project.path.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep)
+    const url=artifact?await servePrototype(project.path):readRuntime(app.getPath('userData'),project.id)?.url
+    if(sequence!==activationSequence)return {url}
+    if(artifact&&url)configureRuntime(app.getPath('userData'),project.id,url,'local')
+    if(getActiveProject()?.projectId!==project.id)activateProject(project.id,project.path,app.getPath('userData'))
+    if(!getCachedIndex())void getIndexService()?.load(step=>broadcast('project:onIndexProgress',{step})).then(index=>{if(getActiveProject()?.projectId===project.id)setCachedIndex(index)}).catch(()=>{})
+    return {url}
+  })
+
   ipcMain.handle('project:openDialog', async (event, rawRelinkId): Promise<OpenProjectResult> => {
     const relinkId = openDialogInputSchema.parse(rawRelinkId)
     const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
@@ -129,6 +143,7 @@ export function registerProjectHandlers(): void {
     const folderPath = result.filePaths[0]
     const name = path.basename(folderPath)
     const project = recordProjectOpened(app.getPath('userData'), folderPath, name, relinkId)
+    activationSequence++
     activateProject(project.id, folderPath, app.getPath('userData'))
     return { cancelled: false, project }
   })
@@ -154,7 +169,7 @@ export function registerProjectHandlers(): void {
       const url=await servePrototype(folder)
       signal.throwIfAborted()
       const project=recordProjectOpened(app.getPath('userData'),folder,name)
-      activateProject(project.id,folder,app.getPath('userData'))
+      setImportProject(event.sender.id,id,{projectId:project.id,rootPath:folder})
       configureRuntime(app.getPath('userData'),project.id,url,'local')
       return {project,url,routes}
     }catch(error){await fs.promises.rm(folder,{recursive:true,force:true});throw error}
@@ -180,6 +195,7 @@ export function registerProjectHandlers(): void {
     const artifact=folderPath.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep)&&fs.existsSync(path.join(folderPath,'frameui-artifact.json'))
     const name = artifact ? JSON.parse(fs.readFileSync(path.join(folderPath,'frameui-artifact.json'),'utf8')).name : path.basename(folderPath)
     const project = recordProjectOpened(app.getPath('userData'), folderPath, name)
+    activationSequence++
     activateProject(project.id, folderPath, app.getPath('userData'))
     if(artifact)configureRuntime(app.getPath('userData'),project.id,await servePrototype(folderPath),'local')
     return { ok: true, project }

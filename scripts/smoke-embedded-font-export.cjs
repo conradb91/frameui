@@ -1,0 +1,25 @@
+// Uses an existing local capture audit; user artwork and fonts stay outside the repository.
+const {buildSync}=require('esbuild'),{spawnSync}=require('node:child_process'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const audit=process.env.FRAMEUI_FONT_AUDIT;if(!audit)throw Error('Set FRAMEUI_FONT_AUDIT to a capture audit JSON file.');
+const temp=fs.mkdtempSync(path.join(os.tmpdir(),'frameui-embedded-font-'));
+const entry=`
+import {app,BrowserWindow} from 'electron';import fs from 'node:fs';import assert from 'node:assert/strict';
+import {renderedExportFonts} from './src/main/export/renderedFonts';import {renderedExportText} from './src/main/export/renderedText';
+import {buildXdDocument,validateXdEntries} from './src/core/export/xdDocument';import {isIconFontText,iconFontResolver} from './src/core/export/xdIconFonts';import {object} from './src/core/visual/model';
+(async()=>{app.commandLine.appendSwitch('user-data-dir',${JSON.stringify(temp+'/profile')});await app.whenReady();const win=new BrowserWindow({show:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});try{
+ await win.loadURL('data:text/html,<html><body></body></html>');const {frame}=JSON.parse(fs.readFileSync(${JSON.stringify(path.resolve(audit))},'utf8'));
+ const document={version:1,id:'font-audit',name:'Embedded font audit',updatedAt:'now',pages:[{id:'page',name:'Imported HTML',width:frame.width,height:frame.height,folder:'',state:'Desktop',pinned:false,objects:[],structured:frame}],components:[],variables:[]};
+ const signal=new AbortController().signal,faces=await renderedExportFonts(win.webContents,document as any,signal),lines=await renderedExportText(win.webContents,document as any,signal);
+ const built=buildXdDocument({jobId:'font-audit',document:document as any,scope:'all',includePrototype:false},()=>{},[],faces,[],lines);validateXdEntries(built.entries);
+ const content=built.entries.filter(e=>e.path.startsWith('artwork/')&&e.path.endsWith('.agc')).map(e=>e.data.toString()).join('');assert(!/"rawText":"[\\uE000-\\uF8FF]/u.test(content),'Private-use icons must be editable paths, independent of font installation');
+ const icons=[];const walk=ns=>ns.forEach(n=>{if(n.typography&&isIconFontText(n.typography.text))icons.push(n);walk(n.children)});walk(frame.children);assert(icons.length>0,'Fixture contains icon-font glyphs');assert(built.report.editableVectors>=icons.length);assert(!built.report.warnings.some(w=>w.includes('Icon font outline unavailable')));
+ const first=icons[0].typography,font=frame.fonts.find(f=>f.family.toLowerCase()===first.fontFamily.split(',')[0].replace(/["']/g,'').trim().toLowerCase());assert(font);
+ const alias=iconFontResolver([{...font,family:'Customer Symbols'}]);assert(alias({characters:first.text,fontFamily:'Customer Symbols',fontSize:first.fontSize,lineHeight:first.lineHeight,fontWeight:first.fontWeight,fontStyle:'normal',letterSpacing:0,alignment:'left'}),'Custom font family aliases resolve to actual embedded glyph paths');
+ const sample={version:1,id:'wrapping',name:'Wrapping',updatedAt:'now',pages:[{id:'wrap-page',name:'Wrap',width:390,height:844,objects:[object('Text',{id:'title',text:'This edited heading must wrap across several lines',fontFamily:'Arial',fontSize:24,lineHeight:32,width:180,height:240,textRuns:[{start:0,end:11,fontWeight:'700'}]})]}],components:[],variables:[]};
+ const wrap=await renderedExportText(win.webContents,sample as any,signal);assert(wrap['wrap-page:title'].length>2,'Edited/native text wraps before export');
+ const native=buildXdDocument({jobId:'wrap',document:sample as any,scope:'all',includePrototype:false},()=>{},[],[],[],wrap);const scene=JSON.parse(native.entries.find(e=>e.path.startsWith('artwork/artboard-')&&e.path.endsWith('.agc')).data.toString());assert(scene.children[0].artboard.children[0].text.paragraphs.length===wrap['wrap-page:title'].length,'XD retains browser line count');
+ assert.equal(await win.webContents.executeJavaScript('document.body.children.length'),0,'Temporary probes cleaned');
+ fs.writeFileSync(${JSON.stringify(temp+'/report.json')},JSON.stringify({icons:icons.length,nativeVectors:built.report.editableVectors,editableText:built.report.editableText,wrappedLines:wrap['wrap-page:title'].length,sourceCapture:${JSON.stringify(path.resolve(audit))}},null,2));console.log('PASS: '+icons.length+' embedded-font icons export as editable vectors; normal text remains text; edited text preserves '+wrap['wrap-page:title'].length+' browser lines; probes clean.');
+}finally{win.destroy();app.quit()}})().catch(e=>{console.error(e);app.exit(1)});
+`;
+buildSync({stdin:{contents:entry,resolveDir:process.cwd(),loader:'ts'},outfile:path.join(temp,'main.cjs'),bundle:true,platform:'node',format:'cjs',external:['electron'],logLevel:'warning'});const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;const result=spawnSync(require('electron'),[path.join(temp,'main.cjs')],{env,encoding:'utf8',timeout:120000});process.stdout.write(result.stdout||'');process.stderr.write(result.stderr||'');if(result.error)console.error(result.error);process.exitCode=result.status??1;

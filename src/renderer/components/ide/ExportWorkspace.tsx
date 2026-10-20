@@ -65,7 +65,7 @@ const labels: Record<ExportFormat, { title: string; description: string; feature
   },
   'adobe-xd': {
     title: 'ADOBE XD · .xd',
-    description: 'Native editable document. XD application testing pending.',
+    description: 'Editable artboards, layers and prototype connections.',
     features: ['Editable layers', 'Artboards', 'Vectors', 'Text', 'Original assets'],
   },
   svg: {
@@ -246,14 +246,14 @@ export function ExportWorkspace({
           setStage('configure')
           return
         }
-        const saved = await window.frameui.export.saveXd({
+        const saved = await window.frameui.export.saveXd(JSON.stringify({
           jobId,
           document,
           scope: xdScope,
           pageId: page.id,
           pageIds: xdPageIds,
           includePrototype: options.includePrototype,
-        })
+        }))
         xdJob.current = undefined
         if (!saved.ok) {
           if (saved.error) throw new Error(saved.error)
@@ -273,7 +273,7 @@ export function ExportWorkspace({
           warnings: saved.report!.warnings.length,
         })
         setStage('complete')
-        onStatus('Native .xd saved · Adobe XD application testing pending')
+        onStatus('XD file saved')
         return
       }
       if (!isPackage) {
@@ -515,7 +515,7 @@ export function ExportWorkspace({
             }
           >
             {format === 'adobe-xd'
-              ? 'Native archive checks passed. Adobe XD open, edit, save and reopen testing remains pending.'
+              ? 'Your XD file is saved. Open it in Adobe XD to continue editing.'
               : result.warnings
                 ? 'The importer will identify affected layers without silently dropping them.'
                 : 'All package checks passed.'}
@@ -524,6 +524,7 @@ export function ExportWorkspace({
             <details>
               <summary>Compatibility report · {xdReport.layers} layers</summary>
               <div style={{ maxHeight: 240, overflow: 'auto' }}>
+                <p>Archive checks passed. Visual compatibility has not been verified in Adobe XD.</p>
                 {xdReport.warnings.map((warning, index) => (
                   <p key={index}>{warning}</p>
                 ))}
@@ -721,9 +722,7 @@ export function ExportWorkspace({
             )}
             {format === 'adobe-xd' && (
               <ModalNotice tone="info" title="Native Adobe XD · .xd">
-                All chosen artboards are saved in one native document. Archive checks run locally.
-                Adobe XD application compatibility remains unverified; review the report for
-                unsupported features.
+                Artboards keep their captured dimensions and line breaks. To change the responsive layout, recapture at 1440 or 1920 px before exporting. Install the source fonts on the computer opening XD. Review the export report for unsupported features.
               </ModalNotice>
             )}
             {format === 'adobe-xd' ? (

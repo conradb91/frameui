@@ -1,0 +1,4 @@
+Unmodified Public Sans Latin variable WOFF2, obtained from the Google Fonts stylesheet referenced by the source HTML:
+https://fonts.gstatic.com/s/publicsans/v21/ijwRs572Xtc6ZYQws9YVwnNGfJ7QwOk1.woff2
+License: OFL-PublicSans.txt (Google Fonts ofl/publicsans/OFL.txt).
+Used to verify font-family retention and numeric/named variable font weights in native XD export.

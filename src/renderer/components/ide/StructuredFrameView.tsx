@@ -203,7 +203,7 @@ const StructuredNodeView = memo(function StructuredNodeView({
     return (
       <svg fill={node.appearance.fill} stroke={node.appearance.stroke??'none'} strokeWidth={node.appearance.strokeWidth} color={node.typography?.color} strokeLinecap={node.source.svgGeometry?.['stroke-linecap'] as 'round'|'butt'|'square'|undefined} strokeLinejoin={node.source.svgGeometry?.['stroke-linejoin'] as 'round'|'miter'|'bevel'|undefined} style={{ ...positionStyle, ...appearanceStyle, color:node.source.svgGeometry?.color } as CSSProperties} viewBox={node.source.svgGeometry?.viewBox} width={node.bounds.width} height={node.bounds.height} {...identity}>
         <defs dangerouslySetInnerHTML={{__html:renderSvgDefinitions(node.source.svgGeometry?.definitions,node.id)}}/>
-        {node.children.filter((child) => child.type === 'Shape').map((child) => (
+        {node.children.filter((child) => child.type === 'Shape'||child.source.tag==='frameui-richtext').map((child) => (
           <StructuredShapeView key={child.id} node={child} scope={node.id} />
         ))}
       </svg>
@@ -228,6 +228,7 @@ function StructuredShapeView({ node,scope }: { node: StructuredNode;scope:string
   switch (node.source.tag) {
     case 'use': { const href=geo.href??geo['xlink:href'];if(!href?.startsWith('#'))return null;
       return <use href={scopeSvgValue('url('+href+')',scope)?.replace(/^url\((.*)\)$/,'$1')} x={geo.x} y={geo.y} width={geo.width} height={geo.height} {...paint} {...id}/> }
+    case 'frameui-richtext':
     case 'g':
       return <g {...paint} {...id}>{node.children.map(child => <StructuredShapeView key={child.id} node={child} scope={scope} />)}</g>
     case 'rect':

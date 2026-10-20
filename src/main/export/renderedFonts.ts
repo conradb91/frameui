@@ -1,10 +1,11 @@
+import {embeddedFontResolver} from '../../core/export/embeddedFonts'
 import {randomUUID} from 'node:crypto'
 import type {WebContents} from 'electron'
 import type {Protocol} from 'devtools-protocol'
 import type {VisualObject,VisualPage} from '../../shared/types/visualDesign'
 import type {StructuredFrame} from '../../shared/types/structuredDesign'
 import type {TextStyleRun} from '../../shared/types/richText'
-import {xdFontKey,type XdRenderedFontFace} from '../../core/export/xdFonts'
+import {xdFontKey,xdFontStyle,type XdRenderedFontFace} from '../../core/export/xdFonts'
 import {withDebugger} from '../ipc/handlers/cdp/withDebugger'
 import {raceAbort} from '../ipc/handlers/capture/raceAbort'
 
@@ -22,6 +23,7 @@ export async function renderedExportFonts(contents:WebContents,document:{pages:{
  }
  if(!probes.size)return []
  const values=[...probes.values()],fonts=[...new Map(document.pages.flatMap(page=>page.structured?.fonts??page.fonts??[]).map(font=>[JSON.stringify([font.family,font.weight,font.style,font.data]),font])).values()]
+ const embeddedFont=embeddedFontResolver(fonts)
  const execute=(script:string)=>raceAbort(contents.executeJavaScript(script),signal)
  try{
   signal.throwIfAborted()
@@ -44,7 +46,8 @@ export async function renderedExportFonts(contents:WebContents,document:{pages:{
      const updated=await send<Protocol.CSS.GetPlatformFontsForNodeResponse>('CSS.getPlatformFontsForNode',{nodeId})
      face=updated.fonts.filter(font=>font.glyphCount>0).sort((a,b)=>b.glyphCount-a.glyphCount)[0]
     }
-    if(face?.postScriptName)result.push({stack:values[index].stack,weight:values[index].weight,style:values[index].style,family:face.familyName,postscript:face.postScriptName,substitutedFrom,sourceBaselineBySize:{[String(values[index].size)]:sourceBaselines[index]},baselineBySize:{[String(values[index].size)]:baselines[index]}})
+    const declared=face?.isCustomFont?embeddedFont(values[index].stack,values[index].weight,values[index].style):undefined
+    if(face?.postScriptName)result.push({stack:values[index].stack,weight:values[index].weight,style:values[index].style,family:declared?.family??face.familyName,postscript:declared?.postscript??face.postScriptName,fontStyle:declared?.style??xdFontStyle(values[index].weight,values[index].style),substitutedFrom,sourceBaselineBySize:{[String(values[index].size)]:sourceBaselines[index]},baselineBySize:{[String(values[index].size)]:baselines[index]}})
    }
    const merged=new Map<string,XdRenderedFontFace>();for(const face of result){const key=JSON.stringify([face.stack,face.weight,face.style]),previous=merged.get(key);merged.set(key,{...face,sourceBaselineBySize:{...previous?.sourceBaselineBySize,...face.sourceBaselineBySize},baselineBySize:{...previous?.baselineBySize,...face.baselineBySize}})}
    const resolved=[...merged.values()],samples=[...inkSamples.values()].flatMap(sample=>{const face=resolved.find(f=>xdFontKey(f.stack,f.weight,f.style)===xdFontKey(sample.stack,sample.weight,sample.style));return face?[{...sample,target:face.family,key:xdFontKey(sample.stack,sample.weight,sample.style)}]:[]})
