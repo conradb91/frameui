@@ -77,8 +77,10 @@ function renderNode(node: StructuredNode,inheritedGradient?:import('@shared/type
   // `source.imageSrc` an `Image` node has, just a different reason.
   if (node.source.control) {
     const c = node.source.control
-    const attrs = Object.entries(c).filter(([, value]) => value !== undefined && value !== false).map(([key, value]) => value === true ? key : `${key}="${esc(String(value))}"`).join(' ')
-    return `<div style="${styleToInlineCss(positionStyle)}"><input data-captured-control="true" ${attrs} readonly tabindex="-1" style="${styleToInlineCss({...controlStyleFor(node),pointerEvents:'none'})}"></div>`
+    const attrs = Object.entries(c).filter(([key,value])=>!['options','appearance','placeholderColor','placeholderOpacity','type','value'].includes(key)&&value!==undefined&&value!==false).map(([key,value])=>value===true?key:`${key}="${esc(String(value))}"`).join(' ')
+    const style=styleToInlineCss({...controlStyleFor(node),pointerEvents:'none'})
+    const body=c.type==='select'?`<select data-captured-control="true" ${attrs} tabindex="-1" style="${style}">${(c.options??[]).map(option=>`<option value="${esc(option.value)}"${option.value===c.value?' selected':''}${option.disabled?' disabled':''}>${esc(option.label)}</option>`).join('')}</select>`:c.type==='textarea'?`<textarea data-captured-control="true" ${attrs} readonly tabindex="-1" style="${style}">${esc(c.value??'')}</textarea>`:`<input data-captured-control="true" type="${esc(c.type)}" ${c.value===undefined?'':`value="${esc(c.value)}" `}${attrs} readonly tabindex="-1" style="${style}">`
+    return `<div style="${styleToInlineCss(positionStyle)}">${body}</div>`
   }
 
   if (node.type === 'Image' || node.type === 'RasterFallback') {
@@ -96,7 +98,7 @@ function renderNode(node: StructuredNode,inheritedGradient?:import('@shared/type
 
   if (node.type === 'SVG') {
     const shapes = node.children.filter((child) => child.type === 'Shape').map(child=>renderShape(child,node.id)).join('')
-    return `<svg style="${styleToInlineCss({ ...positionStyle, ...appearanceStyle })}" viewBox="${esc(node.source.svgGeometry?.viewBox ?? '')}" width="${node.bounds.width}" height="${node.bounds.height}"><defs>${renderSvgDefinitions(node.source.svgGeometry?.definitions,node.id)}</defs>${shapes}</svg>`
+    return `<svg fill="${esc(node.appearance.fill??'black')}" stroke="${esc(node.appearance.stroke??'none')}" stroke-width="${node.appearance.strokeWidth??1}" stroke-linecap="${esc(node.source.svgGeometry?.['stroke-linecap']??'butt')}" stroke-linejoin="${esc(node.source.svgGeometry?.['stroke-linejoin']??'miter')}" style="${styleToInlineCss({ ...positionStyle, ...appearanceStyle, color:node.source.svgGeometry?.color })}" viewBox="${esc(node.source.svgGeometry?.viewBox ?? '')}" width="${node.bounds.width}" height="${node.bounds.height}"><defs>${renderSvgDefinitions(node.source.svgGeometry?.definitions,node.id)}</defs>${shapes}</svg>`
   }
 
   const containerStyle = containerStyleFor(node)

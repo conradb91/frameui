@@ -236,12 +236,12 @@ export async function captureResources(contents: WebContents, root: CapturedElem
   // collected by href instead, and their raw CSS text is fetched
   // out-of-band below (`contents.session.fetch` isn't subject to the
   // page's CORS policy — it's the same mechanism already used for images).
-  const { fonts: directRules, externalSheets } = await contents.executeJavaScript(`(() => {
+  const { fonts: directRules, externalSheets, loadedFaces } = await contents.executeJavaScript(`(() => {
     const fonts=[]; const visited=new Set(); const externalSheets=new Set();
     const walk=(rules,base)=>{for(const rule of rules){if(rule.type===5){const match=rule.style.src.match(/url\\(["']?([^"')]+)["']?\\)/);if(match)fonts.push({family:rule.style.fontFamily,weight:rule.style.fontWeight||'400',style:rule.style.fontStyle||'normal',unicodeRange:rule.style.unicodeRange||undefined,stretch:rule.style.fontStretch||undefined,url:new URL(match[1],base).href})}try{if(rule.styleSheet){const sheet=rule.styleSheet;try{walk(sheet.cssRules,sheet.href||base)}catch{if(sheet.href)externalSheets.add(sheet.href)}}else if(rule.cssRules)walk(rule.cssRules,base)}catch{}}};
     const sheets=scope=>{for(const sheet of [...(scope.styleSheets||[]),...(scope.adoptedStyleSheets||[]),...Array.from(scope.querySelectorAll('style,link[rel=stylesheet]')).map(el=>el.sheet).filter(Boolean)]){if(visited.has(sheet))continue;visited.add(sheet);try{walk(sheet.cssRules,sheet.href||document.baseURI)}catch{if(sheet.href)externalSheets.add(sheet.href)}};for(const el of scope.querySelectorAll('*'))if(el.shadowRoot)sheets(el.shadowRoot)};
-    sheets(document);return {fonts:fonts.slice(0,40),externalSheets:[...externalSheets].slice(0,20)}
-  })()`) as {fonts:{family:string;weight:string;style:string;unicodeRange?:string;stretch?:string;url:string}[];externalSheets:string[]}
+    sheets(document);return {fonts:fonts.slice(0,512),externalSheets:[...externalSheets].slice(0,20),loadedFaces:Array.from(document.fonts).filter(f=>f.status==='loaded').map(f=>({family:f.family,weight:f.weight,style:f.style,unicodeRange:f.unicodeRange}))}
+  })()`) as {fonts:{family:string;weight:string;style:string;unicodeRange?:string;stretch?:string;url:string}[];externalSheets:string[];loadedFaces?:{family:string;weight:string;style:string;unicodeRange?:string}[]}
   const rules = [...directRules]
   for (const sheetUrl of externalSheets) {
     signal.throwIfAborted()
@@ -265,10 +265,18 @@ export async function captureResources(contents: WebContents, root: CapturedElem
     } catch { /* best-effort — this stylesheet's fonts just won't embed */ }
   }
   const fonts: NonNullable<VisualPage['fonts']> = []
-  for (const rule of rules) {
+  const canonical=(s:string)=>s.replace(/["']/g,'').replace(/\s/g,'').toLowerCase()
+  const used=new Set<string>()
+  const walk=(el:CapturedElement)=>{for(const f of (el.styles.fontFamily??'').split(','))used.add(canonical(f));el.children.forEach(walk)};walk(root)
+  const unique=[...new Map(rules.filter(rule=>used.has(canonical(rule.family))&&(!loadedFaces?.length||loadedFaces.some(face=>canonical(face.family)===canonical(rule.family)&&canonical(face.unicodeRange??'U+0-10FFFF')===canonical(rule.unicodeRange??'U+0-10FFFF')))).map(rule=>[JSON.stringify(rule),rule])).values()].slice(0,256)
+  // Fetch a small batch concurrently: a missing remote font must not hold every face serially.
+  for(let start=0;start<unique.length;start+=6){
     signal.throwIfAborted()
-    try { fonts.push({family:rule.family,weight:rule.weight,style:rule.style,unicodeRange:rule.unicodeRange,stretch:rule.stretch,data:await read(rule.url,false)}) }
-    catch { signal.throwIfAborted(); warnings.push('A font could not be embedded; a fallback font may be used.') }
+    const batch=await Promise.all(unique.slice(start,start+6).map(async rule=>{
+      try{return {family:rule.family,weight:rule.weight,style:rule.style,unicodeRange:rule.unicodeRange,stretch:rule.stretch,data:await read(rule.url,false)}}
+      catch{signal.throwIfAborted();warnings.push('A font could not be embedded; a fallback font may be used.');return null}
+    }))
+    fonts.push(...batch.filter((face):face is NonNullable<typeof face>=>face!==null))
   }
   return fonts
 }

@@ -3,6 +3,7 @@ dist
 dist-electron
 # Local packaged apps and installers must never be committed.
 /release/
+/review-exports/
 .DS_Store
 *.log
 

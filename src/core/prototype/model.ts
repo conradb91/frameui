@@ -73,7 +73,6 @@ export function validatePrototype(doc: VisualDocument): {
             for (const i of connections(doc, f).filter(i => i.sourceArtboardId === id))
                 queue.push(i.destinationId, i.elseDestinationId);
         }
-        ;
         for (const id of f.artboardIds)
             if (!visited.has(id))
                 warnings.push(`${f.name}: ${pages.get(id)?.name ?? id} is disconnected from the entry screen.`);

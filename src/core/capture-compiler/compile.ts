@@ -330,6 +330,7 @@ function svgGeometryOf(el: CapturedElement, tag: string): Record<string, string>
   const geometry: Record<string, string> = {}
   if(a['data-frameui-svg-definitions'])geometry.definitions=a['data-frameui-svg-definitions']
   for (const attr of SVG_GEOMETRY_ATTRS) if (a[attr] !== undefined) geometry[attr] = a[attr]
+  if(el.styles.color)geometry.color=el.styles.color
   for (const [css, attr] of [['strokeLinecap', 'stroke-linecap'], ['strokeLinejoin', 'stroke-linejoin'], ['strokeDasharray', 'stroke-dasharray'], ['strokeDashoffset', 'stroke-dashoffset'], ['fillRule', 'fill-rule']]) if (el.styles[css]) geometry[attr] = el.styles[css]
   return Object.keys(geometry).length ? geometry : undefined
 }
@@ -353,7 +354,7 @@ function sourceOf(el: CapturedElement, tag: string, ctx?: { file?: string; route
     href: a.href,
     imageSrc: imageSrcOf(el, tag),
     svgGeometry: svgGeometryOf(el, tag),
-    control: tag==='input'&&!['hidden','file','color','button','submit','reset','image'].includes(a.type)?{type:(['text','email','password','number','range','checkbox','radio','date','time'].includes(a.type)?a.type:'text') as NonNullable<StructuredSource['control']>['type'],placeholder:a.placeholder,placeholderColor:a['data-frameui-placeholder-color'],placeholderOpacity:a['data-frameui-placeholder-opacity']===undefined?undefined:Number(a['data-frameui-placeholder-opacity']),value:a.type==='password'?'':a.controlValue,checked:a.controlChecked==='true',disabled:a.visualState==='Disabled',min:a.min,max:a.max,step:a.step}:undefined,
+    control: ['select','textarea'].includes(tag)?{type:tag as 'select'|'textarea',appearance:a['data-frameui-appearance'],value:a.controlValue??'',options:tag==='select'?parseControlOptions(a['data-frameui-options']):undefined,disabled:a.visualState==='Disabled'}:tag==='input'&&!['hidden','file','color','button','submit','reset','image'].includes(a.type)?{type:(['text','email','password','number','range','checkbox','radio','date','time'].includes(a.type)?a.type:'text') as NonNullable<StructuredSource['control']>['type'],appearance:a['data-frameui-appearance'],placeholder:a.placeholder,placeholderColor:a['data-frameui-placeholder-color'],placeholderOpacity:a['data-frameui-placeholder-opacity']===undefined?undefined:Number(a['data-frameui-placeholder-opacity']),value:a.type==='password'?'':a.controlValue,checked:a.controlChecked==='true',disabled:a.visualState==='Disabled',min:a.min,max:a.max,step:a.step}:undefined,
   }
 }
 
@@ -491,4 +492,8 @@ export function compileStructuredNodes(
     return [node]
   }
   return convert(root, root.rect.x, root.rect.y, null)
+}
+
+function parseControlOptions(value?:string):NonNullable<StructuredSource['control']>['options'] {
+ try { const options:unknown=JSON.parse(value??'[]');return Array.isArray(options)?options.filter((option):option is {value:string;label:string;disabled?:boolean}=>!!option&&typeof option.value==='string'&&typeof option.label==='string').slice(0,1000):[] } catch { return [] }
 }

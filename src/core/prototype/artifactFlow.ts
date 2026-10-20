@@ -1,4 +1,4 @@
-import {layoutArtifactScreens} from './artifactLayout'
+import {layoutFlowGroups} from './flowIntroductions'
 import type { VisualPage } from '../../shared/types/visualDesign'
 import type { StructuredNode } from '../../shared/types/structuredDesign'
 import type { PrototypeData } from '../../shared/types/prototype'
@@ -17,7 +17,26 @@ export function artifactFlow(pages:VisualPage[],transitions:DetectedTransition[]
     if(!node)continue
     interactions.push({id:crypto.randomUUID(),sourceArtboardId:source.id,sourceElementId:node.id,trigger:'click',action:'navigate',destinationId:destination.id,transition:'instant',label:edge.label.slice(0,200)})
   }
-  const result:PrototypeData={version:1,flows:pages.length?[{id:crypto.randomUUID(),name:name.slice(0,200),description:'Imported from the runnable HTML prototype. Connections reflect observed navigation and visible state changes.',startArtboardId:pages[0].id,artboardIds:pages.map(p=>p.id),positions:Object.fromEntries(pages.map((p,i)=>[p.id,{x:(i%4)*360,y:Math.floor(i/4)*300}])),createdAt:now,updatedAt:now}]:[],interactions,variables:{},scenarios:[],imports:[]}
-  layoutArtifactScreens(pages,result)
+  const flows:PrototypeData['flows']=[],covered=new Set<string>()
+  const make=(root:string,label:string,destination?:string)=>{
+    const barriers=new Set(interactions.filter(e=>e.sourceArtboardId===root).map(e=>e.destinationId).filter((id):id is string=>!!id&&id!==destination))
+    const members=new Set<string>([root]),queue=destination?[destination]:[root]
+    if(destination)members.add(destination)
+    const visited=new Set<string>()
+    while(queue.length){const id=queue.shift()!;if(visited.has(id))continue;visited.add(id);for(const edge of interactions){if(edge.sourceArtboardId!==id||!edge.destinationId||edge.destinationId===root||barriers.has(edge.destinationId))continue;members.add(edge.destinationId);queue.push(edge.destinationId)}}
+    const start=pages.find(p=>p.id===root)
+    const description=destination?`Start on ${start?.name||'the entry screen'}. Select “${label}”, then follow the screens to the right.`:'Follow the captured screens from left to right.'
+    flows.push({id:crypto.randomUUID(),name:label.slice(0,200)||name.slice(0,200),description,startArtboardId:root,artboardIds:[...members],positions:{},createdAt:now,updatedAt:now})
+    members.forEach(id=>covered.add(id))
+  }
+  for(const page of [...pages]){
+    if(covered.has(page.id))continue
+    const outgoing=interactions.filter(edge=>edge.sourceArtboardId===page.id&&edge.destinationId&&edge.destinationId!==page.id)
+    const destinations=new Set<string>()
+    if(outgoing.length){for(const edge of outgoing){if(destinations.has(edge.destinationId!))continue;destinations.add(edge.destinationId!);make(page.id,edge.label||pages.find(p=>p.id===edge.destinationId)?.name||'Continue',edge.destinationId)}}
+    else make(page.id,page.name||name)
+  }
+  const result:PrototypeData={version:1,flows,interactions,variables:{},scenarios:[],imports:[]}
+  layoutFlowGroups(pages,result)
   return result
 }

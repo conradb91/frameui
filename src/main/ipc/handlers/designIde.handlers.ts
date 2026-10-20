@@ -1,3 +1,5 @@
+import {referenceImage} from './capture/referenceImages'
+import {documentRequest} from '../../design/documentStore'
 import { EXPAND_ARTIFACT_PANELS_SCRIPT } from './capture/contentHeight'
 import { importSignal, abortable } from '../../artifacts/importJob'
 import { explorePrototype, replayPrototype } from '../../artifacts/explorePrototype'
@@ -34,11 +36,10 @@ import { resolveStructuredComponents } from '@core/capture-compiler/resolveCompo
 import type { StructuredDesignDocument, StructuredFrame } from '@shared/types/structuredDesign'
 import type { Component, Token } from '@shared/types/model/projectModel'
 import { slugify } from '@core/design-model/id'
-import { visualDocumentSchema, visualObjectSchema } from '@core/visual/schema'
+import { visualObjectSchema } from '@core/visual/schema'
 import { normalizeVisual } from '@core/visual/normalize'
 import { routePattern, safeRoute, visit } from '@core/visual/model'
 import type {
-  VisualDocument,
   VisualObject,
   ApplicationCandidate,
   CaptureRoute,
@@ -608,40 +609,15 @@ export function registerDesignIdeHandlers() {
       input.password,
     )
   })
-  ipcMain.handle('design:list', () => {
-    const dir = path.dirname(file('index'))
-    if (!fs.existsSync(dir)) return []
-    const docs = fs
-      .readdirSync(dir)
-      .filter((n) => n.endsWith('.json'))
-      .map((n) => readJsonFile<VisualDocument | null>(path.join(dir, n), null))
-      .filter((d): d is VisualDocument => !!d)
-    // Project→Design navigation (Welcome/ProjectLibrary) needs a design
-    // count per project and a design's own page count/thumbnail — every
-    // document here is already fully read off disk for the projection
-    // below, so deriving these costs nothing extra.
-    const designCounts = new Map<string, number>()
-    for (const d of docs) if (d.libraryId) designCounts.set(d.libraryId, (designCounts.get(d.libraryId) ?? 0) + 1)
-    return docs.map((d) => ({
-      id: d.id,
-      name: d.name,
-      projectId: d.projectId,
-      libraryId: d.libraryId,
-      updatedAt: d.updatedAt,
-      pageCount: d.pages.length,
-      thumbnail: d.pages[0]?.thumbnail,
-      designCount: d.libraryId ? undefined : designCounts.get(d.id) ?? 0,
-    }))
+  ipcMain.handle('design:list', () => documentRequest('list',file('index')))
+  ipcMain.handle('design:load', (_e,id) => documentRequest('load',file(id)))
+  ipcMain.handle('design:save', (_e,raw) => {
+    // Validation/serialization and disk writes run off the UI/main event loop.
+    // The worker derives the validated document ID; the renderer supplies it separately.
+    const input=raw as {id:string;document:unknown}
+    return documentRequest('save',file(input.id),input.document)
   })
-  ipcMain.handle('design:load', (_e, id) =>
-    readJsonFile<VisualDocument | null>(file(id), null),
-  )
-  ipcMain.handle('design:save', (_e, raw) => {
-    const doc = visualDocumentSchema.parse(raw)
-    fs.mkdirSync(path.dirname(file(doc.id)), { recursive: true })
-    writeJsonFileAtomic(file(doc.id), doc)
-    return { ok: true }
-  })
+  ipcMain.handle('design:savePatch', (_e,raw) => {const input=raw as {id:string;patch:unknown};return documentRequest('patch',file(input.id),input.patch)})
   ipcMain.handle('design:scan', async () => {
     const name = path
       .basename(getActiveProject()?.rootPath ?? '')
@@ -727,6 +703,7 @@ export function registerDesignIdeHandlers() {
         if(!event.sender.isDestroyed())event.sender.send('project:prototypeImportProgress',{...progress,id,stage:'discover'})
       }),controller.signal)
       signal.throwIfAborted()
+      await fs.promises.writeFile(path.join(active.rootPath,'frameui-discovery-report.json'),JSON.stringify({createdAt:new Date().toISOString(),scope:'Bounded safe navigation and disclosure exploration',limits:{screens:40,attempts:60,steps:4,controlsPerScreen:32,visualElements:500},queryPolicy:'Sorted query parameters distinguish state; ordinary scroll anchors do not.',deduplication:result.deduplication,warnings:result.warnings},null,2))
       if(!result.states.length)throw new Error('The prototype did not render a visible interface. Export standalone HTML with its assets, or connect a running app for source-only projects.')
       const routes=result.states.map(state=>({pattern:state.pattern,url:state.url,name:state.name,sources:['runtime' as const]}))
       approved={token:crypto.randomUUID(),routes,origin:new URL(url).origin,projectId:active.projectId,profile:'standard',artifactSteps:Object.fromEntries(result.states.map(s=>[s.pattern,s.steps]))}
@@ -900,9 +877,13 @@ export function registerDesignIdeHandlers() {
     const project = getActiveProject()
     if (!project) throw new Error('Open a project before capturing.')
     const sendStage = (stage: CaptureStage) => { if (!event.sender.isDestroyed()) event.sender.send('design:captureStage', stage) }
+    if(capturing)throw new Error('Wait for the current capture to finish.')
+    const controller=new AbortController(),signal=AbortSignal.any([controller.signal,AbortSignal.timeout(120000)])
+    capturing=true;captureAbort=controller;captureOwner=event.sender.id
+    const execute=(script:string)=>abortable(guest.executeJavaScript(script),signal)
+    try {
     sendStage('layout')
-    const signal = AbortSignal.timeout(120000)
-    const position = await guest.executeJavaScript('({x:scrollX,y:scrollY})') as {x:number;y:number}
+    const position = await execute('({x:scrollX,y:scrollY})') as {x:number;y:number}
     let freezeKey: string | undefined
     let root: CapturedElement
     let domSnapshotRoot: CapturedElement | undefined
@@ -911,28 +892,28 @@ export function registerDesignIdeHandlers() {
     const domSnapshotStartedAt = performance.now()
     const warnings: string[] = []
     try {
-      await guest.executeJavaScript(WAIT_FOR_CAPTURE_SCRIPT)
+      await execute(WAIT_FOR_CAPTURE_SCRIPT)
       await scrollToSettle({ webContents: guest }, signal)
       // Pausing retains animation fill styles; animation:none resets animated
       // content to its hidden starting style on many reveal implementations.
-      freezeKey = await guest.insertCSS('*, *::before, *::after { transition: none !important; animation-play-state: paused !important; }')
-      metadata = await guest.executeJavaScript(`({title:document.title,heading:document.querySelector('main h1,h1')?.textContent?.trim(),width:innerWidth,height:innerHeight})`)
-      domSnapshotRoot = await captureDomSnapshot(guest, { width: metadata.width, height: metadata.height })
+      freezeKey = await abortable(guest.insertCSS('*, *::before, *::after { transition: none !important; animation-play-state: paused !important; }'),signal)
+      metadata = await execute(`({title:document.title,heading:document.querySelector('main h1,h1')?.textContent?.trim(),width:innerWidth,height:innerHeight})`)
+      domSnapshotRoot = await captureDomSnapshot(guest, { width: metadata.width, height: metadata.height }, signal)
       root = domSnapshotRoot
       if (domSnapshotRoot) await embedIframeFallbacks(guest, domSnapshotRoot, signal, warnings)
       sendStage('screenshot')
-      fullScreenshot = await guest.capturePage()
+      fullScreenshot = await abortable(guest.capturePage(), AbortSignal.any([signal,AbortSignal.timeout(30000)]))
     } finally {
       if (!guest.isDestroyed()) {
-        if (freezeKey) await guest.removeInsertedCSS(freezeKey).catch(() => {})
-        await guest.executeJavaScript(`window.scrollTo({left:${position.x},top:${position.y},behavior:"instant"})`).catch(() => {})
+        if (freezeKey) await abortable(guest.removeInsertedCSS(freezeKey),AbortSignal.timeout(500)).catch(() => {})
+        await abortable(guest.executeJavaScript(`window.scrollTo({left:${position.x},top:${position.y},behavior:"instant"})`),AbortSignal.timeout(500)).catch(() => {})
       }
     }
     const thumbnail = fullScreenshot.resize({width:720}).toDataURL()
     sendStage('assets')
     if (guest.getURL() !== url || getActiveProject()?.projectId !== project.projectId) throw new Error('The page or project changed during capture. Try again.')
     runtimeUrl.parse(guest.getURL())
-    const fonts = await captureResources(guest, root, url, AbortSignal.timeout(30000), new Map(), warnings)
+    const fonts = await captureResources(guest, root, url, AbortSignal.any([signal,AbortSignal.timeout(30000)]), new Map(), warnings)
     if (guest.getURL() !== url || getActiveProject()?.projectId !== project.projectId) throw new Error('The page or project changed during capture. Try again.')
     const captureName = metadata.heading || metadata.title || url
     let structured: StructuredFrame | undefined
@@ -952,7 +933,9 @@ export function registerDesignIdeHandlers() {
       structured = captured?.frame
       if(structured?.captureMetadata.visualMatch&&structured.captureMetadata.visualMatch.diffPercent>2)warnings.push(`Visual comparison found ${structured.captureMetadata.visualMatch.diffPercent.toFixed(1)}% differing pixels. Native layers were preserved; review the capture against your app.`)
     }
+    signal.throwIfAborted()
     return {root,metadata,thumbnail,fonts,url,warnings:[...new Set(warnings)],structured}
+    } finally {capturing=false;captureAbort=null;captureOwner=null}
   })
   // Stage 3 of the capture-engine rebuild (docs/CAPTURE_ENGINE_REBUILD_SPEC.md):
   // dev-only read-back for the debug files `writeStructuredCapture` writes.
@@ -1069,7 +1052,7 @@ export function registerDesignIdeHandlers() {
       completed = 0,
       structuredDocuments = 0
     const progress = (p: CaptureProgress) => {
-      if (!event.sender.isDestroyed()) event.sender.send('design:progress', p)
+      if (!event.sender.isDestroyed()) event.sender.send('design:progress', {...p,artifactImportId:input.artifactImportId})
     }
     try {
       await Promise.all(
@@ -1101,8 +1084,8 @@ export function registerDesignIdeHandlers() {
               const fullPageScreenshot = await captureFullPageScreenshot(win, signal)
               const [viewportWidth, viewportHeight] = win.getContentSize()
               const domSnapshotStartedAt = performance.now()
-              const root = await captureDomSnapshot(win.webContents, { width: viewportWidth, height: viewportHeight })
-              const screenshot = await win.webContents.capturePage()
+              const root = await captureDomSnapshot(win.webContents, { width: viewportWidth, height: viewportHeight }, signal)
+              const screenshot = await abortable(win.webContents.capturePage(), AbortSignal.any([signal,AbortSignal.timeout(30000)]))
               const captureWarnings: string[] = []
               const fonts = await captureResources(win.webContents, root, r.url, signal, imageCache, captureWarnings)
               const objects = normalizeVisual(root, {
@@ -1183,14 +1166,14 @@ export function registerDesignIdeHandlers() {
                 // stays populated regardless, for SVG export, the Layers
                 // panel, and the legacy render route (old saved documents).
                 structured: captured?.frame,
-                thumbnail: screenshot.resize({ width: 360 }).toDataURL(),
-                fullPageScreenshot,
-                canvasPreview: (()=>{const image=electron.nativeImage.createFromDataURL(fullPageScreenshot),size=image.getSize();const height=Math.min(size.height,Math.ceil(root.rect.height*size.width/width));const cropped=image.crop({x:0,y:0,width:size.width,height:Math.max(1,height)});return cropped.resize({width:Math.max(1,Math.min(480,Math.floor(size.width*2048/Math.max(1,height))))}).toDataURL()})(),
+                thumbnail: referenceImage(screenshot.toDataURL(),360),
+                fullPageScreenshot: referenceImage(fullPageScreenshot,width),
+                canvasPreview: (()=>{const image=electron.nativeImage.createFromDataURL(fullPageScreenshot),size=image.getSize();const height=Math.min(size.height,Math.ceil(root.rect.height*size.width/width));const cropped=image.crop({x:0,y:0,width:size.width,height:Math.max(1,height)});return 'data:image/jpeg;base64,'+cropped.resize({width:Math.max(1,Math.min(480,Math.floor(size.width*2048/Math.max(1,height))))}).toJPEG(88).toString('base64')})(),
               })
               if (input.overlays)
                 await captureOverlays(win, async (name) => {
                   const [overlayWidth, overlayHeight] = win!.getContentSize()
-                  const overlayRoot = await captureDomSnapshot(win!.webContents, { width: overlayWidth, height: overlayHeight })
+                  const overlayRoot = await captureDomSnapshot(win!.webContents, { width: overlayWidth, height: overlayHeight }, signal)
                   await captureResources(win!.webContents, overlayRoot, r.url, signal, imageCache)
                   const overlayObjects = normalizeVisual(overlayRoot, {
                     file: r.source,
@@ -1198,7 +1181,7 @@ export function registerDesignIdeHandlers() {
                   })
                   if (input.controlStates) await captureVisualStates(win!.webContents, overlayObjects)
                   signal.throwIfAborted()
-                  const thumbnail = await win!.webContents.capturePage()
+                  const thumbnail = await abortable(win!.webContents.capturePage(), AbortSignal.any([signal,AbortSignal.timeout(30000)]))
                   pages.push({
                     id: crypto.randomUUID(),
                     name: r.name,
@@ -1224,6 +1207,7 @@ export function registerDesignIdeHandlers() {
                 route: r.pattern,
                 width,
                 status: 'Complete',
+                ...(input.artifactImportId?{thumbnail:pages.find(p=>p.route===r.pattern&&p.width===width)?.thumbnail}:{}),
               })
             } catch (error) {
               if (signal.aborted) break

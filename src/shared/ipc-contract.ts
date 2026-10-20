@@ -51,6 +51,7 @@ export interface FrameUiApi {
     list(): Promise<(Pick<VisualDocument, 'id' | 'name' | 'projectId' | 'libraryId' | 'updatedAt'> & { pageCount: number; thumbnail?: string; designCount?: number })[]>
     load(id: string): Promise<VisualDocument | null>
     save(document: VisualDocument): Promise<{ ok: boolean }>
+    savePatch(patch: import('./designPatch').DesignPatch): Promise<{ ok: boolean }>
     login(input: {url:string;profile?: 'standard' | 'admin' | 'super-admin';username:string;password:string}): Promise<{ok:boolean;message:string}>
     scan(): Promise<ApplicationCandidate[]>
     /** Live Fidelity Capture's "Test connection" preflight — cheap reachability
@@ -305,6 +306,9 @@ export interface FrameUiApi {
     openExternal(url: string): Promise<{ ok: boolean }>
   }
   export: {
+    saveXd(request: import('./types/xdExport').XdExportRequest): Promise<import('./types/xdExport').XdExportResult>
+    cancelXd(jobId: string): Promise<void>
+    onXdProgress(callback: (event: { jobId: string; stage: string }) => void): () => void
     saveSketch(request: import('./types/sketchExport').SketchExportRequest): Promise<import('./types/sketchExport').SketchExportResult>
     cancelSketch(jobId: string): Promise<void>
     onSketchProgress(listener: (event: {jobId:string;stage:string}) => void): () => void

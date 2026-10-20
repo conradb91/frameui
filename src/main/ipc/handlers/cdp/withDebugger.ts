@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import { raceAbort } from '../capture/raceAbort'
 import { captureMotionSession } from './captureMotion'
 
 export type SendCommand = <T = unknown>(
@@ -24,11 +25,14 @@ export async function withDebugger<T>(
   contents: WebContents,
   protocolVersion: '1.3',
   fn: (send: SendCommand) => Promise<T>,
+  signal?: AbortSignal,
 ): Promise<T> {
+  const wait = <R>(work:Promise<R>) => signal ? raceAbort(work,signal) : work
+  signal?.throwIfAborted()
   const motionSession = captureMotionSession(contents)
   if (motionSession) {
-    await motionSession
-    return fn((method, params) => contents.debugger.sendCommand(method, params))
+    await wait(motionSession)
+    return wait(fn((method, params) => wait(contents.debugger.sendCommand(method, params))))
   }
   const debuggerApi = contents.debugger
   if (debuggerApi.isAttached())
@@ -37,7 +41,7 @@ export async function withDebugger<T>(
     )
   debuggerApi.attach(protocolVersion)
   try {
-    return await fn((method, params) => debuggerApi.sendCommand(method, params))
+    return await wait(fn((method, params) => wait(debuggerApi.sendCommand(method, params))))
   } finally {
     if (debuggerApi.isAttached()) debuggerApi.detach()
   }

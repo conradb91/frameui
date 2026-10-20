@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import type { StructuredFrame, StructuredNode } from '@shared/types/structuredDesign'
@@ -30,22 +30,22 @@ export function StructuredCanvasInteraction({frame,selected,onSelect,onCommitBou
   },[frame.children])
   const live = useRef({selected,onSelect,onCommitBounds,zoom,editingId,enabled,model})
   live.current = {selected,onSelect,onCommitBounds,zoom,editingId,enabled,model}
-  function topLevel(ids:string[]) {
+  const topLevel=useCallback((ids:string[]) => {
     const set=new Set(ids)
     return ids.filter(id=>{let parent=live.current.model.parents.get(id);while(parent){if(set.has(parent))return false;parent=live.current.model.parents.get(parent)}return true})
-  }
-  function targets(ids:string[]) {return topLevel(ids).flatMap(id=>{
+  },[])
+  const targets=useCallback((ids:string[]) => {return topLevel(ids).flatMap(id=>{
     const node=live.current.model.nodes.get(id)
     const el=elements.current.get(id) ?? containerRef.current?.querySelector<HTMLElement|SVGElement>(`[data-structured-frame="${CSS.escape(frame.id)}"] [data-structured-id="${CSS.escape(id)}"]`)
     if(el) elements.current.set(id,el)
     return node&&el&&!live.current.model.locked.has(id)&&el.dataset.structuredDraggable==='true'?[{node,el,transform:el.style.transform}]:[]
-  })}
-  function boxFor(items:Target[]):Box|null {
+  })},[containerRef,frame.id,topLevel])
+  const boxFor=useCallback((items:Target[]):Box|null => {
     const stage=containerRef.current;if(!stage||!items.length)return null
     const origin=stage.getBoundingClientRect(), boxes=items.map(t=>t.el.getBoundingClientRect())
     const x=Math.min(...boxes.map(b=>b.left)),y=Math.min(...boxes.map(b=>b.top))
     return {x:x-origin.left,y:y-origin.top,width:Math.max(...boxes.map(b=>b.right))-x,height:Math.max(...boxes.map(b=>b.bottom))-y}
-  }
+  },[containerRef])
   function showBox(box:Box|null,count=0) {
     const el=outline.current;if(!el)return
     el.hidden=!box;if(!box)return
@@ -94,7 +94,7 @@ export function StructuredCanvasInteraction({frame,selected,onSelect,onCommitBou
       // A captured SVG is a single icon by default, not a collection of tiny paths.
       const direct=target.closest('svg[data-structured-id]')??target.closest('[data-structured-id]')
       if(!direct&&!direction && (target.closest('[data-object-id],[data-selection-id],[data-handle],[data-frame-resize-handle],[data-canvas-surface],.ide-canvas-frame-title-wrap')||!target.closest('svg')))return
-      let id=direct?.getAttribute('data-structured-id'),ids=state.selected
+      const id=direct?.getAttribute('data-structured-id');let ids=state.selected
       if(id&&state.model.locked.has(id))return
       if(id&&!direction)ids=e.shiftKey?(ids.includes(id)?ids.filter(v=>v!==id):[...ids,id]):ids.includes(id)?ids:[id]
       if(direction&&!ids.length)return
@@ -153,6 +153,6 @@ export function StructuredCanvasInteraction({frame,selected,onSelect,onCommitBou
     window.addEventListener('pointermove',move,{capture:true,passive:false});window.addEventListener('pointerup',up,true);window.addEventListener('pointercancel',cancel,true)
     window.addEventListener('keydown',keydown,true);window.addEventListener('keyup',keyup);window.addEventListener('blur',blur)
     return()=>{cancel();stage.removeEventListener('pointerdown',down,true);window.removeEventListener('pointermove',move,true);window.removeEventListener('pointerup',up,true);window.removeEventListener('pointercancel',cancel,true);window.removeEventListener('keydown',keydown,true);window.removeEventListener('keyup',keyup);window.removeEventListener('blur',blur)}
-  },[containerRef,frame.id])
+  },[containerRef,frame.id,targets,boxFor,topLevel])
   return <><div ref={outline} hidden className="ide-direct-selection" aria-label="Selected captured objects">{['nw','ne','sw','se'].map(direction=><button key={direction} type="button" data-structured-resize={direction} className={`ide-direct-handle ${direction}`} aria-label={`Resize selection ${direction}`} tabIndex={-1}/>)}</div><div ref={marquee} hidden className="ide-direct-marquee"/></>
 }

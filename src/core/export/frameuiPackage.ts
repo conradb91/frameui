@@ -141,11 +141,34 @@ function svgMarkup(node: StructuredNode): string | undefined {
   return `<svg xmlns="http://www.w3.org/2000/svg"${geometry.viewBox ? ` viewBox="${geometry.viewBox}"` : ''}><${tag} ${attributes}/></svg>`
 }
 
+/** Computed SVG fill/stroke also exist on HTML elements but do not paint their CSS backgrounds. */
+function structuredFills(node: StructuredNode): FrameUiExportNode['fills'] {
+  if(node.type==='Text')return paint(node.typography?.gradient?.image??node.typography?.color)
+  const tag=node.source.tag.toLowerCase()
+  const svgLeaf=['path','rect','circle','ellipse','line','polygon','polyline','text','tspan'].includes(tag)
+  if(svgLeaf)return paint(node.appearance.fill)
+  const image=node.appearance.backgroundImage
+  return paint(image&&image!=='none'?image:node.appearance.backgroundColor)
+}
+
+function structuredStroke(node: StructuredNode): { strokes: FrameUiExportNode['strokes']; strokeWidth: number } {
+  // SVG paint is inherited by geometry, not painted around <svg>/<g> viewport boxes.
+  const tag = node.source.tag.toLowerCase()
+  const svgLeaf = ['path','rect','circle','ellipse','line','polygon','polyline','text','tspan'].includes(tag)
+  if (svgLeaf) return { strokes: paint(node.appearance.stroke), strokeWidth: finite(node.appearance.strokeWidth ?? 1, 1) }
+  const border = node.appearance.border
+  return { strokes: border && border.width > 0 ? paint(border.color) : [], strokeWidth: finite(border?.width ?? 0, 0) }
+}
+
 function convertStructured(node: StructuredNode, parentId: string | null, index: number, ctx: BuildContext): FrameUiExportNode {
   if(node.type==='RasterFallback')ctx.warnings.push({code:'existing-raster-fallback',message:`${node.name} was already stored as an image; recapture its source to recover supported editable layers.`,nodeId:node.id,severity:'warning'})
   const children = node.children
     .filter((child) => ctx.options.includeHiddenLayers || child.visibility)
     .map((child, childIndex) => convertStructured(child, node.id, childIndex, ctx))
+  // HTML absolute children use the padding-edge containing block. Native groups
+  // have no CSS border box, so preserve the renderer's border inset explicitly.
+  const borderInset = node.type !== 'SVG' && node.type !== 'Shape' && node.appearance.border?.style !== 'none' && node.appearance.border?.style !== 'hidden' ? finite(node.appearance.border?.width ?? 0) : 0
+  if (borderInset > 0) for (const child of children) { child.x += borderInset; child.y += borderInset }
   const assetId = (node.type === 'Image' || node.type === 'RasterFallback') ? registerImage(ctx, node.source.imageSrc, { ...node, width: node.bounds.width, height: node.bounds.height }) : null
   const tokenBindings = node.tokenBindings ? Object.fromEntries(Object.entries(node.tokenBindings).flatMap(([key, binding]) => binding?.token ? [[key, binding.token]] : [])) : undefined
   const effects: FrameUiExportNode['effects'] = []
@@ -160,7 +183,7 @@ function convertStructured(node: StructuredNode, parentId: string | null, index:
     childIds: children.map((child) => child.id), children,
     x: finite(node.bounds.x), y: finite(node.bounds.y), width: finite(node.bounds.width), height: finite(node.bounds.height), rotation: finite(node.appearance.rotation), opacity: finite(node.appearance.opacity, 1), visible: node.visibility, locked: node.locked, clipContent: node.appearance.clip,
     layout: { mode: node.layout.mode === 'stack' ? (node.layout.direction === 'horizontal' ? 'HORIZONTAL' : 'VERTICAL') : node.layout.mode === 'grid' ? 'GRID' : 'FREE', wrap: !!node.layout.wrap, gap: finite(node.layout.gap ?? 0), padding: node.layout.padding ?? { top: 0, right: 0, bottom: 0, left: 0 }, align: node.layout.align ?? 'start', justify: node.layout.justify ?? 'start', constraints: node.constraints.position, minWidth: node.layout.minWidth, maxWidth: node.layout.maxWidth },
-    fills: paint(node.type==='Text' ? node.typography?.gradient?.image ?? node.typography?.color ?? node.appearance.fill : node.appearance.backgroundImage ?? node.appearance.backgroundColor ?? node.appearance.fill), strokes: paint(node.appearance.stroke ?? node.appearance.border?.color), strokeWidth: finite(node.appearance.strokeWidth ?? node.appearance.border?.width ?? 0), radius: node.appearance.radius, effects,
+    fills: structuredFills(node), ...structuredStroke(node), radius: node.appearance.radius, effects,
     text: node.typography ? { gradient: node.typography.gradient, color: node.typography.color, captureLines: node.typography.captureLines, characters: node.typography.text, fontFamily: node.typography.fontFamily, fontStyle: node.typography.fontStyle ?? 'Regular', fontWeight: node.typography.fontWeight, fontSize: finite(node.typography.fontSize, 16), lineHeight: finite(node.typography.lineHeight, 24), letterSpacing: finite(node.typography.letterSpacing), alignment: node.typography.textAlign, decoration: node.typography.textDecoration, runs: node.typography.textRuns } : undefined,
     vector: ['SVG', 'Shape', 'Icon'].includes(node.type) ? { path: node.source.svgGeometry?.d, viewBox: node.source.svgGeometry?.viewBox, svg: svgMarkup(node), tag: node.source.tag, geometry: node.source.svgGeometry } : undefined,
     image: assetId ? { assetId, fit: node.appearance.objectFit === 'contain' ? 'CONTAIN' : node.appearance.objectFit === 'fill' ? 'FILL' : 'COVER' } : undefined,

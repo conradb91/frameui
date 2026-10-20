@@ -1,3 +1,4 @@
+import { raceAbort } from '../capture/raceAbort'
 import { CONTENT_METRICS_SCRIPT } from '../capture/contentHeight'
 import { SVG_RESOURCE_TAGS, SVG_RESOURCE_ATTRIBUTES } from '@core/capture-compiler/svgDefinitions'
 import { normalizeCaptureScale } from './normalizeCaptureScale'
@@ -80,7 +81,11 @@ function spliceCanvasFallback(el: CapturedElement, canvases: Map<string, string>
 export async function captureDomSnapshot(
   contents: WebContents,
   viewport: { width: number; height: number },
+  jobSignal?: AbortSignal,
 ): Promise<CapturedElement> {
+  const signal=jobSignal?AbortSignal.any([jobSignal,AbortSignal.timeout(30000)]):AbortSignal.timeout(30000)
+  const execute=(script:string)=>raceAbort(contents.executeJavaScript(script),signal)
+  signal.throwIfAborted()
   const snapshot = await withDebugger(contents, '1.3', async (send) => {
     await send('DOM.enable')
     await send('CSS.enable')
@@ -93,13 +98,13 @@ export async function captureDomSnapshot(
       'DOMSnapshot.captureSnapshot',
       request,
     )
-  })
+  }, signal)
   // DOMSnapshot bounds can be emitted in device pixels on scaled macOS
   // displays, while computed CSS styles and the design viewport remain in
   // CSS pixels. Calibrate against the same body's live DOM rect rather than
   // guessing from devicePixelRatio (which does not always describe CDP's
   // coordinate space).
-  const contentMetrics = await contents.executeJavaScript(CONTENT_METRICS_SCRIPT) as {width:number;height:number}
+  const contentMetrics = await execute(CONTENT_METRICS_SCRIPT) as {width:number;height:number}
   const liveBodyWidth = contentMetrics.width
   const doc = snapshot.documents[0]
   const bodyIndex = doc?.nodes.nodeName?.findIndex((name) => snapshot.strings[name]?.toLowerCase() === 'body') ?? -1
@@ -108,7 +113,7 @@ export async function captureDomSnapshot(
   const ratio = snapshotBodyWidth && liveBodyWidth > 0 ? snapshotBodyWidth / liveBodyWidth : 1
   const coordinateScale = Number.isFinite(ratio) && ratio > 0 ? ratio : 1
   const root = reconstructSnapshotTree(snapshot, CAPTURED_STYLE_PROPERTIES, viewport, coordinateScale)
-  const placeholderStyles = await contents.executeJavaScript(`(() => {
+  const placeholderStyles = await execute(`(() => {
     const result = {};
     for (const input of document.querySelectorAll('input[placeholder]')) {
       if (input.value) continue;
@@ -129,24 +134,37 @@ export async function captureDomSnapshot(
     element.children.forEach(applyPlaceholderStyles);
   }
   applyPlaceholderStyles(root)
-  const canvases = (await contents.executeJavaScript(CANVAS_SCRIPT)) as {
+  const controlDetails=await execute(`(() => {
+    const result={};
+    for(const el of document.querySelectorAll('input,select,textarea')){
+      const parts=[];let cursor=el;while(cursor&&cursor.parentElement&&cursor!==document.documentElement){parts.unshift(cursor.tagName.toLowerCase()+':nth-child('+(Array.prototype.indexOf.call(cursor.parentElement.children,cursor)+1)+')');cursor=cursor.parentElement}
+      const info={'data-frameui-appearance':getComputedStyle(el).appearance};
+      if(el.tagName==='SELECT'){info.controlValue=el.value;info['data-frameui-options']=JSON.stringify(Array.from(el.options).slice(0,1000).map(option=>({value:option.value,label:option.label,disabled:option.disabled})))}
+      if(el.tagName==='TEXTAREA')info.controlValue=el.value;
+      result['html>'+parts.join('>')]=info;
+    }
+    return result;
+  })()` ) as Record<string,Record<string,string>>
+  const attachControls=(el:CapturedElement):void=>{const detail=controlDetails[el.attributes?.captureSelector??''];if(detail)el.attributes={...el.attributes,...detail};el.children.forEach(attachControls)};attachControls(root)
+
+  const canvases = (await execute(CANVAS_SCRIPT)) as {
     captureSelector: string
     dataUrl: string
   }[]
   if (canvases.length)
     spliceCanvasFallback(root, new Map(canvases.map((c) => [c.captureSelector, c.dataUrl])))
-  const svgResources = await contents.executeJavaScript(`(() => {
+  const svgResources = await execute(`(() => {
     const tags = new Set(${JSON.stringify(SVG_RESOURCE_TAGS)}), attributes = new Set(${JSON.stringify(SVG_RESOURCE_ATTRIBUTES)});
     function selector(el) { const parts=[]; while(el&&el.parentElement&&el!==document.documentElement){parts.unshift(el.tagName.toLowerCase()+':nth-child('+(Array.prototype.indexOf.call(el.parentElement.children,el)+1)+')');el=el.parentElement}return 'html>'+parts.join('>') }
     let budget=4000;
-    function resource(el,depth=0){if(depth>32||budget--<=0||!tags.has(el.tagName))return null;const a={};for(const attr of el.attributes)if(attributes.has(attr.name))a[attr.name]=attr.value;const style=getComputedStyle(el);for(const key of ['fill','fill-opacity','stroke','stroke-opacity','stroke-width','stroke-linecap','stroke-linejoin','fill-rule','clip-rule','opacity','stop-color','stop-opacity','flood-color','flood-opacity','color-interpolation-filters'])if(style.getPropertyValue(key))a[key]=style.getPropertyValue(key);return {tag:el.tagName,attributes:a,children:Array.from(el.children).map(c=>resource(c,depth+1)).filter(Boolean)}}
+    function resource(el,depth=0){if(depth>32||budget--<=0||!tags.has(el.tagName))return null;const a={};for(const attr of el.attributes)if(attributes.has(attr.name))a[attr.name]=attr.value;const style=getComputedStyle(el);for(const key of ['fill','fill-opacity','stroke','stroke-opacity','stroke-width','stroke-linecap','stroke-linejoin','fill-rule','clip-rule','opacity','stop-color','stop-opacity','flood-color','flood-opacity','color-interpolation-filters'])if(style.getPropertyValue(key)&&style.getPropertyValue(key)!==getComputedStyle(el.parentElement||el).getPropertyValue(key))a[key]=style.getPropertyValue(key);return {tag:el.tagName,attributes:a,children:Array.from(el.children).map(c=>resource(c,depth+1)).filter(Boolean)}}
     function referencedIds(root){const ids=new Set();for(const el of [root,...root.querySelectorAll('*')]){for(const attr of ['href','xlink:href']){const v=el.getAttribute(attr);if(v&&v.startsWith('#'))ids.add(v.slice(1))}const style=getComputedStyle(el);for(const key of ['fill','stroke','filter','clip-path','mask-image']){const value=style.getPropertyValue(key);for(const m of value.matchAll(/url\\(\\s*["']?([^"')]+)["']?\\s*\\)/g)){try{const url=new URL(m[1],document.baseURI);if(url.href.split('#')[0]===location.href.split('#')[0]&&url.hash)ids.add(decodeURIComponent(url.hash.slice(1)))}catch{}}}}return ids}
     return Array.from(document.querySelectorAll('svg')).map(el=>{budget=4000;const pending=[...referencedIds(el)],seen=new Set(),definitions=[];while(pending.length&&seen.size<128){const id=pending.shift();if(seen.has(id))continue;seen.add(id);const target=document.getElementById(id);if(!target)continue;const value=resource(target);if(value)definitions.push(value);for(const nested of referencedIds(target))if(!seen.has(nested))pending.push(nested)}return {selector:selector(el),definitions:JSON.stringify(definitions)}});
   })()` ) as {selector:string;definitions:string}[]
   const resources = new Map(svgResources.map(item=>[item.selector,item.definitions]))
   const attachSvgResources=(el:CapturedElement):void=>{if(el.tag==='svg'){const defs=resources.get(el.attributes?.captureSelector??'');if(defs&&defs.length<=2_000_000)el.attributes={...el.attributes,'data-frameui-svg-definitions':defs}}el.children.forEach(attachSvgResources)}
   attachSvgResources(root)
-  const gradientPaints = await contents.executeJavaScript(`(() => {
+  const gradientPaints = await execute(`(() => {
  const paints={};
  for(const el of document.querySelectorAll('span,strong,b,em,i,h1,h2,h3,h4,p,label,a')){
  const style=getComputedStyle(el);if(!style.backgroundClip.includes('text')||style.backgroundImage==='none')continue;
@@ -158,6 +176,10 @@ export async function captureDomSnapshot(
 })()`) as Record<string,unknown>
   const attachGradientPaint=(el:CapturedElement):void=>{const paint=gradientPaints[el.attributes?.captureSelector??''];if(paint)el.attributes={...el.attributes,'data-frameui-gradient-paint':JSON.stringify(paint)};el.children.forEach(attachGradientPaint)}
   attachGradientPaint(root)
-  if(root.tag==='frameui-root'&&Number.isFinite(contentMetrics.height))root.rect.height=contentMetrics.height
+  if(root.tag==='frameui-root'&&Number.isFinite(contentMetrics.height)){
+    root.rect.height=contentMetrics.height
+    const containsModal=(el:CapturedElement):boolean=>el.aria?.['aria-modal']==='true'||el.aria?.role==='dialog'||el.attributes?.role==='dialog'||el.tag==='dialog'||el.children.some(containsModal)
+    const expandBackdrops=(el:CapturedElement):void=>{if(el.styles.position==='fixed'&&el.rect.x<=1&&el.rect.y<=1&&el.rect.width>=viewport.width-2&&el.rect.height>=viewport.height-2&&containsModal(el))el.rect.height=Math.max(el.rect.height,contentMetrics.height-el.rect.y);el.children.forEach(expandBackdrops)};expandBackdrops(root)
+  }
   return normalizeCaptureScale(root)
 }

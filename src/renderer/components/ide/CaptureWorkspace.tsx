@@ -149,7 +149,7 @@ export function CaptureWorkspace({
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [batchOpen, setBatchOpen] = useState(false)
-  useEffect(()=>{if(document.appUrl)void connectApplication(document.appUrl).catch(e=>setError(userFacingError(e)))},[document.projectId])
+  useEffect(()=>{if(document.appUrl)void connectApplication(document.appUrl).catch(e=>setError(userFacingError(e)))},[document.projectId,document.appUrl])
   const [sidebarCollapsed, setSidebarCollapsed] = useStoredValue('frameui:capture-sidebar-collapsed', false)
 
   function renameSessionCapture(id: string, name: string) {

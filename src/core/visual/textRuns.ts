@@ -87,3 +87,15 @@ export function textSegments(
   }
   return segments
 }
+
+/** Shift formatting with a contiguous browser edit, keeping the unchanged suffix styled. */
+export function rebaseTextRuns(before:string,after:string,runs:TextStyleRun[]=[]):TextStyleRun[]{
+ if(before===after)return normalizeTextRuns(after,runs)
+ let start=0;while(start<before.length&&start<after.length&&before[start]===after[start])start++
+ let suffix=0;while(suffix<before.length-start&&suffix<after.length-start&&before[before.length-1-suffix]===after[after.length-1-suffix])suffix++
+ const oldEnd=before.length-suffix,newEnd=after.length-suffix,delta=newEnd-oldEnd
+ const normalized=normalizeTextRuns(before,runs),out:TextStyleRun[]=[]
+ for(const run of normalized){if(run.start<start)out.push({...run,end:Math.min(run.end,start)});if(run.end>oldEnd)out.push({...run,start:Math.max(run.start,oldEnd)+delta,end:run.end+delta})}
+ if(newEnd>start){const position=oldEnd>start?start:Math.max(0,start-1),style=normalized.find(run=>run.start<=position&&run.end>position);if(style)out.push({...style,start,end:newEnd})}
+ return normalizeTextRuns(after,out)
+}

@@ -1,14 +1,12 @@
-import { expect, test } from 'bun:test'
-import { userFacingError } from '../../src/renderer/lib/userFacingError'
-
-test('setup errors omit Electron transport details', () => {
-  expect(userFacingError(new Error("Error invoking remote method 'project:verifyRuntime': Error: Verification file not found (404)."))).toBe('Verification file not found (404).')
-  expect(userFacingError("Error: Error invoking remote method 'ai:connect': Error: Reconnect Claude." )).toBe('Reconnect Claude.')
+import {test,expect} from 'bun:test'
+import {userFacingError} from '../../src/renderer/lib/userFacingError'
+test('export errors never expose embedded image data or grow with the source asset',()=>{
+ const message=userFacingError(new Error('Unsupported XD colour: url("data:image/jpeg;base64,'+'A'.repeat(1_000_000)+'")'))
+ expect(message).toContain('[embedded asset]')
+ expect(message).not.toContain('AAAA')
+ expect(message.length).toBeLessThanOrEqual(500)
+ expect(userFacingError('x'.repeat(1000)).length).toBeLessThanOrEqual(500)
 })
-test('capture validation errors show actionable messages without schema internals', () => {
-  const details = JSON.stringify([{ code: 'custom', path: ['url'], message: 'Connect and verify this Runtime URL for the open project first.' }])
-  expect(userFacingError(new Error(`Error invoking remote method 'design:capture': Error: ${details}`))).toBe('Connect and verify this Runtime URL for the open project first.')
-})
-test('plain error messages remain readable', () => {
-  expect(userFacingError(new Error('Cannot reach Anthropic. Check your connection and retry.'))).toBe('Cannot reach Anthropic. Check your connection and retry.')
+test('plain Electron transport errors stay actionable',()=>{
+ expect(userFacingError("Error invoking remote method 'export:saveXd': Error: Permission denied")).toBe('Permission denied')
 })

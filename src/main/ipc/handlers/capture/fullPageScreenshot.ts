@@ -17,8 +17,10 @@ import { raceAbort } from './raceAbort'
  */
 export async function captureFullPageScreenshot(
   win: BrowserWindow,
-  signal: AbortSignal,
+  jobSignal: AbortSignal,
 ): Promise<string> {
+  const signal=AbortSignal.any([jobSignal,AbortSignal.timeout(30000)])
+  signal.throwIfAborted()
   return raceAbort(
     withDebugger(win.webContents, '1.3', async (send) => {
       await send('Page.enable')
@@ -28,7 +30,7 @@ export async function captureFullPageScreenshot(
       // Retina full-page captures otherwise exceed Chromium's GPU texture
       // limit (e.g. a 14k CSS-pixel page becomes a 28k-pixel render target).
       // Bound only the reference image; editable geometry stays full size.
-      const pixelRatio = await win.webContents.executeJavaScript('devicePixelRatio') as number
+      const pixelRatio = await raceAbort(win.webContents.executeJavaScript('devicePixelRatio'),signal) as number
       const ratio = Math.max(1, pixelRatio || 1)
       const scale = Math.min(1, 8192 / (Math.max(cssContentSize.width, cssContentSize.height) * ratio),
         Math.sqrt(16000000 / (cssContentSize.width * cssContentSize.height * ratio * ratio)))
@@ -42,7 +44,7 @@ export async function captureFullPageScreenshot(
         request,
       )
       return `data:image/png;base64,${data}`
-    }),
+    },signal),
     signal,
   )
 }

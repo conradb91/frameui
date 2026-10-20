@@ -1,4 +1,5 @@
-import type { SketchExportReport } from '@shared/types/sketchExport'
+import {userFacingError} from '../../lib/userFacingError'
+import type { XdExportReport } from '@shared/types/xdExport'
 import { DeveloperHandoff } from './prototype/DeveloperHandoff'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -63,8 +64,8 @@ const labels: Record<ExportFormat, { title: string; description: string; feature
     features: ['Editable layers', 'Auto Layout', 'Components', 'Variables', 'Original assets'],
   },
   'adobe-xd': {
-    title: 'ADOBE XD · SKETCH',
-    description: 'Export .sketch, then open and save as .xd.',
+    title: 'ADOBE XD · .xd',
+    description: 'Native editable document. XD application testing pending.',
     features: ['Editable layers', 'Artboards', 'Vectors', 'Text', 'Original assets'],
   },
   svg: {
@@ -117,9 +118,9 @@ export function ExportWorkspace({
   selectedStructuredIds,
   onClose,
   onStatus,
-  onError,
   initialFormat = 'figma',
 }: Props) {
+  const [exportError,setExportError]=useState('')
   const [handoff, setHandoff] = useState(false)
   const [format, setFormat] = useState<ExportFormat>(initialFormat)
   const [options, setOptions] = useState(defaultOptions)
@@ -127,7 +128,11 @@ export function ExportWorkspace({
   const [stage, setStage] = useState<'configure' | 'working' | 'complete' | 'instructions'>(
     'configure',
   )
-  const [progress, setProgress] = useState({ current: 0, title: '', detail: '' })
+  const [progress, setProgress] = useState({
+    current: 0,
+    title: '',
+    detail: '',
+  })
   const [result, setResult] = useState<{
     filePath: string
     stats: {
@@ -145,18 +150,18 @@ export function ExportWorkspace({
     messages: string[]
   } | null>(null)
   const cancelled = useRef(false)
-  const sketchJob = useRef<string>()
-  const [sketchReport, setSketchReport] = useState<SketchExportReport | null>(null)
-  const [xdScope, setXdScope] = useState<'artboard' | 'flow' | 'project'>('project')
-  const [flowId, setFlowId] = useState(document.prototype?.flows[0]?.id ?? '')
+  const xdJob = useRef<string>()
+  const [xdReport, setXdReport] = useState<XdExportReport | null>(null)
+  const [xdScope, setXdScope] = useState<'current' | 'selected' | 'all'>('all')
+  const [xdPageIds, setXdPageIds] = useState<string[]>(page ? [page.id] : [])
   function cancelExport() {
     cancelled.current = true
-    if (sketchJob.current) void window.frameui.export.cancelSketch(sketchJob.current)
+    if (xdJob.current) void window.frameui.export.cancelXd(xdJob.current)
   }
   useEffect(
     () =>
-      window.frameui.export.onSketchProgress((event) => {
-        if (event.jobId === sketchJob.current)
+      window.frameui.export.onXdProgress((event) => {
+        if (event.jobId === xdJob.current)
           setProgress({
             current: 0,
             title: event.stage,
@@ -167,18 +172,24 @@ export function ExportWorkspace({
   )
   useEffect(
     () => () => {
-      if (sketchJob.current) void window.frameui.export.cancelSketch(sketchJob.current)
+      if (xdJob.current) void window.frameui.export.cancelXd(xdJob.current)
     },
     [],
   )
   const isPackage = format === 'figma' || format === 'adobe-xd'
   const hasSelection = selectedIds.length > 0 || selectedStructuredIds.length > 0
   const pageCount =
-    options.scope === 'artboard' || options.scope === 'selection'
-      ? page
-        ? 1
-        : 0
-      : document.pages.length
+    format === 'adobe-xd'
+      ? xdScope === 'all'
+        ? document.pages.length
+        : xdScope === 'current'
+          ? Number(!!page)
+          : xdPageIds.length
+      : options.scope === 'artboard' || options.scope === 'selection'
+        ? page
+          ? 1
+          : 0
+        : document.pages.length
   const firstFigmaExport = useMemo(
     () => localStorage.getItem('frameui:figma-export-seen') !== 'true',
     [],
@@ -219,46 +230,37 @@ export function ExportWorkspace({
     if (!page) return
     cancelled.current = false
     setValidation(null)
+    setExportError('')
     setStage('working')
     try {
       if (format === 'adobe-xd') {
         const jobId = crypto.randomUUID()
-        sketchJob.current = jobId
+        xdJob.current = jobId
         setProgress({
           current: 0,
           title: 'Choose where to save',
-          detail: 'Creating a Sketch document for Adobe XD.',
+          detail: 'Creating a native Adobe XD document.',
         })
-        const summaries = xdScope === 'project' ? await window.frameui.design.list() : []
-        const related = summaries.filter(
-          (item) =>
-            item.id !== document.id &&
-            ((!!document.projectId && item.projectId === document.projectId) ||
-              (!!document.libraryId &&
-                (item.libraryId === document.libraryId || item.id === document.libraryId))),
-        )
-        const loaded = await Promise.all(related.map((item) => window.frameui.design.load(item.id)))
         if (cancelled.current) {
-          sketchJob.current = undefined
+          xdJob.current = undefined
           setStage('configure')
           return
         }
-        const saved = await window.frameui.export.saveSketch({
+        const saved = await window.frameui.export.saveXd({
           jobId,
           document,
-          documents: loaded.filter((d): d is VisualDocument => !!d),
           scope: xdScope,
           pageId: page.id,
-          flowId,
+          pageIds: xdPageIds,
           includePrototype: options.includePrototype,
         })
-        sketchJob.current = undefined
+        xdJob.current = undefined
         if (!saved.ok) {
           if (saved.error) throw new Error(saved.error)
           setStage('configure')
           return
         }
-        setSketchReport(saved.report!)
+        setXdReport(saved.report!)
         setResult({
           filePath: saved.filePath!,
           stats: {
@@ -271,7 +273,7 @@ export function ExportWorkspace({
           warnings: saved.report!.warnings.length,
         })
         setStage('complete')
-        onStatus('Sketch bridge saved · Adobe XD validation pending')
+        onStatus('Native .xd saved · Adobe XD application testing pending')
         return
       }
       if (!isPackage) {
@@ -399,14 +401,17 @@ export function ExportWorkspace({
         return
       }
       localStorage.setItem(`frameui:${format}-export-seen`, 'true')
-      setResult({ filePath: saved.filePath!, stats: built.stats, warnings: built.warnings.length })
+      setResult({
+        filePath: saved.filePath!,
+        stats: built.stats,
+        warnings: built.warnings.length,
+      })
       setStage('complete')
       onStatus(`${format === 'figma' ? 'Figma' : 'Adobe XD'} export ready`)
     } catch (cause) {
       setStage('configure')
-      onError(
-        `Export could not be completed: ${cause instanceof Error ? cause.message : String(cause)}`,
-      )
+      const detail=userFacingError(cause)
+      setExportError(/ENOSPC/i.test(detail)?'There isn’t enough free space to save this export. Free some space and try again.':/EACCES|EPERM/i.test(detail)?'FrameUI couldn’t write to that folder. Choose another save location and try again.':/ENOENT/i.test(detail)?'That save folder is unavailable. Choose another location and try again.':detail)
     }
   }
 
@@ -464,26 +469,34 @@ export function ExportWorkspace({
     return (
       <ModalShell size="standard" variant="completion" onClose={onClose} closeOnBackdrop>
         <ModalHeader
-          eyebrow="Export complete"
-          title={format === 'adobe-xd' ? 'Sketch bridge saved' : 'Figma export ready'}
+          eyebrow={
+            format === 'adobe-xd' ? 'File saved · compatibility unverified' : 'Export complete'
+          }
+          title={format === 'adobe-xd' ? 'Native .xd file saved' : 'Figma export ready'}
           description={
             format === 'adobe-xd'
-              ? 'Open the .sketch file in Adobe XD, inspect it, then save as .xd. Adobe XD compatibility is unverified.'
+              ? 'Native scenegraph and archive checks passed. Opening and editing in Adobe XD remains unverified.'
               : 'Your editable FrameUI design package is ready to import.'
           }
           icon={<Check size={17} />}
           onClose={onClose}
         />
         <ModalBody>
-          <ModalProgress value={100} label="Export complete" />
+          <ModalProgress
+            value={100}
+            label={format === 'adobe-xd' ? 'Archive checks passed' : 'Export complete'}
+          />
           <ModalSummary
             items={
-              format === 'adobe-xd' && sketchReport
+              format === 'adobe-xd' && xdReport
                 ? [
-                    { label: 'Artboards', value: sketchReport.artboards },
-                    { label: 'Editable text', value: sketchReport.editableText },
-                    { label: 'Vector objects', value: sketchReport.editableVectors },
-                    { label: 'Images', value: sketchReport.images },
+                    { label: 'Artboards', value: xdReport.artboards },
+                    { label: 'Editable text', value: xdReport.editableText },
+                    {
+                      label: 'Vector objects',
+                      value: xdReport.editableVectors,
+                    },
+                    { label: 'Images', value: xdReport.images },
                   ]
                 : [
                     { label: 'Artboards', value: result.stats.artboards },
@@ -502,32 +515,21 @@ export function ExportWorkspace({
             }
           >
             {format === 'adobe-xd'
-              ? 'Official Sketch schema checks passed. Adobe XD open, save and reopen testing remains pending.'
+              ? 'Native archive checks passed. Adobe XD open, edit, save and reopen testing remains pending.'
               : result.warnings
                 ? 'The importer will identify affected layers without silently dropping them.'
                 : 'All package checks passed.'}
           </ModalNotice>
-          {format === 'adobe-xd' && sketchReport && (
+          {format === 'adobe-xd' && xdReport && (
             <details>
-              <summary>Compatibility report · {sketchReport.layers} layers</summary>
-              <p>
-                {sketchReport.editableText} editable text · {sketchReport.editableVectors} vector
-                objects · {sketchReport.unconvertedInteractions} interactions to reconnect
-              </p>
-              <p>Fonts to check: {sketchReport.fontsToCheck.join(', ') || 'None'}</p>
+              <summary>Compatibility report · {xdReport.layers} layers</summary>
               <div style={{ maxHeight: 240, overflow: 'auto' }}>
-                {sketchReport.warnings.map((w, i) => (
-                  <p key={i}>
-                    <strong>
-                      {[w.artboard, w.layerName].filter(Boolean).join(' · ') || 'Document'}
-                    </strong>
-                    <br />
-                    {w.message}
-                  </p>
+                {xdReport.warnings.map((warning, index) => (
+                  <p key={index}>{warning}</p>
                 ))}
               </div>
               <small>
-                The full report is stored in frameui/compatibility.json inside the Sketch archive.
+                The report is stored in frameui/compatibility.json inside the native XD archive.
               </small>
             </details>
           )}
@@ -563,7 +565,7 @@ export function ExportWorkspace({
           title={`Continue in ${format === 'figma' ? 'Figma' : 'Adobe XD'}`}
           description={
             format === 'adobe-xd'
-              ? 'The Sketch bridge needs one final save step in Adobe XD.'
+              ? 'Open the native document directly. No importer or plugin is needed.'
               : 'The importer reconstructs native, editable layers from the FrameUI package.'
           }
           icon={<PackageOpen size={17} />}
@@ -575,7 +577,7 @@ export function ExportWorkspace({
               <li>
                 <span>1</span>
                 <div>
-                  <strong>Open the .sketch file in Adobe XD</strong>
+                  <strong>Open the .xd file in Adobe XD</strong>
                   <p>Use File → Open in Adobe XD.</p>
                 </div>
               </li>
@@ -589,8 +591,11 @@ export function ExportWorkspace({
               <li>
                 <span>3</span>
                 <div>
-                  <strong>Save as an Adobe XD document</strong>
-                  <p>Save as .xd, close and reopen to verify the result.</p>
+                  <strong>Verify application compatibility</strong>
+                  <p>
+                    Inspect the layers, save, close and reopen. This application-level check remains
+                    unverified.
+                  </p>
                 </div>
               </li>
             </ol>
@@ -649,7 +654,7 @@ export function ExportWorkspace({
         title="Export design"
         description={
           format === 'adobe-xd'
-            ? 'Create an editable Sketch document to continue in Adobe XD.'
+            ? 'Create one native .xd document with editable artboards and layers.'
             : 'Continue your FrameUI work in another design tool while keeping layers, text, components and project styling editable.'
         }
         icon={<Download size={17} />}
@@ -666,6 +671,7 @@ export function ExportWorkspace({
         }
       />
       <ModalBody className="ide-export-workspace">
+          {exportError&&<ModalNotice tone="danger" title="Couldn’t save the export"><p>{exportError}</p><p>Your design is unchanged. Adjust the export options or try exporting again.</p></ModalNotice>}
         {initialFormat !== 'adobe-xd' && (
           <ModalSection title="Format">
             <div className="ide-export-formats">
@@ -686,6 +692,7 @@ export function ExportWorkspace({
                     className={format === value ? 'active' : ''}
                     onClick={() => {
                       setFormat(value)
+                      setExportError('')
                       setValidation(null)
                     }}
                   >
@@ -713,10 +720,10 @@ export function ExportWorkspace({
               </ModalNotice>
             )}
             {format === 'adobe-xd' && (
-              <ModalNotice tone="info" title="Sketch bridge · .sketch">
-                Open the export in Adobe XD and save as .xd. Text and vectors remain editable where
-                supported. XD compatibility is unverified; unsupported effects and interactions are
-                listed in the report.
+              <ModalNotice tone="info" title="Native Adobe XD · .xd">
+                All chosen artboards are saved in one native document. Archive checks run locally.
+                Adobe XD application compatibility remains unverified; review the report for
+                unsupported features.
               </ModalNotice>
             )}
             {format === 'adobe-xd' ? (
@@ -728,28 +735,38 @@ export function ExportWorkspace({
                     value={xdScope}
                     onChange={(e) => setXdScope(e.target.value as typeof xdScope)}
                   >
-                    <option value="artboard">Current artboard</option>
-                    <option value="flow" disabled={!document.prototype?.flows.length}>
-                      Prototype flow
-                    </option>
-                    <option value="project">Entire project · all saved designs and flows</option>
+                    <option value="current">Current artboard</option>
+                    <option value="selected">Selected artboards</option>
+                    <option value="all">All artboards in this design</option>
                   </select>
                 </label>
-                {xdScope === 'flow' && (
-                  <label className="ide-export-select">
-                    <span>Flow</span>
-                    <select
-                      aria-label="XD export flow"
-                      value={flowId}
-                      onChange={(e) => setFlowId(e.target.value)}
-                    >
-                      {document.prototype?.flows.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                {xdScope === 'selected' && (
+                  <div role="group" aria-label="Artboards to export">
+                    {document.pages.map((artboard) => (
+                      <label
+                        key={artboard.id}
+                        style={{
+                          display: 'flex',
+                          gap: 8,
+                          alignItems: 'center',
+                          padding: 4,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={xdPageIds.includes(artboard.id)}
+                          onChange={(event) =>
+                            setXdPageIds((ids) =>
+                              event.target.checked
+                                ? [...ids, artboard.id]
+                                : ids.filter((id) => id !== artboard.id),
+                            )
+                          }
+                        />
+                        <span>{artboard.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 )}
                 <p>
                   Editable text, vectors, groups, original images and the compatibility report are
@@ -898,11 +915,15 @@ export function ExportWorkspace({
       >
         <button onClick={onClose}>Cancel</button>
         <button onClick={() => setHandoff(true)}>Developer handoff</button>
-        <button className="primary" disabled={!page} onClick={() => void runExport()}>
+        <button
+          className="primary"
+          disabled={!page || (format === 'adobe-xd' && xdScope === 'selected' && !xdPageIds.length)}
+          onClick={() => void runExport()}
+        >
           {format === 'figma'
             ? 'Export for Figma'
             : format === 'adobe-xd'
-              ? 'Export .sketch for XD'
+              ? 'Export .xd'
               : `Export ${format.toUpperCase()}`}
         </button>
       </ModalFooter>

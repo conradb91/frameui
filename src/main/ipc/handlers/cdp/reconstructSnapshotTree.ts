@@ -61,7 +61,7 @@ const ATTRIBUTE_ALLOWLIST = new Set([
   'points',
   'data-frameui-source',
 ])
-const SELECTOR_TAGS = new Set(['span','strong','b','em','i','h1','h2','h3','h4','p','label','a','svg', 'button', 'input', 'select', 'summary', 'iframe', 'frame'])
+const SELECTOR_TAGS = new Set(['span','strong','b','em','i','h1','h2','h3','h4','p','label','a','svg', 'button', 'input', 'select', 'textarea', 'summary', 'iframe', 'frame'])
 
 type Rect = { x: number; y: number; width: number; height: number }
 
@@ -247,7 +247,7 @@ export function reconstructSnapshotTree(
     ]
   }
 
-  /** `::before`/`::after` surface as their own node with `pseudoType` set —
+  /** `::before`/`::after`/`::marker` surface as their own node with `pseudoType` set —
    * reconstructed as a `frameui-visual` leaf using the CDP-reported layout
    * box directly (no width/height heuristic needed, unlike the old script's
    * `getComputedStyle(el, pseudo)` fallback math). Generated text content is
@@ -255,7 +255,7 @@ export function reconstructSnapshotTree(
    * — an assumption to confirm against a real Chromium build. */
   function pseudoLeafFor(domIndex: number): CapturedElement[] {
     const pseudoType = str(pseudoTypeOf.get(domIndex))
-    if (pseudoType !== 'before' && pseudoType !== 'after') return []
+    if (pseudoType !== 'before' && pseudoType !== 'after' && pseudoType !== 'marker') return []
     const layoutIdx = layoutIndexOf.get(domIndex)
     if (layoutIdx === undefined) return []
     const styles = stylesAt(layoutIdx)
@@ -318,6 +318,13 @@ export function reconstructSnapshotTree(
     }
   if (htmlIndex === undefined) return emptyRoot()
 
+  // Compute real-element sibling positions once; pseudo-elements do not count.
+  const siblingPosition = new Uint32Array(nodeCount)
+  for (const children of childrenOf) {
+    let position = 0
+    for (const child of children ?? []) if (nodeTypeArr[child] === 1 && !pseudoTypeOf.has(child)) siblingPosition[child] = ++position
+  }
+
   function captureSelectorFor(domIndex: number): string {
     const path: string[] = []
     let cursor = domIndex
@@ -325,10 +332,7 @@ export function reconstructSnapshotTree(
       const parent = parentIndex[cursor]
       // Pseudo-elements aren't part of the element tree for CSS selector
       // purposes and must not shift real siblings' :nth-child position.
-      const siblings = childrenOf[parent].filter(
-        (c) => nodeTypeArr[c] === 1 && !pseudoTypeOf.has(c),
-      )
-      const index = siblings.indexOf(cursor) + 1
+      const index = siblingPosition[cursor]
       path.unshift(`${tagOf(cursor)}:nth-child(${index})`)
       cursor = parent
     }
@@ -353,7 +357,12 @@ export function reconstructSnapshotTree(
     if (NON_VISUAL_TAGS.has(tag)) return []
 
     const childDescendants: CapturedElement[] = []
-    for (const child of childrenOf[domIndex]) {
+    // CDP can list ::after before real children. Replay CSS painting order.
+    const orderedChildren = [...childrenOf[domIndex]].sort((a,b) => {
+      const rank=(i:number)=>str(pseudoTypeOf.get(i))==='before'?-1:str(pseudoTypeOf.get(i))==='after'?1:0
+      return rank(a)-rank(b)
+    })
+    for (const child of orderedChildren) {
       if (shadowRootTypeOf.has(child)) {
         for (const shadowChild of childrenOf[child]) childDescendants.push(...convert(shadowChild))
       } else {

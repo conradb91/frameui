@@ -156,10 +156,15 @@ const StructuredNodeView = memo(function StructuredNodeView({
   // `Image` node would — same render path, just a different reason it
   // exists.
   if (node.source.control) {
-    const {placeholderColor:_placeholderColor,placeholderOpacity:_placeholderOpacity,...control} = node.source.control
-    if(prototype)return <div style={positionStyle as CSSProperties} {...identity}><input data-captured-control="true" {...control} aria-label={node.name} disabled={prototype.state.states[node.id]==='disabled'||control.disabled} value={String(prototype.state.inputs[node.id]??control.value??'')} checked={Boolean(prototype.state.inputs[node.id]??control.checked)} onChange={e=>prototype.onInput(node.id,['checkbox','radio'].includes(control.type??'')?e.target.checked:e.target.value)} style={controlStyleFor(node) as CSSProperties}/></div>
-    if(node.id===editingId&&!node.locked&&!['checkbox','radio','range'].includes(control.type))return <InlineRichTextEditor text={control.placeholder??control.value??''} shellStyle={positionStyle as CSSProperties} style={{...appearanceStyle,...(node.typography?typographyStyleFor(node.typography):{}),width:'100%',height:'100%'} as CSSProperties} className="ide-structured-inline-text" onCommit={text=>onCommitText?.(node.id,text)} onCancel={()=>onCommitText?.(node.id,control.placeholder??control.value??'')}/>
-    return <div onDoubleClick={e=>{if(!node.locked){e.stopPropagation();onEnterTextEdit?.(node.id)}}} style={positionStyle as CSSProperties} {...identity}><input data-captured-control="true" {...control} readOnly tabIndex={-1} style={{...controlStyleFor(node),pointerEvents:'none'} as CSSProperties} /></div>
+    const {placeholderColor:_placeholderColor,placeholderOpacity:_placeholderOpacity,appearance:_appearance,options,type,...control} = node.source.control
+    const value=String(prototype?.state.inputs[node.id]??control.value??'')
+    const style={...controlStyleFor(node),...(!prototype?{pointerEvents:'none' as const}:{})} as CSSProperties
+    const disabled=prototype?.state.states[node.id]==='disabled'||control.disabled
+    const content=type==='select'?<select data-captured-control="true" aria-label={node.name} disabled={disabled} value={value} tabIndex={prototype?0:-1} onChange={e=>prototype?.onInput(node.id,e.target.value)} style={style}>{options?.map((option,index)=><option key={index} value={option.value} disabled={option.disabled}>{option.label}</option>)}</select>:type==='textarea'?<textarea data-captured-control="true" {...control} aria-label={node.name} disabled={disabled} value={value} readOnly={!prototype} tabIndex={prototype?0:-1} onChange={e=>prototype?.onInput(node.id,e.target.value)} style={style}/>:<input data-captured-control="true" {...control} type={type} aria-label={node.name} disabled={disabled} value={value} checked={Boolean(prototype?.state.inputs[node.id]??control.checked)} readOnly={!prototype} tabIndex={prototype?0:-1} onChange={e=>prototype?.onInput(node.id,['checkbox','radio'].includes(type??'')?e.target.checked:e.target.value)} style={style}/>
+    if(prototype)return <div style={positionStyle as CSSProperties} {...identity}>{content}</div>
+    const editableText=type==='select'?options?.find(option=>option.value===value)?.label??value:control.placeholder??control.value??''
+    if(node.id===editingId&&!node.locked&&!['checkbox','radio','range'].includes(type))return <InlineRichTextEditor text={editableText} shellStyle={positionStyle as CSSProperties} style={{...appearanceStyle,...(node.typography?typographyStyleFor(node.typography):{}),width:'100%',height:'100%'} as CSSProperties} className="ide-structured-inline-text" onCommit={text=>onCommitText?.(node.id,text)} onCancel={()=>onCommitText?.(node.id,editableText)}/>
+    return <div onDoubleClick={e=>{if(!node.locked){e.stopPropagation();onEnterTextEdit?.(node.id)}}} style={positionStyle as CSSProperties} {...identity}>{content}</div>
   }
 
   if (node.type === 'Image' || node.type === 'RasterFallback') {
@@ -196,7 +201,7 @@ const StructuredNodeView = memo(function StructuredNodeView({
 
   if (node.type === 'SVG')
     return (
-      <svg style={{ ...positionStyle, ...appearanceStyle } as CSSProperties} viewBox={node.source.svgGeometry?.viewBox} width={node.bounds.width} height={node.bounds.height} {...identity}>
+      <svg fill={node.appearance.fill} stroke={node.appearance.stroke??'none'} strokeWidth={node.appearance.strokeWidth} color={node.typography?.color} strokeLinecap={node.source.svgGeometry?.['stroke-linecap'] as 'round'|'butt'|'square'|undefined} strokeLinejoin={node.source.svgGeometry?.['stroke-linejoin'] as 'round'|'miter'|'bevel'|undefined} style={{ ...positionStyle, ...appearanceStyle, color:node.source.svgGeometry?.color } as CSSProperties} viewBox={node.source.svgGeometry?.viewBox} width={node.bounds.width} height={node.bounds.height} {...identity}>
         <defs dangerouslySetInnerHTML={{__html:renderSvgDefinitions(node.source.svgGeometry?.definitions,node.id)}}/>
         {node.children.filter((child) => child.type === 'Shape').map((child) => (
           <StructuredShapeView key={child.id} node={child} scope={node.id} />

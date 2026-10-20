@@ -176,7 +176,6 @@ export function registerAiHandlers(){
    if(!resolved){reject(new Error('Install the project package manager before running this script.'));return}
    const child=spawn(resolved.executable,[...(resolved.prefixArgs??[]),...command.args],{cwd:command.cwd,env:{...resolved.env,ANTHROPIC_API_KEY:undefined,ANTHROPIC_AUTH_TOKEN:undefined},shell:false,windowsHide:true,detached:process.platform!=='win32'})
    let output='';const collect=(chunk:Buffer)=>{output=(output+chunk.toString()).slice(-30000)};child.stdout.on('data',collect);child.stderr.on('data',collect)
-   let tools:DesignTools|undefined
   const timer=setTimeout(()=>{if(process.platform==='win32'&&child.pid){const killer=spawn('taskkill',['/pid',String(child.pid),'/T','/F'],{windowsHide:true});killer.on('error',()=>child.kill())}else{try{if(child.pid)process.kill(-child.pid,'SIGTERM')}catch{child.kill()}}},120000)
    child.on('error',()=>{clearTimeout(timer);reject(new Error('Could not start this package script.'))});child.on('close',exitCode=>{clearTimeout(timer);resolve({output:redactSecrets(output),exitCode})})
   })

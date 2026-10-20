@@ -40,6 +40,7 @@ export function PageBrowser({ pages, projectId, search, onClearSearch, onAdd, co
     sessionStorage.setItem(key, JSON.stringify([page.id, ...ids.filter(id => id !== page.id)].slice(0, 12)))
   }
   function navigate(event: KeyboardEvent<HTMLDivElement>) {
+    if (!(event.target instanceof Element) || !event.target.closest('.ide-page-thumbnail')) return
     if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
     const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('.ide-page-thumbnail'))
     const current = (event.target as Element).closest('.ide-page-card')?.querySelector<HTMLButtonElement>('.ide-page-thumbnail')

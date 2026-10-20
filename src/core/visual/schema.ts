@@ -147,6 +147,7 @@ export const visualDocumentSchema = z.object({
       authProfile: z.string().optional(),
       state: z.string(),
       route: z.string().optional(),
+      flowIntroductionFor: z.string().min(1).max(100).optional(),
       artifactSource: z.object({path:z.string().max(4096),steps:z.array(z.string().max(4096)).max(4)}).optional(),
       sourceHash: z.string().optional(),
       capturedAt: z.string().optional(),

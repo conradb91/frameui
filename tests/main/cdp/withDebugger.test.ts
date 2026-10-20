@@ -66,3 +66,16 @@ describe('withDebugger', () => {
     expect(calls).toEqual([])
   })
 })
+
+test('cancelling a stuck debugger command releases ownership and permits immediate recapture',async()=>{
+ const {contents,isAttached}=makeDebuggerStub(),controller=new AbortController()
+ const original=contents.debugger.sendCommand
+ contents.debugger.sendCommand=()=>new Promise(()=>{})
+ const pending=withDebugger(contents,'1.3',async send=>{await send('DOMSnapshot.captureSnapshot');return true},controller.signal)
+ const started=performance.now();controller.abort(new Error('Stopped'))
+ await expect(pending).rejects.toThrow('Stopped')
+ expect(performance.now()-started).toBeLessThan(1000)
+ expect(isAttached()).toBe(false)
+ contents.debugger.sendCommand=original
+ expect(await withDebugger(contents,'1.3',async send=>{await send('DOM.enable');return 'recaptured'})).toBe('recaptured')
+})

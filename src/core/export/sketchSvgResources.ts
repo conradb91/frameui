@@ -25,10 +25,18 @@ export function expandSvgResource(
   resource: SvgDefinition,
 ): FrameUiExportNode[] {
   let index = 0
-  const convert = (r: SvgDefinition): FrameUiExportNode => {
-    const a = r.attributes ?? {},
-      fill = a.fill ?? 'black',
-      stroke = a.stroke ?? 'none'
+  const inherited = {
+    fill: source.captureAppearance?.fill ?? (source.fills[0]?.type === 'SOLID' ? source.fills[0].color : 'black'),
+    stroke: source.captureAppearance?.stroke ?? (source.strokes[0]?.type === 'SOLID' ? source.strokes[0].color : 'none'),
+    'stroke-width': String(source.captureAppearance?.strokeWidth ?? source.strokeWidth ?? 1),
+    color: source.vector?.geometry?.color ?? 'black',
+  }
+  const convert = (r: SvgDefinition, parent: Record<string, string> = inherited): FrameUiExportNode => {
+    const inheritedStyle = Object.fromEntries(Object.entries(parent).filter(([key]) => ['fill', 'stroke', 'stroke-width', 'fill-opacity', 'stroke-opacity', 'color', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit'].includes(key)))
+    const a = { ...inheritedStyle, ...(r.attributes ?? {}) },
+      resolve = (value: string) => value === 'currentColor' ? a.color : value,
+      fill = resolve(a.fill),
+      stroke = resolve(a.stroke)
     return {
       ...source,
       id: source.id + ':resource:' + index++,
@@ -50,12 +58,12 @@ export function expandSvgResource(
           : [{ type: 'SOLID', color: stroke, opacity: Number(a['stroke-opacity'] ?? 1) }],
       strokeWidth: Number(a['stroke-width'] ?? 1),
       effects: [],
-      children: (r.children ?? []).map(convert),
+      children: (r.children ?? []).map((child) => convert(child, a)),
       vector: { tag: r.tag, geometry: a, path: a.d },
       childIds: [],
     }
   }
   return resource.tag === 'symbol' || resource.tag === 'g'
-    ? (resource.children ?? []).map(convert)
+    ? (resource.children ?? []).map((child) => convert(child, { ...inherited, ...(resource.attributes ?? {}) }))
     : [convert(resource)]
 }

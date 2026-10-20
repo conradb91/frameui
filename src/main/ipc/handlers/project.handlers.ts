@@ -143,14 +143,14 @@ export function registerProjectHandlers(): void {
     const selected=owner?await dialog.showOpenDialog(owner,options):await dialog.showOpenDialog(options)
     signal.throwIfAborted()
     if(selected.canceled||!selected.filePaths[0])return null
-    const file=selected.filePaths[0],name=path.basename(file,path.extname(file))
+    const file=selected.filePaths[0],originalName=path.basename(file,path.extname(file)),name=originalName.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim()||'Imported prototype'
     const folder=path.join(app.getPath('userData'),'artifact-projects',randomUUID())
     try {
       await unpackPrototype(file,path.join(folder,'prototype'),signal,(completed,total,detail)=>{if(!event.sender.isDestroyed())event.sender.send('project:prototypeImportProgress',{id,stage:'extract',file:path.basename(file),completed,total,detail})})
       importSignal(event.sender.id,id)
       const routes=await managedPrototypeRoutes(folder)
       if(!routes.length||routes.length>100)throw new Error('Choose a runnable prototype with 1–100 HTML pages. Source-only projects need a running app.')
-      fs.writeFileSync(path.join(folder,'frameui-artifact.json'),JSON.stringify({version:1,name}))
+      fs.writeFileSync(path.join(folder,'frameui-artifact.json'),JSON.stringify({version:1,name,originalName,sourceFile:path.basename(file)}))
       const url=await servePrototype(folder)
       signal.throwIfAborted()
       const project=recordProjectOpened(app.getPath('userData'),folder,name)

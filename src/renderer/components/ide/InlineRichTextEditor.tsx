@@ -1,3 +1,4 @@
+import {rebaseTextRuns} from '@core/visual/textRuns'
 import {textRunStyle} from '@core/capture-compiler/textPaint'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type CSSProperties } from 'react'
 import { applyTextStyle, normalizeTextRuns, restoreTextRange, textRangeWithin, textSegments } from '@core/visual/richText'
@@ -32,11 +33,12 @@ export const InlineRichTextEditor = forwardRef<InlineRichTextEditorHandle, {
   const finished = useRef(false)
   const [runs, setRuns] = useState(() => normalizeTextRuns(text, textRuns))
 
+  const draftRuns=useRef(runs)
   const finish = (cancel = false) => {
     if (finished.current) return
     finished.current = true
     if (cancel) onCancel()
-    else onCommit(draft.current.replace(/\n$/, ''), normalizeTextRuns(draft.current.replace(/\n$/, ''), runs))
+    else onCommit(draft.current.replace(/\n$/, ''), normalizeTextRuns(draft.current.replace(/\n$/, ''), draftRuns.current))
   }
 
   function rememberSelection() {
@@ -51,7 +53,8 @@ export const InlineRichTextEditor = forwardRef<InlineRichTextEditorHandle, {
     const selected = savedSelection.current
     if (selected.start === selected.end) return false
     restoreSelection.current = selected
-    setRuns((current) => applyTextStyle(draft.current, current, selected.start, selected.end, stylePatch))
+    draftRuns.current=applyTextStyle(draft.current,draftRuns.current,selected.start,selected.end,stylePatch)
+    setRuns(draftRuns.current)
     return true
   }
 
@@ -102,7 +105,7 @@ export const InlineRichTextEditor = forwardRef<InlineRichTextEditorHandle, {
         aria-label="Edit text"
         contentEditable
         suppressContentEditableWarning
-        onInput={(event) => { draft.current = event.currentTarget.innerText }}
+        onInput={(event) => { const value=event.currentTarget.innerText;draftRuns.current=rebaseTextRuns(draft.current,value,draftRuns.current);draft.current=value }}
         onPointerUp={rememberSelection}
         onKeyUp={rememberSelection}
         onDoubleClick={(event) => event.stopPropagation()}
@@ -116,7 +119,7 @@ export const InlineRichTextEditor = forwardRef<InlineRichTextEditorHandle, {
             rememberSelection()
             const selected = savedSelection.current
             const baseWeight = String(style.fontWeight ?? '400')
-            const selectedSegments = textSegments(draft.current, runs, selected.start, selected.end)
+            const selectedSegments = textSegments(draft.current, draftRuns.current, selected.start, selected.end)
             const isBold = selectedSegments.length > 0 && selectedSegments.every((segment) => Number(segment.fontWeight ?? baseWeight) >= 600)
             apply({ fontWeight: isBold ? '400' : '700' })
           }

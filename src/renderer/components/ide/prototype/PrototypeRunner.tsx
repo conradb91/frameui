@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 import { ModalShell } from '../../ui/Modal';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, RotateCcw, X } from 'lucide-react';
 import type { VisualDocument } from '@shared/types/visualDesign';
 import type { Interaction } from '@shared/types/prototype';
@@ -24,10 +24,10 @@ export function PrototypeRunner({ document: raw, flowId, pageId, onClose, embedd
         y: number;
     } | null>(null), latest = useRef(state);
     latest.current = state;
-    useEffect(()=>{onNavigate?.(state.pageId)},[state.pageId]);
+    useEffect(()=>{onNavigate?.(state.pageId)},[state.pageId,onNavigate]);
     const current = document.pages.find(p => p.id === state.pageId), test = document.prototype?.scenarios.find(s => s.id === scenario);
-    const interactions = document.prototype?.interactions ?? [];
-    const run = (items: Interaction[]) => setState(previous => items.reduce((s, i) => executeInteraction(document, s, i), previous));
+    const interactions = useMemo(()=>document.prototype?.interactions ?? [],[document]);
+    const run = useCallback((items: Interaction[]) => setState(previous => items.reduce((s, i) => executeInteraction(document, s, i), previous)),[document]);
     const fire = (trigger: Interaction['trigger'], target: EventTarget | null, key?: string, requireElement = false) => { const el = target instanceof Element ? target : null, screen = el?.closest<HTMLElement>('[data-prototype-page]')?.dataset.prototypePage ?? state.pageId; const ids: string[] = []; let node = el; while (node) {
         const id = node.getAttribute('data-structured-id') ?? node.getAttribute('data-object-id');
         if (id)
@@ -35,14 +35,14 @@ export function PrototypeRunner({ document: raw, flowId, pageId, onClose, embedd
         node = node.parentElement;
     } if (ids.some(id => state.states[id] === 'disabled' || state.hidden[id]))
         return; const items = interactions.filter(i => (!requireElement || !!i.sourceElementId) && i.sourceArtboardId === screen && i.trigger === trigger && (!i.sourceElementId || ids.includes(i.sourceElementId)) && (trigger !== 'key' || !i.key || i.key === key)); run(items); };
-    useEffect(() => { const active = state.overlays.at(-1)?.pageId ?? state.pageId; const timers = interactions.filter(i => i.sourceArtboardId === active && i.trigger === 'timer').map(i => setTimeout(() => run([i]), i.delay ?? 1000)); return () => timers.forEach(clearTimeout); }, [state.pageId, state.overlays.length]);
+    useEffect(() => { const active = state.overlays.at(-1)?.pageId ?? state.pageId; const timers = interactions.filter(i => i.sourceArtboardId === active && i.trigger === 'timer').map(i => setTimeout(() => run([i]), i.delay ?? 1000)); return () => timers.forEach(clearTimeout); }, [state.pageId, state.overlays,interactions,run]);
     useEffect(() => { if (state.external) {
         void window.frameui.preview.openExternal(state.external);
         setState(s => ({ ...s, external: undefined }));
     } if (state.scroll)
         host.current?.querySelector(`[data-structured-id="${state.scroll}"],[data-object-id="${state.scroll}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, [state.external, state.scroll]);
     useEffect(() => { if (test && test.steps[step]?.destinationId === state.pageId)
-        setStep(n => n + 1); }, [state.pageId]);
+        setStep(n => n + 1); }, [state.pageId,test,step]);
     useEffect(() => { const root = host.current; if (!root)
         return; root.querySelectorAll<HTMLElement>('[data-structured-id],[data-object-id]').forEach(el => { const id = el.dataset.structuredId ?? el.dataset.objectId!; if (el.dataset.prototypeVisibility === undefined) {
         el.dataset.prototypeVisibility = el.style.visibility;
@@ -56,7 +56,7 @@ export function PrototypeRunner({ document: raw, flowId, pageId, onClose, embedd
         el.style.opacity = state.states[id] === 'disabled' ? '.45' : '';
         if (state.states[id] === 'selected')
             el.style.outline = '2px solid #7465df';
-    } }); }, [state.pageId,state.overlays,state.hidden,state.states,hotspots]);
+    } }); }, [state.pageId,state.overlays,state.hidden,state.states,hotspots,interactions]);
     function render(id: string) { const page = document.pages.find(p => p.id === id); if (!page)
         return null; return <div data-prototype-page={id} className="prototype-device" style={{ width: page.width, maxHeight: embedded?'100%':'calc(100vh - 240px)',zoom:embedded?scale:undefined }}><Screen page={page} document={document} state={state} onInput={(id, value) => { setState(s => ({ ...s, inputs: { ...s.inputs, [id]: value }, variables: { ...s.variables, [document.prototype?.inputBindings?.[id] ?? id]: value } })); }}/></div>; }
     const controls=<> <header><div><strong>{current?.name ?? 'Prototype'}</strong><small>Local simulation · no backend requests</small></div><button onClick={() => run([{ id: 'back', sourceArtboardId: state.pageId, trigger: 'click', action: 'back', transition: 'instant' }])} disabled={!state.history.length}><ArrowLeft size={14}/>Back</button><button onClick={() => setState(s => ({ ...s, pageId: start, history: [], overlays: [] }))}><RotateCcw size={14}/>Restart</button><button onClick={() => { setState(initialState(document, start)); setStep(0); }}>Reset state</button><label>Start<select aria-label="Starting screen" value={start} onChange={e => { setStart(e.target.value); setState(initialState(document, e.target.value)); }}>{pages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><button aria-pressed={hotspots} onClick={() => setHotspots(!hotspots)}>Hotspots</button><button aria-label="Exit preview" onClick={onClose}><X size={18}/></button></header>

@@ -26,6 +26,7 @@ export function PagesWorkspace({ document, initialAddress, archivedPages, onCapt
   onCapture: (next: VisualDocument) => void; onCreate: (page: VisualPage) => void; onBusy: (busy: boolean) => void; onArchive: (pattern: string) => void
 }) {
   const latest = useRef(document); latest.current = document
+  const onBusyRef=useRef(onBusy);onBusyRef.current=onBusy
   const mounted = useRef(true)
   const routes = useMemo(() => [...new Map((document.pageRegistry ?? []).filter(r => !archivedPages.includes(r.pattern)).map(r => [r.pattern, r])).values()].sort((a,b) => a.pattern === '/' ? -1 : b.pattern === '/' ? 1 : a.pattern.localeCompare(b.pattern)), [document.pageRegistry, archivedPages])
   const [address, setAddress] = useState(initialAddress ?? '')
@@ -75,7 +76,7 @@ export function PagesWorkspace({ document, initialAddress, archivedPages, onCapt
     return () => {
       mounted.current = false
       if (running.current) void window.frameui.design.cancelCapture().catch(() => {})
-      onBusy(false)
+      onBusyRef.current(false)
     }
   }, [])
   function publish(next: VisualDocument) {

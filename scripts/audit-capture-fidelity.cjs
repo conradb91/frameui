@@ -29,6 +29,7 @@ import http from 'node:http'
 import {PNG} from 'pngjs'
 import pixelmatch from 'pixelmatch'
 import {captureDomSnapshot} from './src/main/ipc/handlers/cdp/domSnapshot'
+import {buildXdDocument,validateXdEntries} from './src/core/export/xdDocument'
 import {captureResources} from './src/main/ipc/handlers/captureResources'
 import {makeStructuredFrame} from './src/core/capture-compiler/document'
 import {renderStructuredFrameToHtml} from './src/core/capture-compiler/renderStructuredFrameToHtml'
@@ -90,7 +91,17 @@ app.whenReady().then(async()=>{
     assert(texts.includes('const total = 1;\\n  total += 2;\\n    done();'))
     assert(fonts.some(font=>font.unicodeRange),'Imported font unicode ranges must survive capture')
   }
-  if(process.env.FRAMEUI_AUDIT_FIXTURE&&!process.env.FRAMEUI_TEXT_AUDIT){const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children);assert(!all.some(n=>n.type==='RasterFallback'));assert(all.some(n=>n.appearance.transform),'Affine geometry must be recovered');assert(all.some(n=>n.source.svgGeometry?.definitions?.includes('feGaussianBlur')),'Referenced SVG filter must survive');assert(changed/(width*height)<0.005,'SVG and affine fixture must remain below 0.5% pixel difference')}
+  if(process.env.FRAMEUI_AUDIT_FIXTURE&&!process.env.FRAMEUI_TEXT_AUDIT&&!process.env.FRAMEUI_GENERAL_AUDIT&&!process.env.FRAMEUI_LIST_AUDIT){const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children);assert(!all.some(n=>n.type==='RasterFallback'));assert(all.some(n=>n.appearance.transform),'Affine geometry must be recovered');assert(all.some(n=>n.source.svgGeometry?.definitions?.includes('feGaussianBlur')),'Referenced SVG filter must survive');assert(changed/(width*height)<0.005,'SVG and affine fixture must remain below 0.5% pixel difference')}
+  if(process.env.FRAMEUI_LIST_AUDIT){
+    for(const marker of ['• ','■ ','III. ','IV. '])assert(texts.includes(marker),'Editable list marker missing: '+marker)
+    assert(changed/(width*height)<.002,'List capture must remain below 0.2% pixel difference')
+    const built=buildXdDocument({jobId:'list-audit',scope:'all',includePrototype:false,document:{version:1,id:'list-design',name:'Lists',updatedAt:new Date().toISOString(),pages:[{id:'list-page',name:'Lists',folder:'',pinned:false,state:'Desktop',width:frame.width,height:frame.height,structured:frame,objects:[]}],components:[],variables:[]}})
+    validateXdEntries(built.entries)
+    const nativeTexts=[];const walk=value=>{if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object'){if(value.type==='text')nativeTexts.push(value.text.rawText);Object.values(value).forEach(walk)}}
+    for(const entry of built.entries)if(entry.path.startsWith('artwork/')&&entry.path.endsWith('.agc'))walk(JSON.parse(entry.data.toString()))
+    for(const marker of ['• ','■ ','III. ','IV. '])assert(nativeTexts.includes(marker),'Native XD list marker missing: '+marker)
+    fs.writeFileSync(output+'/'+width+'-lists.json',JSON.stringify({editableMarkers:texts.filter(t=>['• ','■ ','III. ','IV. '].includes(t)),nativeXdMarkers:nativeTexts.filter(t=>['• ','■ ','III. ','IV. '].includes(t)),diffPercent:changed/(width*height)*100},null,2))
+  }
   if(process.env.FRAMEUI_TEXT_AUDIT){const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children);assert(all.some(n=>n.typography?.text==='1 Admin'&&n.typography.textRuns.some(r=>r.fontWeight==='700')),'Mixed weights must remain one editable text layer');assert(all.some(n=>n.typography?.text.includes('No surprises')&&n.typography.textRuns.some(r=>r.gradient)),'Gradient range must survive');assert(all.some(n=>n.appearance.clipX&&n.appearance.clipY&&n.appearance.radius[0]===32),'Rounded container clipping must survive');assert(!all.some(n=>n.type==='RasterFallback'));console.log('Text capture difference',width,changed/(width*height)*100);assert(changed/(width*height)<.002,'Rich text fixture must stay below 0.2% pixel difference')}
   if(process.env.FRAMEUI_QUALITY_AUDIT){
     const all=[];const collect=ns=>ns.forEach(n=>{all.push(n);collect(n.children)});collect(frame.children)

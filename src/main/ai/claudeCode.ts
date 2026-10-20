@@ -20,6 +20,8 @@ export function findClaudeCode(env = process.env): string | null {
 
 type CliEvent = Record<string, any>
 export function cliErrorDetail(text: string): string {
+  // ANSI escape removal is intentional: terminal output may include colour codes.
+  // eslint-disable-next-line no-control-regex
   return redactSecrets(text.replace(/\x1b\[[0-9;]*m/g, ''))
     .replace(/https?:\/\/[^\s<>"']+/g, '[link omitted]')
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email omitted]')

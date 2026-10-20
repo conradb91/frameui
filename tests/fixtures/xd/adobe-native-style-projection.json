@@ -1,0 +1,83 @@
+{
+  "graphicFilter": {
+    "type": "dropShadow",
+    "global": true,
+    "params": {
+      "dropShadows": [
+        {
+          "dx": 0,
+          "dy": 3,
+          "r": 3,
+          "color": {
+            "mode": "RGB",
+            "value": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "alpha": 0.10196078431372549
+          }
+        }
+      ]
+    }
+  },
+  "textFont": {
+    "postscriptName": "Arial-BoldMT",
+    "family": "Arial",
+    "style": "Bold",
+    "size": 14
+  },
+  "inlineGradient": {
+    "type": "gradient",
+    "gradient": {
+      "meta": {
+        "ux": {
+          "gradientResources": {
+            "type": "linear",
+            "stops": [
+              {
+                "offset": 0,
+                "color": {
+                  "mode": "RGB",
+                  "value": {
+                    "r": 236,
+                    "g": 85,
+                    "b": 255
+                  }
+                }
+              },
+              {
+                "offset": 1,
+                "color": {
+                  "mode": "RGB",
+                  "value": {
+                    "r": 100,
+                    "g": 0,
+                    "b": 113
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "x1": 0.5,
+      "y1": 0,
+      "x2": 0.5,
+      "y2": 1,
+      "units": "objectBoundingBox"
+    }
+  },
+  "opaqueWhite": {
+    "type": "solid",
+    "color": {
+      "mode": "RGB",
+      "value": {
+        "r": 255,
+        "g": 255,
+        "b": 255
+      }
+    }
+  },
+  "source": "AdobeXD/xd-to-flutter-plugin/test_suite/tests_suite.xd; serialization2.27; SHA256 in docs/verification/native-xd-2026-10-19/references.json"
+}

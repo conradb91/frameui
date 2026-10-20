@@ -161,3 +161,18 @@ test('a text-only repository component keeps its text, typography and rounded ap
  const html=renderStructuredFrameToHtml(frame([node({type:'ComponentInstance',componentBinding:{componentId:'brand',confidence:1},appearance:{radius:[14,14,14,14],opacity:1,rotation:0,clip:false},typography:{text:'Harbour',fontFamily:'Arial',fontSize:24,fontWeight:'700',lineHeight:32,letterSpacing:0,textAlign:'left'}})]))
  expect(html).toContain('Harbour');expect(html).toContain('font-size:24px');expect(html).toContain('line-height:32px');expect(html).toContain('border-radius:14px 14px 14px 14px')
 })
+
+test('SVG sprite instances retain the caller stroke, fill, colour and line caps',()=>{
+ const svg=node({type:'SVG',source:{tag:'svg',svgGeometry:{color:'#0595ff','stroke-linecap':'round','stroke-linejoin':'round'}},appearance:{radius:[0,0,0,0],opacity:1,fill:'none',stroke:'rgb(5,149,255)',strokeWidth:1.8}})
+ const html=renderStructuredFrameToHtml(frame([svg]))
+ expect(html).toContain('fill="none" stroke="rgb(5,149,255)" stroke-width="1.8"')
+ expect(html).toContain('stroke-linecap="round"');expect(html).toContain('color:#0595ff')
+})
+
+test('selected option labels and textarea content remain native, escaped and editable data',()=>{
+ const html=renderStructuredFrameToHtml(frame([node({source:{tag:'select',control:{type:'select',value:'all',options:[{value:'all',label:'All locations'},{value:'x',label:'<other>'}]}}}),node({id:'textarea',source:{tag:'textarea',control:{type:'textarea',value:'Notes <one>'}}})]))
+ expect(html).toContain('<option value="all" selected>All locations</option>')
+ expect(html).toContain('&lt;other&gt;')
+ expect(html).toContain('Notes &lt;one&gt;</textarea>')
+ expect(html).not.toContain('options="')
+})

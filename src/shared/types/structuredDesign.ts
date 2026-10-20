@@ -170,7 +170,7 @@ export interface StructuredSource {
    * reverse-engineered into a synthesized path string the way legacy's
    * `vector()` does; the eventual renderer re-emits real markup instead. */
   svgGeometry?: Record<string, string>
-  control?: { type: 'text' | 'email' | 'password' | 'number' | 'range' | 'checkbox' | 'radio' | 'date' | 'time'; placeholder?:string; placeholderColor?:string; placeholderOpacity?:number; value?: string; checked?: boolean; disabled?: boolean; min?: string; max?: string; step?: string }
+  control?: { type: 'text' | 'email' | 'password' | 'number' | 'range' | 'checkbox' | 'radio' | 'date' | 'time' | 'select' | 'textarea'; appearance?:string; options?:{value:string;label:string;disabled?:boolean}[]; placeholder?:string; placeholderColor?:string; placeholderOpacity?:number; value?: string; checked?: boolean; disabled?: boolean; min?: string; max?: string; step?: string }
 }
 
 /** Spec §10/§11: store both the raw browser value and the resolved

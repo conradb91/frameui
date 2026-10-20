@@ -178,5 +178,5 @@ export function styleToInlineCss(style: CSSLikeStyle): string {
 
 /** Native controls must not inherit the editor/modal's form-field sizing or paint. */
 export function controlStyleFor(node:StructuredNode):CSSLikeStyle {
- return {'--frameui-placeholder-color':node.source.control?.placeholderColor??'#757575','--frameui-placeholder-opacity':String(node.source.control?.placeholderOpacity??1),all:'initial',display:'block',boxSizing:'border-box',minWidth:0,minHeight:0,maxWidth:'none',maxHeight:'none',border:'none',backgroundColor:'transparent',margin:0,...appearanceStyleFor(node.appearance),...(node.typography?typographyStyleFor(node.typography):{}),padding:containerStyleFor(node).padding??0,width:'100%',height:'100%'}
+ return {'--frameui-placeholder-color':node.source.control?.placeholderColor??'#757575','--frameui-placeholder-opacity':String(node.source.control?.placeholderOpacity??1),all:'initial',appearance:node.source.control?.appearance??'auto',display:'block',boxSizing:'border-box',minWidth:0,minHeight:0,maxWidth:'none',maxHeight:'none',border:'none',backgroundColor:'transparent',margin:0,...appearanceStyleFor(node.appearance),...(node.typography?typographyStyleFor(node.typography):{}),padding:containerStyleFor(node).padding??0,width:'100%',height:'100%'}
 }

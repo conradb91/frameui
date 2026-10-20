@@ -9,7 +9,7 @@ export const Screen = memo(function Screen({ page, document, state, onInput }: {
     state?: RuntimeState;
     onInput?: (id: string, value: string | boolean) => void;
 }) {
-    const objects = useMemo(() => { const map = (nodes: VisualObject[]): VisualObject[] => nodes.map(n => ({ ...n, hidden: state?.hidden[n.id] ?? n.hidden, children: map(n.children) })); return state ? map(page.objects) : page.objects; }, [page.objects, state?.hidden]);
+    const objects = useMemo(() => { const map = (nodes: VisualObject[]): VisualObject[] => nodes.map(n => ({ ...n, hidden: state?.hidden[n.id] ?? n.hidden, children: map(n.children) })); return state ? map(page.objects) : page.objects; }, [page.objects, state]);
     const controls: {
         node: VisualObject;
         x: number;

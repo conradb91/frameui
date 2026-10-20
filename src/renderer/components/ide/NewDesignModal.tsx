@@ -47,14 +47,15 @@ export function NewDesignModal({
   const [addToExisting, setAddToExisting] = useState(false)
   const [destination, setDestination] = useState('new')
   const trimmedName = name.trim()
-  const duplicateName = !addToExisting && !!trimmedName && existingDesigns.some((design) => design.name.toLocaleLowerCase() === trimmedName.toLocaleLowerCase())
+  const resolvedDestination = startWith !== 'capture' && addToExisting && destination !== 'new' ? destination : undefined
+  const duplicateName = !resolvedDestination && existingDesigns.some((design) => design.name.toLocaleLowerCase() === (trimmedName || 'Untitled design').toLocaleLowerCase())
   const missingSource = startWith === 'existing' && !initialAsset && !selectedPage
 
   function submit() {
     if (missingSource || duplicateName) return
     const finalName = name.trim() || 'Untitled design'
     const asset: LibraryAsset | undefined = initialAsset ?? (selectedPage ? { kind: 'screen', page: selectedPage } : undefined)
-    onCreate(finalName, asset, addToExisting && destination !== 'new' ? destination : undefined, startWith === 'capture', !trimmedName, appUrl)
+    onCreate(finalName, asset, resolvedDestination, startWith === 'capture', !trimmedName, appUrl)
   }
 
   return (
@@ -79,7 +80,7 @@ export function NewDesignModal({
           </ModalField>
         </ModalSection>
         {!initialAsset&&<ModalSection title="Starting point">
-          <div className="ide-start-cards" role="radiogroup" aria-label="Start with" onKeyDown={e=>{if(initialAsset||!['ArrowRight','ArrowDown','ArrowLeft','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=START_OPTIONS.findIndex(o=>o.id===startWith),next=e.key==='Home'?0:e.key==='End'?2:(current+(['ArrowRight','ArrowDown'].includes(e.key)?1:-1)+3)%3;setStartWith(START_OPTIONS[next].id);if(START_OPTIONS[next].id!=='existing')setSelectedPage(null);e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()}}>
+          <div className="ide-start-cards" role="radiogroup" aria-label="Start with" onKeyDown={e=>{if(initialAsset||!['ArrowRight','ArrowDown','ArrowLeft','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=START_OPTIONS.findIndex(o=>o.id===startWith),next=e.key==='Home'?0:e.key==='End'?2:(current+(['ArrowRight','ArrowDown'].includes(e.key)?1:-1)+3)%3;setStartWith(START_OPTIONS[next].id);setAddToExisting(false);setDestination('new');if(START_OPTIONS[next].id!=='existing')setSelectedPage(null);e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()}}>
           {START_OPTIONS.map((opt) => {
             const Icon = opt.icon
             return (
@@ -91,7 +92,7 @@ export function NewDesignModal({
               aria-checked={startWith === opt.id}
               className={`ide-start-card ${startWith === opt.id ? 'selected' : ''}`}
               disabled={!!initialAsset}
-              onClick={() => { setStartWith(opt.id); if (opt.id !== 'existing') setSelectedPage(null) }}
+              onClick={() => { setStartWith(opt.id); setAddToExisting(false); setDestination('new'); if (opt.id !== 'existing') setSelectedPage(null) }}
             >
               <span className="ide-start-card-icon"><Icon size={18} /></span>
               <span className="ide-start-card-copy"><strong>{opt.title}</strong><small>{opt.description}</small></span>

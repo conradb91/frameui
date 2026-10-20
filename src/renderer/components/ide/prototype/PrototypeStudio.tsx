@@ -22,8 +22,8 @@ export function PrototypeStudio({draft,chat,running,onDraft,onClose,onImport,onT
  const historyMenu=useRef<HTMLDetailsElement>(null),stage=useRef<HTMLDivElement>(null),pan=useRef<{x:number;y:number;left:number;top:number}>()
  const page=proposed?.pages.find(p=>p.id===selected),quality=version?.designReview,validation=useMemo(()=>{const checked=proposed?validatePrototype(proposed):{errors:['No completed version yet.'],warnings:[]};return {...checked,errors:[...checked.errors,...(quality?.errors??[])]}},[proposed,quality])
  const approved=draft.status==='approved'&&draft.approvedVersionId===version?.id,locked=running||busy||draft.status==='imported'
- useEffect(()=>{if(proposed&&!proposed.pages.some(p=>p.id===selected)){const id=summary.find(c=>c.status!=='Unchanged')?.id??proposed.pages[0]?.id??'';setSelected(id);onTarget(id)}},[version?.id])
- useEffect(()=>{onTarget(selected)},[selected])
+ useEffect(()=>{if(proposed&&!proposed.pages.some(p=>p.id===selected)){const id=summary.find(c=>c.status!=='Unchanged')?.id??proposed.pages[0]?.id??'';setSelected(id);onTarget(id)}},[version?.id,proposed,selected,summary,onTarget])
+ useEffect(()=>{onTarget(selected)},[selected,onTarget])
  useEffect(()=>{const host=stage.current;if(!host)return;const observer=new ResizeObserver(([entry])=>setAvailable({width:entry.contentRect.width,height:entry.contentRect.height}));observer.observe(host);return()=>observer.disconnect()},[view])
  const comparison=compareVersion<0?draft.base:draft.versions[compareVersion]?.document??draft.base,original=comparison.pages.find(p=>p.id===selected)
  const fit=page?Math.max(.1,Math.min(1,(available.width-64)/(view==='compare'?page.width+(original?.width??0)+40:view==='original'?original?.width??page.width:page.width),(available.height-104)/Math.max(page.height,view==='compare'||view==='original'?original?.height??0:0))):1,scale=zoom==='fit'?fit:zoom

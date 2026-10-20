@@ -104,6 +104,8 @@ export interface VisualObject {
   children: VisualObject[]
 }
 export interface VisualPage {
+  /** Editable canvas-only explanation for an imported prototype journey. */
+  flowIntroductionFor?: string
   artifactSource?: { path: string; steps: string[] }
   sourceDesign?: { pageId: string; state: string; states: string[]; status: 'ready' | 'partial' | 'unsupported'; generatedData: boolean }
   id: string
@@ -213,6 +215,8 @@ export interface CaptureRoute {
   sources?: ('source' | 'runtime' | 'manual')[]
 }
 export interface CaptureProgress {
+  artifactImportId?: string
+  thumbnail?: string
   route?: string
   width?: number
   completed: number

@@ -8,7 +8,7 @@ type NodeSpec = {
   nodeType?: number
   attributes?: Record<string, string>
   text?: string
-  pseudoType?: 'before' | 'after'
+  pseudoType?: 'before' | 'after' | 'marker'
   shadowRootType?: 'open' | 'closed'
   currentSourceURL?: string
 }
@@ -397,4 +397,30 @@ test('viewport root preserves body margin and fractional text geometry without i
   expect(text.rect.x).toBe(20.25)
   expect(text.styles.borderWidth).toBeUndefined()
   expect(text.styles.backgroundColor).toBeUndefined()
+})
+
+test('image overlays keep CSS pseudo-element painting order even when CDP lists after first',()=>{
+ const requestedStyles=['backgroundColor']
+ const snapshot=buildSnapshot({requestedStyles,nodes:[{tag:'#document',parent:-1},{tag:'HTML',parent:0},{tag:'BODY',parent:1},{tag:'SECTION',parent:2},{tag:'::after',parent:3,pseudoType:'after'},{tag:'DIV',parent:3},{tag:'::before',parent:3,pseudoType:'before'}],layout:[{node:2,bounds:[0,0,100,100]},{node:3,bounds:[0,0,100,100]},{node:4,bounds:[0,0,100,100],styles:{backgroundColor:'white'}},{node:5,bounds:[0,0,100,100],styles:{backgroundColor:'blue'}},{node:6,bounds:[0,0,100,100],styles:{backgroundColor:'red'}}]})
+ const root=reconstructSnapshotTree(snapshot,requestedStyles,{width:100,height:100})
+ const section=root.children[0].children[0]
+ expect(section.children.map(n=>n.styles.backgroundColor)).toEqual(['red','blue','white'])
+})
+
+test('wide sibling sets preserve nth-child selectors while pseudo elements do not shift real elements',()=>{
+ const count=8000,nodes:NodeSpec[]=[{tag:'#document',parent:-1},{tag:'HTML',parent:0},{tag:'BODY',parent:1},{tag:'::before',parent:2,pseudoType:'before'}]
+ for(let i=0;i<count;i++)nodes.push({tag:'BUTTON',parent:2})
+ const layout:LayoutSpec[]=[{node:2,bounds:[0,0,100,100]},...Array.from({length:count},(_,i)=>({node:i+4,bounds:[0,i,80,1] as [number,number,number,number]}))]
+ const started=performance.now(),root=reconstructSnapshotTree(buildSnapshot({nodes,layout,requestedStyles:[]}),[],{width:100,height:100})
+ expect(root.children[0].children.at(-1)?.attributes?.captureSelector).toBe('html>body:nth-child(1)>button:nth-child(8000)')
+ console.log(`8000 sibling capture selectors reconstructed in ${(performance.now()-started).toFixed(0)}ms`)
+})
+
+test('list markers retain browser-resolved bullets and ordered numbering as editable text',()=>{
+ for(const marker of ['• ','III. ','■ ']){
+ const snapshot=buildSnapshot({requestedStyles:['color','fontSize','lineHeight'],nodes:[{tag:'#document',parent:-1},{tag:'HTML',parent:0},{tag:'BODY',parent:1},{tag:'LI',parent:2},{tag:'::marker',parent:3,pseudoType:'marker'},{tag:'#text',parent:4,text:marker}],layout:[{node:2,bounds:[0,0,300,100]},{node:3,bounds:[40,10,200,24]},{node:4,bounds:[20,13,20,18],styles:{color:'#1474c4',fontSize:'16px',lineHeight:'24px'}}]})
+ const root=reconstructSnapshotTree(snapshot,['color','fontSize','lineHeight'],{width:300,height:100})
+ const texts:string[]=[];const visit=(n:any)=>{if(n.textPreview)texts.push(n.textPreview);n.children.forEach(visit)};visit(root)
+ expect(texts).toContain(marker)
+ }
 })

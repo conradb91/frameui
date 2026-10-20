@@ -43,7 +43,7 @@ export default defineConfig({
             // its own real extension so the (unused) ES copy doesn't
             // clobber the CJS one Electron actually loads.
             lib: {
-              entry: { index: path.join(root, 'src/main/index.ts'), indexWorker: path.join(root, 'src/main/indexer/indexWorker.ts'), sketchWorker: path.join(root, 'src/main/export/sketchWorker.ts') },
+              entry: { index: path.join(root, 'src/main/index.ts'), indexWorker: path.join(root, 'src/main/indexer/indexWorker.ts'), sketchWorker: path.join(root, 'src/main/export/sketchWorker.ts'), xdWorker: path.join(root, 'src/main/export/xdWorker.ts'), documentWorker: path.join(root,'src/main/design/documentWorker.ts') },
               formats: ['cjs'],
               fileName: (format, entryName) => `${entryName}.${format === 'cjs' ? 'cjs' : 'mjs'}`,
             },

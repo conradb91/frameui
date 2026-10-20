@@ -1,3 +1,4 @@
+import {packDocument,unpackDocument} from '@shared/documentResources'
 // Default-import + destructure, not named imports — see src/main/index.ts
 // for why (Electron's ESM built-in module + cjs-module-lexer interop gap).
 import electron from 'electron'
@@ -43,8 +44,9 @@ const api: FrameUiApi = {
   design: {
     fromSource: input => ipcRenderer.invoke('design:fromSource', input),
     list: () => ipcRenderer.invoke('design:list'),
-    load: id => ipcRenderer.invoke('design:load', id),
-    save: document => ipcRenderer.invoke('design:save', document),
+    load: async id => unpackDocument(await ipcRenderer.invoke('design:load', id)),
+    savePatch: patch => ipcRenderer.invoke('design:savePatch',{id:patch.id,patch:packDocument(patch)}),
+    save: document => ipcRenderer.invoke('design:save', {id:document.id,document:packDocument(document)}),
     login: input => ipcRenderer.invoke('design:login',input),
     scan: () => ipcRenderer.invoke('design:scan'),
     testConnection: (url, profile) => ipcRenderer.invoke('design:testConnection', {url, profile}),
@@ -211,6 +213,9 @@ const api: FrameUiApi = {
     openExternal: (url) => ipcRenderer.invoke('preview:openExternal', url),
   },
   export: {
+    saveXd: (request) => ipcRenderer.invoke('export:saveXd', request),
+    cancelXd: (jobId) => ipcRenderer.invoke('export:cancelXd', jobId),
+    onXdProgress: (callback) => { const handler = (_event: unknown, payload: {jobId: string; stage: string}) => callback(payload); ipcRenderer.on('export:xdProgress', handler); return () => ipcRenderer.removeListener('export:xdProgress', handler) },
     saveSketch: (request) => ipcRenderer.invoke('export:saveSketch', request),
     cancelSketch: (jobId) => ipcRenderer.invoke('export:cancelSketch', jobId),
     onSketchProgress: (listener) => { const handler = (_event: Electron.IpcRendererEvent, data: {jobId:string;stage:string}) => listener(data); ipcRenderer.on('export:sketchProgress', handler); return () => ipcRenderer.removeListener('export:sketchProgress', handler) },

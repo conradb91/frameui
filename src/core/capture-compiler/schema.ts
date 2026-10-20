@@ -117,7 +117,7 @@ const structuredSourceSchema = z.object({
   href: z.string().optional(),
   imageSrc: z.string().refine((s) => s.startsWith('data:image/'), 'Design images must be stored locally.').optional(),
   svgGeometry: z.record(z.string()).optional(),
-  control: z.object({ type: z.enum(['text', 'email', 'password', 'number', 'range', 'checkbox', 'radio','date','time']), placeholder:z.string().max(300).optional(), placeholderColor:z.string().optional(),placeholderOpacity:z.number().min(0).max(1).optional(), value: z.string().optional(), checked: z.boolean().optional(), disabled: z.boolean().optional(), min: z.string().optional(), max: z.string().optional(), step: z.string().optional() }).optional(),
+  control: z.object({ type: z.enum(['text', 'email', 'password', 'number', 'range', 'checkbox', 'radio','date','time','select','textarea']), appearance:z.string().optional(),options:z.array(z.object({value:z.string(),label:z.string(),disabled:z.boolean().optional()})).max(1000).optional(), placeholder:z.string().max(300).optional(), placeholderColor:z.string().optional(),placeholderOpacity:z.number().min(0).max(1).optional(), value: z.string().optional(), checked: z.boolean().optional(), disabled: z.boolean().optional(), min: z.string().optional(), max: z.string().optional(), step: z.string().optional() }).optional(),
 })
 
 const tokenBindablePropertySchema = z.enum([
