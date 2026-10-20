@@ -1,3 +1,4 @@
+import {captureScrolledPageScreenshot} from './capture/scrollScreenshot'
 import {SETTLE_REVEALS_SCRIPT,RESTORE_REVEALS_SCRIPT} from './capture/revealAnimations'
 import {captureCompletenessWarnings} from '../../../core/capture-compiler/completeness'
 import {packDocument} from '../../../shared/documentResources'
@@ -906,7 +907,7 @@ export function registerDesignIdeHandlers() {
       root = domSnapshotRoot
       if (domSnapshotRoot) await embedIframeFallbacks(guest, domSnapshotRoot, signal, warnings)
       sendStage('screenshot')
-      fullScreenshot = electron.nativeImage.createFromDataURL(await captureFullPageScreenshot({webContents:guest},signal))
+      fullScreenshot = electron.nativeImage.createFromDataURL(await captureScrolledPageScreenshot(guest,signal))
     } finally {
       if (!guest.isDestroyed()) {
         await abortable(guest.executeJavaScript(RESTORE_REVEALS_SCRIPT),AbortSignal.timeout(500)).catch(()=>{})
@@ -914,7 +915,12 @@ export function registerDesignIdeHandlers() {
         await abortable(guest.executeJavaScript(`window.scrollTo({left:${position.x},top:${position.y},behavior:"instant"})`),AbortSignal.timeout(500)).catch(() => {})
       }
     }
-    const thumbnail = fullScreenshot.resize({width:720}).toDataURL()
+    // Small thumbnails show the top of the page, rather than squeezing an
+    // entire long artboard into a few pixels. Full-height canvas previews
+    // remain separate and retain the complete page.
+    const screenshotSize = fullScreenshot.getSize()
+    const thumbnailHeight = Math.max(1, Math.min(screenshotSize.height, Math.round(metadata.height * screenshotSize.width / metadata.width)))
+    const thumbnail = referenceImage(fullScreenshot.crop({x:0,y:0,width:screenshotSize.width,height:thumbnailHeight}).toDataURL(),360)
     sendStage('assets')
     if (guest.getURL() !== url || getActiveProject()?.projectId !== project.projectId) throw new Error('The page or project changed during capture. Try again.')
     runtimeUrl.parse(guest.getURL())

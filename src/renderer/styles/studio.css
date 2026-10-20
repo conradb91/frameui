@@ -241,3 +241,22 @@ html[data-platform="mac"] .ide > .ide-top {padding-left:96px;}
 .project-home .project-card-copy footer {flex-wrap:wrap;}
 .project-home .project-card-copy footer>span {white-space:nowrap;}
 .project-home .project-home-status {position:static;max-width:1300px;margin:16px auto;color:var(--ide-muted);}
+
+/* Capture uses the same compact disclosure rhythm as the design inspector. */
+.ide .ide-capture-sidebar {overflow-y:auto;}
+.ide .ide-capture-sidebar>.ide-runtime-settings {flex-shrink:0;border:0;border-bottom:1px solid var(--ide-border);border-radius:0;background:transparent;}
+.ide .ide-capture-sidebar>.ide-runtime-settings>summary {padding:16px;gap:8px;font-size:11px;font-weight:600;}
+.ide .ide-capture-sidebar .ide-runtime-fields {display:grid;grid-template-columns:minmax(0,1fr);}
+.ide .ide-capture-sidebar .ide-runtime-content {padding:0 16px 16px;}
+.ide .ide-capture-sidebar .ide-capture-session-thumb>img {object-fit:cover;object-position:top;flex-shrink:0;}
+.capture-progress-summary {display:flex;align-items:center;gap:12px;margin-top:24px;padding-top:20px;border-top:1px solid var(--color-border);color:var(--color-text-3);font-size:12px;}
+.capture-progress-summary>svg {flex-shrink:0;color:var(--color-accent);}
+.capture-progress-summary>div {flex:1;min-width:0;}
+.capture-progress-summary strong,.capture-progress-summary span {display:block;}
+.capture-progress-summary strong {color:var(--color-text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.capture-progress-summary div span {margin-top:5px;font-size:11px;}
+.project-home .project-cards--list .project-card-copy {padding:15px 12px 15px 16px;}
+.project-home .project-cards--list .project-card-copy footer {justify-content:flex-start;align-items:center;gap:12px;}
+.project-home .project-cards--list .project-card-status {margin:0;padding:0;background:transparent;}
+.project-home .project-cards--list .project-card-copy p {margin:5px 0 9px;}
+.project-home .project-cards--list .project-card-actions {gap:6px;padding-left:12px;border-left:1px solid var(--ide-border);}

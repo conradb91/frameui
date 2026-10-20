@@ -51,6 +51,8 @@ const path = require('node:path')
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [folder] })
     }, source)
     await page.getByRole('button', { name: 'Open Codebase', exact: true }).click()
+    await page.getByLabel('Project name',{exact:true}).fill('LocalProduct');
+    await page.getByRole('button',{name:'Create project',exact:true}).click();
     const setup = page.getByRole('dialog', { name: 'Open LocalProduct' })
     await setup.waitFor()
     fs.mkdirSync('docs/verification', { recursive: true })

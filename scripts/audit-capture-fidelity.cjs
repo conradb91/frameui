@@ -133,6 +133,12 @@ app.whenReady().then(async()=>{
     const resources=JSON.parse(native.entries.find(e=>e.path==='resources/graphics/graphicContent.agc').data.toString());assert(Object.values(resources.artboards).every(a=>a.width===width))
     assert(changed/(width*comparisonHeight)<.001,'Open drawer must visually match the original HTML')
   }
+  if(process.env.FRAMEUI_PSEUDO_ICON_AUDIT){
+    const pseudos=[];const walk=n=>{if(n.attributes?.['data-frameui-pseudo'])pseudos.push(n);n.children.forEach(walk)};walk(tree);
+    assert.equal(pseudos.length,9,'All role markers, ticks and dashes must be captured');assert(pseudos.every(n=>n.rect.width>0&&n.rect.height>0),'CSS icons must have visible geometry');
+    assert(changed/(width*comparisonHeight)<.005,'Permission icons must remain below 0.5% differing pixels');
+    const built=buildXdDocument({jobId:'permission-audit',scope:'all',includePrototype:false,document:{version:1,id:'permission-design',name:'Permissions',updatedAt:new Date().toISOString(),pages:[{id:'permission-page',name:'Permissions',folder:'',pinned:false,state:'Desktop',width:frame.width,height:frame.height,structured:frame,objects:[]}],components:[],variables:[]}});validateXdEntries(built.entries);
+  }
   if(process.env.FRAMEUI_CIRCLE_AUDIT){
     const all=[];const walk=ns=>ns.forEach(n=>{all.push(n);walk(n.children)});walk(frame.children)
     const badges=all.filter(n=>n.source.tag==='frameui-visual'&&n.appearance.backgroundColor==='rgb(230, 238, 252)');assert.equal(badges.length,6)

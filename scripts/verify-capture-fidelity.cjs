@@ -3,6 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),{spa
 const output=process.argv[2]?path.resolve(process.argv[2]):fs.mkdtempSync(path.join(os.tmpdir(),'frameui-capture-regressions-'));
 fs.mkdirSync(output,{recursive:true});
 const cases=[
+ {name:'css-flex-permission-icons',file:'css-flex-permission-icons.html',flags:{FRAMEUI_GENERAL_AUDIT:'1',FRAMEUI_PSEUDO_ICON_AUDIT:'1',FRAMEUI_AUDIT_WIDTHS:'1440,1920'}},
  {name:'circular-counter-badges',file:'circular-counter-badges.html',flags:{FRAMEUI_GENERAL_AUDIT:'1',FRAMEUI_CIRCLE_AUDIT:'1',FRAMEUI_AUDIT_WIDTHS:'1440,1920'}},
  {name:'css-mask-icons',file:'css-mask-icons.html',flags:{FRAMEUI_GENERAL_AUDIT:'1',FRAMEUI_MASK_ICON_AUDIT:'1',FRAMEUI_AUDIT_WIDTHS:'1440,1920'}},
  {name:'category-card-spacing',file:'category-card-spacing.html',flags:{FRAMEUI_CARD_AUDIT:'1',FRAMEUI_GENERAL_AUDIT:'1',FRAMEUI_AUDIT_WIDTHS:'1440,1920'}},

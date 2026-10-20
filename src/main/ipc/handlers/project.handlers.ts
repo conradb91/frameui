@@ -148,18 +148,32 @@ export function registerProjectHandlers(): void {
     return { cancelled: false, project }
   })
 
+  ipcMain.handle('project:createStarterProject',(_event,raw)=>{
+    const {name,kind}=z.object({name:z.string().trim().min(1).max(120).refine(value=>!/[\\/]/.test(value)&&!Array.from(value).some(character=>character.charCodeAt(0)<32),'Choose a name without slashes or control characters.'),kind:z.enum(['repository','application','prototype','blank'])}).parse(raw)
+    const group=kind==='prototype'?'artifact-projects':kind==='application'?'application-projects':kind==='blank'?'blank-projects':'workspace-projects'
+    const slug=name.normalize('NFKD').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,'-').slice(0,80)||'project'
+    const folder=path.join(app.getPath('userData'),group,slug+'-'+randomUUID().slice(0,8))
+    fs.mkdirSync(folder,{recursive:true})
+    fs.writeFileSync(path.join(folder,'frameui-project.json'),JSON.stringify({version:1,name,kind}))
+    const project=recordProjectOpened(app.getPath('userData'),folder,name)
+    activateProject(project.id,folder,app.getPath('userData'))
+    return project
+  })
   ipcMain.handle('project:cancelPrototypeImport',(event,raw)=>({ok:cancelImport(event.sender.id,z.string().uuid().parse(raw))}))
   ipcMain.handle('project:finishPrototypeImport',(event,raw)=>{finishImport(event.sender.id,z.string().uuid().parse(raw))})
   ipcMain.handle('project:importPrototype',async(event,raw)=>{
-    const id=z.string().uuid().parse(raw),signal=beginImport(event.sender.id,id)
+    const input=z.union([z.string().uuid(),z.object({id:z.string().uuid(),projectId:z.string().uuid()})]).parse(raw)
+    const id=typeof input==='string'?input:input.id,prepared=typeof input==='string'?undefined:getRegisteredProject(app.getPath('userData'),input.projectId)
+    if(prepared&&!prepared.path.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep))throw new Error('Choose a prototype project folder.')
+    const signal=beginImport(event.sender.id,id)
     if(!importOwners.has(event.sender)){const ownerId=event.sender.id;importOwners.add(event.sender);event.sender.once('destroyed',()=>disposeImport(ownerId))}
     const owner=BrowserWindow.fromWebContents(event.sender)
     const options: Electron.OpenDialogOptions={title:'Import HTML prototype',properties:['openFile'],filters:[{name:'HTML artifact or ZIP prototype',extensions:['html','htm','zip']}]}
     const selected=owner?await dialog.showOpenDialog(owner,options):await dialog.showOpenDialog(options)
     signal.throwIfAborted()
     if(selected.canceled||!selected.filePaths[0])return null
-    const file=selected.filePaths[0],originalName=path.basename(file,path.extname(file)),name=originalName.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim()||'Imported prototype'
-    const folder=path.join(app.getPath('userData'),'artifact-projects',randomUUID())
+    const file=selected.filePaths[0],originalName=path.basename(file,path.extname(file)),name=prepared?.name??(originalName.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim()||'Imported prototype')
+    const folder=prepared?.path??path.join(app.getPath('userData'),'artifact-projects',randomUUID())
     try {
       await unpackPrototype(file,path.join(folder,'prototype'),signal,(completed,total,detail)=>{if(!event.sender.isDestroyed())event.sender.send('project:prototypeImportProgress',{id,stage:'extract',file:path.basename(file),completed,total,detail})})
       importSignal(event.sender.id,id)
@@ -172,15 +186,18 @@ export function registerProjectHandlers(): void {
       setImportProject(event.sender.id,id,{projectId:project.id,rootPath:folder})
       configureRuntime(app.getPath('userData'),project.id,url,'local')
       return {project,url,routes}
-    }catch(error){await fs.promises.rm(folder,{recursive:true,force:true});throw error}
+    }catch(error){await fs.promises.rm(prepared?path.join(folder,'prototype'):folder,{recursive:true,force:true});throw error}
   })
   ipcMain.handle('project:connectApplication',(_event,raw)=>{
-    const url=runtimeAddress(z.string().max(4096).parse(raw))
+    const input=z.union([z.string().max(4096),z.object({url:z.string().max(4096),projectId:z.string().uuid()})]).parse(raw)
+    const prepared=typeof input==='string'?undefined:getRegisteredProject(app.getPath('userData'),input.projectId)
+    if(prepared&&!prepared.path.startsWith(path.join(app.getPath('userData'),'application-projects')+path.sep))throw new Error('Choose an application project folder.')
+    const url=runtimeAddress(typeof input==='string'?input:input.url)
     const key=createHash('sha256').update(url.origin).digest('hex').slice(0,16)
-    const folder=path.join(app.getPath('userData'),'application-projects',key)
+    const folder=prepared?.path??path.join(app.getPath('userData'),'application-projects',key)
     fs.mkdirSync(folder,{recursive:true})
     fs.writeFileSync(path.join(folder,'frameui-application.json'),JSON.stringify({kind:'application-only',origin:url.origin}))
-    const project=recordProjectOpened(app.getPath('userData'),folder,url.host)
+    const project=recordProjectOpened(app.getPath('userData'),folder,prepared?.name??url.host)
     activateProject(project.id,folder,app.getPath('userData'))
     configureRuntime(app.getPath('userData'),project.id,url.href,isLocalRuntime(url)?'local':'staging')
     return project

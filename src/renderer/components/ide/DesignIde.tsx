@@ -973,6 +973,23 @@ export function DesignIde() {
       }))
     return next
   }
+  const [starterKind,setStarterKind]=useState<'repository'|'application'|'prototype'|'blank'|null>(null)
+  const [starterName,setStarterName]=useState(''),[starterBusy,setStarterBusy]=useState(false),[starterError,setStarterError]=useState('')
+  const [starterProject,setStarterProject]=useState<RecentProject|null>(null)
+  function startProject(kind:'repository'|'application'|'prototype'|'blank'){setStarterName('');setStarterError('');setStarterKind(kind);setStarterProject(null)}
+  async function createStarterProject(){
+    if(!starterKind||!starterName.trim()||starterBusy)return
+    setStarterBusy(true);setStarterError('')
+    try{
+      const project=await window.frameui.project.createStarterProject(starterName.trim(),starterKind)
+      setStarterProject(project);setStarterKind(null)
+      if(starterKind==='prototype')setArtifactSetup(true)
+      else if(starterKind==='application'){setConnectAppError('');setConnectAppOpen(true)}
+      else if(starterKind==='repository')await openProject(undefined,project.id)
+      else {const library=buildProjectDocument(project,null,project.name,'');save(library);const next=newDocument(project.name);next.projectId=project.id;next.libraryId=library.id;open(next);save(next)}
+      void window.frameui.project.listLibrary().then(setProjectLibrary)
+    }catch(error){setStarterError(userFacingError(error))}finally{setStarterBusy(false)}
+  }
   const [artifactSetup,setArtifactSetup]=useState(false)
   const [artifactWidth,setArtifactWidth]=useState<1440|1920>(1440)
   const [artifactImportStage,setArtifactImportStage]=useState('')
@@ -1012,7 +1029,7 @@ export function DesignIde() {
       setArtifactProgress(previous=>({...previous,value:progress.total?progress.completed/progress.total*100:undefined,completed:progress.completed,total:progress.total,...(progress.thumbnail?{preview:progress.thumbnail,previewName:progress.name}:{}),detail:`${progress.completed} of ${progress.total} screens · ${progress.status==='Failed'?'Could not capture':progress.status==='Complete'?'Captured':'Capturing'} ${progress.name}`}))
     })
     try{
-      const result=await wait(window.frameui.project.importPrototype(id))
+      const result=await wait(window.frameui.project.importPrototype(id,starterProject?.id))
       if(!result)return
       const library=buildProjectDocument(result.project,null,result.project.name,result.url)
       save(library)
@@ -1047,14 +1064,14 @@ export function DesignIde() {
   async function connectRunningApp(){
     setConnectingApp(true);setConnectAppError('')
     try{
-      const url=applicationAddress(connectAppUrl),project=await window.frameui.project.connectApplication(url)
+      const url=applicationAddress(connectAppUrl),project=await window.frameui.project.connectApplication(url,starterProject?.id)
       const index=await window.frameui.project.getIndex()
       const library=buildProjectDocument(project,index,project.name,url);save(library)
       const design=newDocument(project.name+' screens');design.projectId=project.id;design.libraryId=library.id;design.appUrl=url
       open(design);save(design);setConnectAppOpen(false);setCaptureProjectUrl(url);setCaptureMode(true)
     }catch(e){setConnectAppError(e instanceof Error?e.message:String(e))}finally{setConnectingApp(false)}
   }
-  async function openProject(projectPath?: string) {
+  async function openProject(projectPath?: string,starterId?:string) {
     setStatus('Scanning repository…')
     setError('')
     try {
@@ -1063,7 +1080,7 @@ export function DesignIde() {
           if (!result.ok) throw new Error('This project folder is unavailable. Choose its current location with Open Codebase.')
           return { cancelled: false as const, project: result.project }
         })
-        : await window.frameui.project.openDialog()
+        : await window.frameui.project.openDialog(starterId)
       if (result.cancelled) {
         setStatus('')
         return
@@ -2537,15 +2554,11 @@ export function DesignIde() {
         <Welcome
           recents={recents.filter((r) => !r.libraryId && !hiddenRecent.includes(r.id))}
           projects={projectLibrary}
-          onImportPrototype={()=>setArtifactSetup(true)}
-          onConnectApplication={()=>{setConnectAppError('');setConnectAppOpen(true)}}
-          onOpen={() => void openProject()}
+          onImportPrototype={()=>startProject('prototype')}
+          onConnectApplication={()=>startProject('application')}
+          onOpen={() => startProject('repository')}
           onOpenProject={path => void openProject(path)}
-          onBlank={() => {
-            const next = newDocument()
-            open(next)
-            save(next)
-          }}
+          onBlank={() => startProject('blank')}
           onRecent={(id) =>
             void window.frameui.design.load(id).then((d) => {
               if (d) open(d)
@@ -2570,6 +2583,7 @@ export function DesignIde() {
           error={error}
           onGettingStarted={openFirstRunOnboarding}
         />
+        {starterKind&&<ModalShell size="compact" ariaLabel="Create project" critical={starterBusy} onClose={()=>setStarterKind(null)}><ModalHeader title="Create your project" description="Name your project folder first. Then add your repository, application or prototype." onClose={()=>setStarterKind(null)}/><ModalBody><label>Project name<input autoFocus aria-label="Project name" maxLength={120} value={starterName} disabled={starterBusy} placeholder="My project" onChange={e=>setStarterName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createStarterProject()}}/></label><p className="muted">FrameUI creates a local folder for this project. Your original files stay in place.</p>{starterError&&<p role="alert">{starterError}</p>}</ModalBody><ModalFooter><button disabled={starterBusy} onClick={()=>setStarterKind(null)}>Cancel</button><button className="primary" disabled={starterBusy||!starterName.trim()} onClick={()=>void createStarterProject()}>{starterBusy?'Creating project…':'Create project'}</button></ModalFooter></ModalShell>}
         {artifactSetup&&<ArtifactImportSetup width={artifactWidth} onClose={()=>setArtifactSetup(false)} onImport={width=>void importClaudePrototype(width)}/>}
         {artifactImportStage&&!artifactHidden&&<ArtifactImportModal width={artifactWidth} stage={artifactImportStage} progress={artifactProgress} startedAt={artifactStartedAt} onStop={stopArtifactImport} onBackground={hideArtifactProgress}/>}
         {artifactImportStage&&artifactHidden&&<ArtifactImportBackground stage={artifactImportStage} progress={artifactProgress} onOpen={showArtifactProgress} onStop={stopArtifactImport}/>}

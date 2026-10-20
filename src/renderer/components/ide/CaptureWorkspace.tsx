@@ -5,8 +5,6 @@ import { normalizeVisual } from '@core/visual/normalize'
 import type { FrameUiWebviewElement } from '../../types/webview'
 import {
   Monitor,
-  CheckCircle2,
-  Circle,
   Loader2,
   ArrowRight,
   RefreshCw,
@@ -21,14 +19,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { VisualDocument, CaptureStage } from '@shared/types/visualDesign'
 import { ImportApplication } from './ImportApplication'
 import { useStoredValue } from './preferences'
-import { Guidance } from './Ui'
+import { CaptureProgressModal } from './CaptureProgressModal'
 
-const CAPTURE_STAGES: { id: CaptureStage; label: string }[] = [
-  { id: 'layout', label: 'Reading layout & styles' },
-  { id: 'screenshot', label: 'Capturing screenshot' },
-  { id: 'assets', label: 'Collecting fonts & assets' },
-  { id: 'building', label: 'Building the editable design' },
-]
 type ViewportPreset = 'Desktop' | 'Tablet' | 'Mobile' | 'Custom'
 const VIEWPORT_PRESETS: Record<Exclude<ViewportPreset, 'Custom'>, { width: number; height: number }> = {
   Desktop: { width: 1440, height: 1024 },
@@ -145,6 +137,7 @@ export function CaptureWorkspace({
   const [stateName, setStateName] = useState(() => stateNameFromAddress(initialAddress))
   const [previewScale, setPreviewScale] = useState(1)
   const [captureStage, setCaptureStage] = useState<CaptureStage | null>(null)
+  const captureCancelled = useRef(false)
   const [sessionCaptures, setSessionCaptures] = useState<{ id: string; name: string; state: string; thumbnail?: string; matchedComponents: number }[]>([])
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
@@ -287,6 +280,7 @@ export function CaptureWorkspace({
   async function captureCurrentState() {
     const guest = stateBrowser.current
     if (!guest || !stateName.trim()) return
+    captureCancelled.current = false
     setBusy('Capturing current state…')
     setError('')
     setCaptureStage('layout')
@@ -333,17 +327,13 @@ export function CaptureWorkspace({
       setError(warnings.length ? `State captured. ${warnings.join(' ')}` : matchedComponents ? `State captured. ${matchedComponents} component${matchedComponents === 1 ? '' : 's'} matched to source.` : '')
       stateNameEdited.current = false
       setStateName(stateNameFromAddress(capturedUrl))
-    } catch (e) { setError(`Could not capture this state: ${userFacingError(e)}`) }
+    } catch (e) { if (!captureCancelled.current) setError(`Could not capture this state: ${userFacingError(e)}`) }
     finally { setBusy(''); setCaptureStage(null); offStage() }
   }
 
   return (
     <div className="ide-capture-workspace ide-capture-shell">
     <div className="ide-capture-main">
-      <Guidance id="capture-workspace">
-        Open a page, adjust its state, then capture an editable screen.
-      </Guidance>
-      <RuntimeSettings url={addressDraft} onChange={setAddressDraft} />
       <div className="ide-capture-toolbar">
         <button type="button" title="Back" disabled={!canGoBack} onClick={() => stateBrowser.current?.goBack()}>
           <ChevronLeft size={15} />
@@ -422,24 +412,7 @@ export function CaptureWorkspace({
             }}
           />
         </div>
-        {captureStage && (
-          <div className="ide-capture-stage-overlay">
-            <Loader2 className="ide-spin" size={20} />
-            <strong>Creating editable design</strong>
-            <ul className="ide-capture-stage-list">
-              {CAPTURE_STAGES.map((s, i) => {
-                const currentIndex = CAPTURE_STAGES.findIndex((x) => x.id === captureStage)
-                const state = i < currentIndex ? 'done' : i === currentIndex ? 'active' : 'pending'
-                return (
-                  <li key={s.id} className={state}>
-                    {state === 'done' ? <CheckCircle2 size={14} /> : state === 'active' ? <Loader2 size={14} className="ide-spin" /> : <Circle size={14} />}
-                    {s.label}
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        )}
+
       </div>
       <details className="ide-connect-optional">
         <summary><h3>Sign-in options</h3></summary>
@@ -471,6 +444,7 @@ export function CaptureWorkspace({
       {error && <p className="ide-connect-hint" role="status">{error}</p>}
     </div>
     <aside className="ide-capture-sidebar" aria-label="Capture controls and history">
+      <RuntimeSettings url={addressDraft} onChange={setAddressDraft} />
       <div className="ide-capture-controls">
         <h3>Capture screen</h3><p className="studio-capture-hint">Save this page as editable layers, using your project’s fonts and assets.</p>
         <label>
@@ -526,6 +500,7 @@ export function CaptureWorkspace({
         </button>
       </div>
     </aside>
+    {captureStage && <CaptureProgressModal stage={captureStage} width={viewport.width} name={stateName} address={address} onStop={()=>{captureCancelled.current=true;void window.frameui.design.cancelCapture().catch(e=>setError(userFacingError(e)))}} />}
     {batchOpen && (
       <ImportApplication
         document={document}

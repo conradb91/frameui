@@ -63,7 +63,7 @@ export function RuntimeSettings({ url, onChange, showUrl = true }: { url: string
   return <details className="ide-runtime-settings">
     <summary><span>Running application</span><span className="ide-runtime-badge">{connected ? 'Connected' : 'Not connected'}</span></summary>
     <div className="ide-runtime-content">
-      <p>Connect the app you want to capture. Your repository supplies the design context.</p>
+      <p>Connect the app you want to capture, then navigate to a screen in the browser.</p>
       <div className="ide-runtime-fields">
         <label>Environment <select aria-label="Environment" value={source} disabled={busy} onChange={event => { setSource(event.target.value as RuntimeSource); setError('') }}>
           <option value="local">Local development</option>
