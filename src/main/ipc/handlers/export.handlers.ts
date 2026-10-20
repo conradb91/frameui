@@ -66,7 +66,7 @@ export function registerExportHandlers(): void {
       tempPath=path.join(path.dirname(filePath),'.frameui-export-'+randomUUID()+'.tmp')
       const report=await new Promise<SketchExportReport>((resolve,reject)=>{
         worker=new Worker(path.join(__dirname,'sketchWorker.cjs'),{workerData:{request,tempPath}})
-        worker.on('message',(message:{stage?:string;report?:SketchExportReport;error?:string})=>{
+        worker.on('message',(message:{stage?:string;percentage?:number;report?:SketchExportReport;error?:string})=>{
           if(message.stage&&!event.sender.isDestroyed())event.sender.send('export:sketchProgress',{jobId:request.jobId,stage:message.stage})
           if(message.error)reject(new Error(message.error));if(message.report)resolve(message.report)
         })
@@ -95,17 +95,21 @@ export function registerExportHandlers(): void {
       if(!filePath||canceled)return {ok:false,canceled:true}
       if(path.extname(filePath).toLowerCase()!=='.xd')throw new Error('Save this native document with the .xd extension.')
       if(path.extname(filePath).toLowerCase()==='.frameui')throw new Error('The source design cannot be overwritten.')
+      const progress=(stage:string,percentage:number)=>{if(!event.sender.isDestroyed())event.sender.send('export:xdProgress',{jobId:request.jobId,stage,percentage})}
+      progress('Preparing design resources',5)
       request.document=await restoreArtifactFonts(request.document as import('../../../shared/types/visualDesign').VisualDocument,event.sender,app.getPath('userData'),fontAbort.signal)
-      if(!event.sender.isDestroyed())event.sender.send('export:xdProgress',{jobId:request.jobId,stage:'Matching fonts to the FrameUI canvas'})
+      progress('Matching design fonts',15)
       const renderedFonts=await renderedExportFonts(event.sender,request.document,fontAbort.signal)
+      progress('Preserving text layout',35)
       const renderedLines=await renderedExportText(event.sender,request.document,fontAbort.signal)
+      progress('Preparing images and effects',45)
       const renderedImages=await renderedExportImages(event.sender,request.document,fontAbort.signal)
       if(canceled)return {ok:false,canceled:true}
       tempPath=path.join(path.dirname(filePath),'.frameui-export-'+randomUUID()+'.tmp')
       const report=await new Promise<XdExportReport>((resolve,reject)=>{
         worker=new Worker(path.join(__dirname,'xdWorker.cjs'),{workerData:{request:packDocument(request),tempPath,renderedFonts,renderedImages,renderedLines}})
-        worker.on('message',(message:{stage?:string;report?:XdExportReport;error?:string})=>{
-          if(message.stage&&!event.sender.isDestroyed())event.sender.send('export:xdProgress',{jobId:request.jobId,stage:message.stage})
+        worker.on('message',(message:{stage?:string;percentage?:number;report?:XdExportReport;error?:string})=>{
+          if(message.stage&&!event.sender.isDestroyed())event.sender.send('export:xdProgress',{jobId:request.jobId,stage:message.stage,percentage:message.percentage})
           if(message.error)reject(new Error(message.error));if(message.report)resolve(message.report)
         })
         worker.on('error',reject);worker.on('exit',()=>reject(new Error(canceled?'Export canceled.':'Export worker stopped before producing a document.')))
@@ -113,6 +117,7 @@ export function registerExportHandlers(): void {
       if(canceled)return {ok:false,canceled:true}
       await fs.promises.rename(tempPath,filePath);tempPath=undefined
       savedExportPaths.add(path.resolve(filePath))
+      progress('XD file saved',100)
       return {ok:true,filePath,report}
     }catch(error){return canceled?{ok:false,canceled:true}:{ok:false,error:error instanceof Error?error.message:String(error)}}
     finally {event.sender.removeListener('destroyed',destroyed);jobs.delete(request.jobId);await worker?.terminate();if(tempPath)await fs.promises.rm(tempPath,{force:true})}

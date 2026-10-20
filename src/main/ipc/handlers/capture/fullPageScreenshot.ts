@@ -9,15 +9,15 @@ import {CONTENT_METRICS_SCRIPT} from './contentHeight'
  * taken after `scrollToSettle` so all lazy content is already visible.
  * Electron's own `webContents.capturePage()` (used everywhere else in this
  * pipeline for the page thumbnail) is strictly viewport-bound and cannot do
- * this. Purely a reference asset for later visual-comparison work — not
- * wired into the canvas.
+ * this. Used for full-height canvas previews and visual comparison; editable
+ * geometry remains independent of the reference image resolution.
  *
  * Races against `signal` for the same reason `scrollToSettle` does:
  * destroying `win` mid-call (exactly what cancellation does) doesn't
  * reliably reject an in-flight CDP call in Electron.
  */
 export async function captureFullPageScreenshot(
-  win: BrowserWindow,
+  win: Pick<BrowserWindow,'webContents'>,
   jobSignal: AbortSignal,
 ): Promise<string> {
   const signal=AbortSignal.any([jobSignal,AbortSignal.timeout(30000)])

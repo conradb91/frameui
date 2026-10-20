@@ -1,3 +1,4 @@
+import {SETTLE_REVEALS_SCRIPT,RESTORE_REVEALS_SCRIPT} from './capture/revealAnimations'
 import {captureCompletenessWarnings} from '../../../core/capture-compiler/completeness'
 import {packDocument} from '../../../shared/documentResources'
 import {referenceImage} from './capture/referenceImages'
@@ -896,6 +897,7 @@ export function registerDesignIdeHandlers() {
     try {
       await execute(WAIT_FOR_CAPTURE_SCRIPT)
       await scrollToSettle({ webContents: guest }, signal)
+      await execute(SETTLE_REVEALS_SCRIPT)
       // Pausing retains animation fill styles; animation:none resets animated
       // content to its hidden starting style on many reveal implementations.
       freezeKey = await abortable(guest.insertCSS('*, *::before, *::after { transition: none !important; animation-play-state: paused !important; }'),signal)
@@ -904,9 +906,10 @@ export function registerDesignIdeHandlers() {
       root = domSnapshotRoot
       if (domSnapshotRoot) await embedIframeFallbacks(guest, domSnapshotRoot, signal, warnings)
       sendStage('screenshot')
-      fullScreenshot = await abortable(guest.capturePage(), AbortSignal.any([signal,AbortSignal.timeout(30000)]))
+      fullScreenshot = electron.nativeImage.createFromDataURL(await captureFullPageScreenshot({webContents:guest},signal))
     } finally {
       if (!guest.isDestroyed()) {
+        await abortable(guest.executeJavaScript(RESTORE_REVEALS_SCRIPT),AbortSignal.timeout(500)).catch(()=>{})
         if (freezeKey) await abortable(guest.removeInsertedCSS(freezeKey),AbortSignal.timeout(500)).catch(() => {})
         await abortable(guest.executeJavaScript(`window.scrollTo({left:${position.x},top:${position.y},behavior:"instant"})`),AbortSignal.timeout(500)).catch(() => {})
       }
@@ -937,7 +940,7 @@ export function registerDesignIdeHandlers() {
       if(structured?.captureMetadata.visualMatch&&structured.captureMetadata.visualMatch.diffPercent>2)warnings.push(`Visual comparison found ${structured.captureMetadata.visualMatch.diffPercent.toFixed(1)}% differing pixels. Native layers were preserved; review the capture against your app.`)
     }
     signal.throwIfAborted()
-    return {root,metadata,thumbnail,fonts,url,warnings:[...new Set(warnings)],structured}
+    return {root,metadata,thumbnail,fullPageScreenshot:referenceImage(fullScreenshot.toDataURL()),canvasPreview:referenceImage(fullScreenshot.toDataURL(),480),fonts,url,warnings:[...new Set(warnings)],structured}
     } finally {capturing=false;captureAbort=null;captureOwner=null}
   })
   // Stage 3 of the capture-engine rebuild (docs/CAPTURE_ENGINE_REBUILD_SPEC.md):
@@ -1087,6 +1090,7 @@ export function registerDesignIdeHandlers() {
               if(plan.artifactSteps?.[r.pattern])await replayPrototype(win.webContents,plan.artifactSteps[r.pattern],signal)
               if(plan.artifactSteps)await abortable(win.webContents.executeJavaScript(EXPAND_ARTIFACT_PANELS_SCRIPT),signal)
               await scrollToSettle(win, signal)
+              await abortable(win.webContents.executeJavaScript(SETTLE_REVEALS_SCRIPT),signal)
               const fullPageScreenshot = await captureFullPageScreenshot(win, signal)
               const [viewportWidth, viewportHeight] = win.getContentSize()
               const domSnapshotStartedAt = performance.now()

@@ -217,7 +217,7 @@ const api: FrameUiApi = {
   export: {
     saveXd: (request) => ipcRenderer.invoke('export:saveXd', packDocument(typeof request==='string'?JSON.parse(request):request)),
     cancelXd: (jobId) => ipcRenderer.invoke('export:cancelXd', jobId),
-    onXdProgress: (callback) => { const handler = (_event: unknown, payload: {jobId: string; stage: string}) => callback(payload); ipcRenderer.on('export:xdProgress', handler); return () => ipcRenderer.removeListener('export:xdProgress', handler) },
+    onXdProgress: (callback) => { const handler = (_event: unknown, payload: {jobId: string; stage: string; percentage?: number}) => callback(payload); ipcRenderer.on('export:xdProgress', handler); return () => ipcRenderer.removeListener('export:xdProgress', handler) },
     saveSketch: (request) => ipcRenderer.invoke('export:saveSketch', request),
     cancelSketch: (jobId) => ipcRenderer.invoke('export:cancelSketch', jobId),
     onSketchProgress: (listener) => { const handler = (_event: Electron.IpcRendererEvent, data: {jobId:string;stage:string}) => listener(data); ipcRenderer.on('export:sketchProgress', handler); return () => ipcRenderer.removeListener('export:sketchProgress', handler) },

@@ -638,7 +638,7 @@ export function Welcome({ recents, projects, onOpen, onConnectApplication, onImp
           </article>)}</div> : <div className="project-empty"><span><FolderOpen size={27} strokeWidth={1.4}/></span><h3>{rows.length?'No projects found.':'Your projects will appear here'}</h3><p>{rows.length?'Try a different search or choose another collection.':'Import a prototype, connect your app, or open a repository to get started.'}</p>{rows.length ? <button onClick={()=>{setQuery('');setFilter('all')}}>Show all projects <ArrowRight size={14}/></button> : null}</div>}
         </section>
         <div className="project-home-footer"><span>Capture → Design → Prototype</span><span>FrameUI · Local by design</span></div>
-        {status && <p role="status" className="project-home-status">{status}</p>}{error && <p className="ide-error" role="alert">{error}</p>}
+        {busy && status && <p role="status" className="project-home-status">{status}</p>}{error && <p className="ide-error" role="alert">{error}</p>}
       </main>
     </div>
   </div>

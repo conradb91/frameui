@@ -20,6 +20,7 @@ hr{border:0;border-top:3px solid #b24;margin:16px 0}.italic{font-style:italic}.b
 const entry = `
 import {app,BrowserWindow,session,nativeImage} from 'electron'
 import {loginForCapture} from './src/main/ipc/handlers/loginForCapture'
+import {SETTLE_REVEALS_SCRIPT} from './src/main/ipc/handlers/capture/revealAnimations'
 import {enableCaptureMotion} from './src/main/ipc/handlers/cdp/captureMotion'
 import {captureFullPageScreenshot} from './src/main/ipc/handlers/capture/fullPageScreenshot'
 import assert from 'node:assert/strict'
@@ -69,6 +70,7 @@ app.whenReady().then(async()=>{
   if(process.env.FRAMEUI_AUDIT_CLICK_SELECTOR)await win.webContents.executeJavaScript('document.querySelector('+JSON.stringify(process.env.FRAMEUI_AUDIT_CLICK_SELECTOR)+')?.click()')
   if(process.env.FRAMEUI_AUDIT_EXPAND_PANELS)await win.webContents.executeJavaScript(EXPAND_ARTIFACT_PANELS_SCRIPT)
   if(process.env.FRAMEUI_AUDIT_URL||process.env.FRAMEUI_AUDIT_EXPAND_PANELS) await scrollToSettle(win,AbortSignal.timeout(120000))
+  await win.webContents.executeJavaScript(SETTLE_REVEALS_SCRIPT)
   if(process.env.FRAMEUI_AUDIT_SCROLL_SELECTOR)await win.webContents.executeJavaScript('document.querySelector('+JSON.stringify(process.env.FRAMEUI_AUDIT_SCROLL_SELECTOR)+')?.scrollIntoView({block:"center"})')
   await win.webContents.executeJavaScript('document.fonts.ready.then(()=>Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))))')
   await win.webContents.insertCSS('*,*::before,*::after{transition:none!important;animation-play-state:paused!important}')

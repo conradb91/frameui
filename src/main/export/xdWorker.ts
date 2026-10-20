@@ -16,19 +16,23 @@ const { request:packedRequest, tempPath, renderedFonts, renderedImages, rendered
 const request=unpackDocument<XdExportRequest>(packedRequest)
 async function run() {
   try {
-    parentPort?.postMessage({stage:'Checking local font references'})
+    parentPort?.postMessage({stage:'Checking local font references',percentage:55})
     const fonts = await localExportFonts()
     const { entries, report } = buildXdDocument(
       request,
-      (stage) => parentPort?.postMessage({ stage }),
+      (stage) => {const match=/Serializing artboard (\d+) of (\d+)/.exec(stage);parentPort?.postMessage({stage:match?`Preparing screen ${match[1]} of ${match[2]}`:stage,percentage:match?60+25*Number(match[1])/Math.max(1,Number(match[2])):60})},
       fonts,
       renderedFonts,
       renderedImages,
       renderedLines,
     )
+    parentPort?.postMessage({stage:'Packaging XD document',percentage:87})
     const archive = createStoredZip(entries)
+    parentPort?.postMessage({stage:'Checking XD document',percentage:91})
     validateXdArchive(archive)
-    await fs.writeFile(tempPath, archive, { flag: 'wx' })
+    const file=await fs.open(tempPath,'wx')
+    try{let written=0;while(written<archive.length){const result=await file.write(archive,written,Math.min(4*1024*1024,archive.length-written),written);if(!result.bytesWritten)throw new Error('XD save stopped before all bytes were written.');written+=result.bytesWritten;parentPort?.postMessage({stage:'Saving XD file',percentage:94+4*written/archive.length})}await file.sync()}finally{await file.close()}
+    parentPort?.postMessage({stage:'Verifying saved file',percentage:99})
     validateXdArchive(await fs.readFile(tempPath))
     parentPort?.postMessage({ report })
   } catch (error) {

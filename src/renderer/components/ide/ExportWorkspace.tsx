@@ -162,11 +162,11 @@ export function ExportWorkspace({
     () =>
       window.frameui.export.onXdProgress((event) => {
         if (event.jobId === xdJob.current)
-          setProgress({
-            current: 0,
+          setProgress(previous=>({
+            current: Math.max(previous.current,event.percentage??previous.current),
             title: event.stage,
-            detail: 'Processing locally. Your FrameUI design is unchanged.',
-          })
+            detail: 'Saving an editable Adobe XD document on this computer.',
+          }))
       }),
     [],
   )
@@ -428,7 +428,7 @@ export function ExportWorkspace({
       >
         <ModalHeader
           eyebrow="Export"
-          title={`Preparing ${format === 'figma' ? 'Figma' : format === 'adobe-xd' ? 'Adobe XD' : format.toUpperCase()} export`}
+          title={format === 'adobe-xd' ? 'Saving Adobe XD file' : `Preparing ${format === 'figma' ? 'Figma' : format.toUpperCase()} export`}
           description="FrameUI is preserving editable design structure and validating the output locally."
           icon={<Download size={17} />}
         />
@@ -445,10 +445,11 @@ export function ExportWorkspace({
             </div>
           </div>
           <ModalProgress
-            label="Preparing export"
+            value={format==='adobe-xd'?progress.current:undefined}
+            label={format==='adobe-xd'?'Saving XD file':'Preparing export'}
             detail={
               format === 'adobe-xd'
-                ? 'Working locally'
+                ? progress.title
                 : `Stage ${progress.current} of ${isPackage ? 4 : 2}`
             }
           />
@@ -470,12 +471,12 @@ export function ExportWorkspace({
       <ModalShell size="standard" variant="completion" onClose={onClose} closeOnBackdrop>
         <ModalHeader
           eyebrow={
-            format === 'adobe-xd' ? 'File saved · compatibility unverified' : 'Export complete'
+            format === 'adobe-xd' ? 'Save complete' : 'Export complete'
           }
-          title={format === 'adobe-xd' ? 'Native .xd file saved' : 'Figma export ready'}
+          title={format === 'adobe-xd' ? 'Adobe XD file saved' : 'Figma export ready'}
           description={
             format === 'adobe-xd'
-              ? 'Native scenegraph and archive checks passed. Opening and editing in Adobe XD remains unverified.'
+              ? 'Your editable Adobe XD document has been saved and checked.'
               : 'Your editable FrameUI design package is ready to import.'
           }
           icon={<Check size={17} />}

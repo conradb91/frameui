@@ -62,7 +62,7 @@ export interface FrameUiApi {
     prepareCapture(input: { url: string; profile?: 'standard' | 'admin' | 'super-admin'; routes: { pattern: string; path: string; name: string }[] }): Promise<{ token: string }>
     discover(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ token: string; routes: CaptureRoute[]; components: number; layouts: number; warnings: string[] }>
     addRoute(token: string, address: string): Promise<CaptureRoute[]>
-    captureCurrentState(guestId: number): Promise<{root: import('./types/runtimeCapture').CapturedElement; metadata:{title:string;heading?:string;width:number;height:number}; thumbnail:string; fonts: NonNullable<VisualPage['fonts']>; url:string; warnings:string[]; structured?: import('./types/structuredDesign').StructuredFrame}>
+    captureCurrentState(guestId: number): Promise<{root: import('./types/runtimeCapture').CapturedElement; metadata:{title:string;heading?:string;width:number;height:number}; thumbnail:string; fullPageScreenshot?:string;canvasPreview?:string; fonts: NonNullable<VisualPage['fonts']>; url:string; warnings:string[]; structured?: import('./types/structuredDesign').StructuredFrame}>
     /** Additive follow-up to `captureCurrentState`: forces hover/focus/active
      * on the caller's already-normalized objects and returns them enriched
      * with variants — the live capture flow's only way to preserve a real
@@ -310,7 +310,7 @@ export interface FrameUiApi {
   export: {
     saveXd(request: import('./types/xdExport').XdExportRequest | string): Promise<import('./types/xdExport').XdExportResult>
     cancelXd(jobId: string): Promise<void>
-    onXdProgress(callback: (event: { jobId: string; stage: string }) => void): () => void
+    onXdProgress(callback: (event: { jobId: string; stage: string; percentage?: number }) => void): () => void
     saveSketch(request: import('./types/sketchExport').SketchExportRequest): Promise<import('./types/sketchExport').SketchExportResult>
     cancelSketch(jobId: string): Promise<void>
     onSketchProgress(listener: (event: {jobId:string;stage:string}) => void): () => void

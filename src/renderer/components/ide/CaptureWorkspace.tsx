@@ -292,7 +292,7 @@ export function CaptureWorkspace({
     setCaptureStage('layout')
     const offStage = window.frameui.design.onCaptureStage(setCaptureStage)
     try {
-      const {root,metadata,thumbnail,fonts,warnings,url: capturedUrl,structured} = await window.frameui.design.captureCurrentState(guest.getWebContentsId())
+      const {root,metadata,thumbnail,fullPageScreenshot,canvasPreview,fonts,warnings,url: capturedUrl,structured} = await window.frameui.design.captureCurrentState(guest.getWebContentsId())
       setCaptureStage('building')
       const url = new URL(capturedUrl)
       const route = url.pathname + url.search + url.hash
@@ -311,12 +311,12 @@ export function CaptureWorkspace({
         id: crypto.randomUUID(), name: capturedName,
         route, authProfile: profile, folder: parent?.folder || 'Application', pinned: false,
         state: capturedState,
-        width: metadata.width, height: Math.max(1,Math.ceil(root.rect.y + root.rect.height)), objects,
+        width: metadata.width, height: structured?.height??Math.max(1,Math.ceil(root.rect.height)), objects,
         // The real, live-canvas-rendered content — `objects` above stays
         // populated regardless (SVG export, the Layers panel, and
         // rendering any page without `structured` all still need it).
         structured,
-        importedObjects: structuredClone(objects), capturedAt: new Date().toISOString(), thumbnail, fonts, captureWarnings: warnings,
+        importedObjects: structuredClone(objects), capturedAt: new Date().toISOString(), thumbnail, fullPageScreenshot,canvasPreview, fonts, captureWarnings: warnings,
       }
       // Any untouched one-page design is still just its generated placeholder.
       // The first real capture replaces it, including when Capture page was

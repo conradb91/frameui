@@ -1197,6 +1197,13 @@ export function DesignIde() {
       setSelectedFrameId(p.id)
     }
   }
+  function deleteCanvasFrame(id:string){
+    if(!doc)return
+    const next=structuredClone(doc)
+    next.pages=next.pages.filter(p=>p.id!==id)
+    if(next.prototype){next.prototype.interactions=next.prototype.interactions.filter(i=>i.sourceArtboardId!==id&&i.destinationId!==id);for(const flow of next.prototype.flows){flow.artboardIds=flow.artboardIds.filter(p=>p!==id);delete flow.positions[id];if(flow.startArtboardId===id)flow.startArtboardId=flow.artboardIds[0]}}
+    change(next);setPageId(next.pages[0]?.id??'');setSelected([]);setSelectedStructured([]);setSelectedFrameId(null)
+  }
   function addFramePreset(name: string, width: number, height: number) {
     if (!doc) return
     const frame = { ...newPage(name), width, height }
@@ -1258,6 +1265,7 @@ export function DesignIde() {
       // (Escape/Cmd-Enter while actually mid-edit never reach this handler
       // at all — the Text `<span>` is `[contenteditable]`, which the very
       // first check in this listener already returns early on.)
+      if((e.key==='Delete'||e.key==='Backspace')&&selectedFrameId){e.preventDefault();deleteCanvasFrame(selectedFrameId);return}
       if (e.key === 'Escape') setSelectedStructured([])
       if (page?.structured && selectedStructured.length) {
         if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -1673,6 +1681,7 @@ export function DesignIde() {
       return
     }
     if (g.kind === 'frame-resize') {
+      if(!g.checkpoint&&Math.abs(dx)*camera.zoom<2&&Math.abs(dy)*camera.zoom<2)return
       if (!g.checkpoint && docRef.current) {
         history.current.push(docRef.current)
         if (history.current.length > 80) history.current.shift()
@@ -3018,11 +3027,7 @@ export function DesignIde() {
                   </button>
                   <button
                     onClick={() => {
-                      change({
-                        ...doc,
-                        pages: doc.pages.filter((p) => p.id !== page.id),
-                      })
-                      setSelected([])
+                      deleteCanvasFrame(page.id)
                     }}
                   >
                     Delete from FrameUI
@@ -3285,7 +3290,7 @@ export function DesignIde() {
                         )}
                       />
                       <rect data-canvas-page-id={frame.page.id} data-canvas-surface={frame.page.id} width={frame.page.width} height={frame.page.height} fill="white" />
-                      {frame.x+frame.page.width < (-camera.x-400)/camera.zoom || frame.y+frame.page.height < (-camera.y-400)/camera.zoom || frame.x > (-camera.x+canvasViewport.width+400)/camera.zoom || frame.y > (-camera.y+canvasViewport.height+400)/camera.zoom ? null : !frame.page.edited&&(frame.page.canvasPreview||frame.page.fullPageScreenshot||frame.page.thumbnail) ? <image data-canvas-preview={frame.page.id} href={frame.page.canvasPreview??frame.page.fullPageScreenshot??frame.page.thumbnail} width={frame.page.width} height={frame.page.height} preserveAspectRatio="xMinYMin slice" pointerEvents="none"/> : canUseStructuredCanvas(frame.page) ? (
+                      {frame.x+frame.page.width < (-camera.x-400)/camera.zoom || frame.y+frame.page.height < (-camera.y-400)/camera.zoom || frame.x > (-camera.x+canvasViewport.width+400)/camera.zoom || frame.y > (-camera.y+canvasViewport.height+400)/camera.zoom ? null : !frame.page.edited&&(frame.page.canvasPreview||frame.page.fullPageScreenshot) ? <image data-canvas-preview={frame.page.id} href={frame.page.canvasPreview??frame.page.fullPageScreenshot??frame.page.thumbnail} width={frame.page.width} height={frame.page.height} preserveAspectRatio="xMinYMin meet" pointerEvents="none"/> : canUseStructuredCanvas(frame.page) ? (
                         <foreignObject x={0} y={0} width={frame.page.width} height={frame.page.height} pointerEvents="none">
                           <StructuredFrameView
                             frame={frame.page.structured!}
@@ -3338,7 +3343,7 @@ export function DesignIde() {
                       fill="white"
                     />
                     {!useStructuredCanvas && <FontDefinitions fonts={page.fonts} />}
-                    {camera.zoom<0.2&&!page.edited&&(page.canvasPreview||page.fullPageScreenshot||page.thumbnail)?<image data-canvas-preview={page.id} href={page.canvasPreview??page.fullPageScreenshot??page.thumbnail} width={page.width} height={page.height} preserveAspectRatio="xMinYMin slice"/>:useStructuredCanvas ? (
+                    {camera.zoom<0.2&&!page.edited&&(page.canvasPreview||page.fullPageScreenshot)?<image data-canvas-preview={page.id} href={page.canvasPreview??page.fullPageScreenshot??page.thumbnail} width={page.width} height={page.height} preserveAspectRatio="xMinYMin meet"/>:useStructuredCanvas ? (
                       // Stage 5 (docs/CAPTURE_ENGINE_REBUILD_SPEC.md): the
                       // canvas stage is an <svg> root (for the existing
                       // pan/zoom/rotate `<g transform>` treatment) — a

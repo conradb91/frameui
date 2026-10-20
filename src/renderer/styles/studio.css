@@ -229,3 +229,15 @@ html[data-platform="mac"] .ide > .ide-top {padding-left:96px;}
 .project-home .ide-brand {display:flex;align-items:center;gap:9px;white-space:nowrap;flex-shrink:0;font-weight:650;}
 .project-home .project-launch-strip {grid-template-columns:repeat(2,minmax(0,1fr));}
 .project-home .prototype-quick-start {border-color:var(--ide-accent);}
+
+/* Keep row metadata and actions in separate layout columns. */
+.project-home .project-cards--list .project-card {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding-right:12px;}
+.project-home .project-cards--list .project-card-open {min-width:0;}
+.project-home .project-cards--list .project-card-copy {min-width:0;flex:1;}
+.project-home .project-cards--list .project-card-actions {position:static;opacity:1;flex-shrink:0;}
+.project-home .project-card-copy>div {min-width:0;}
+.project-home .project-card-copy h3 {min-width:0;flex:1;}
+.project-home .project-card-status {flex-shrink:0;}
+.project-home .project-card-copy footer {flex-wrap:wrap;}
+.project-home .project-card-copy footer>span {white-space:nowrap;}
+.project-home .project-home-status {position:static;max-width:1300px;margin:16px auto;color:var(--ide-muted);}
