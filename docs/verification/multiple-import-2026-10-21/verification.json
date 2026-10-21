@@ -1,0 +1,40 @@
+{
+  "files": [
+    "intro.html",
+    "Safety.zip",
+    "Training.zip"
+  ],
+  "screens": [
+    {
+      "name": "Standalone introduction",
+      "route": "/source-1/intro.html"
+    },
+    {
+      "name": "Safety overview",
+      "route": "/source-2/index.html"
+    },
+    {
+      "name": "Training overview",
+      "route": "/source-3/index.html"
+    },
+    {
+      "name": "Safety expanded",
+      "route": "/__prototype_state_3"
+    },
+    {
+      "name": "Training expanded",
+      "route": "/__prototype_state_4"
+    }
+  ],
+  "flows": 3,
+  "interactions": 2,
+  "coverage": true,
+  "verifiedAt": "2026-10-21T06:57:24.659Z",
+  "testsPassed": 549,
+  "testsFailed": 0,
+  "productionBuild": "passed",
+  "packagedMultiFileImport": "passed",
+  "dmgChecksum": "valid",
+  "freshReviewProfile": "review-1792565748700-557c74b0-3c45-4541-9858-f92a83e0282a",
+  "sha256": "ebcba0ab3540626eff4d1c5c8121e0a802d30ddd7436659b6b8fe2be37f59fe7"
+}

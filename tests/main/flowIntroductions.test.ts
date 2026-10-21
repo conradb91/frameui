@@ -44,7 +44,7 @@ test('flow documentation explains observed controls and results without includin
  expect(steps).toContain('On “search”: Select “View course details” → show “details”.')
  expect(steps).not.toContain('View cart')
  const guide=pages.find(p=>p.flowIntroductionFor===data.flows[0].id)!
- expect(guide.objects.map(o=>o.text).join(' ')).toContain('2. Select “View course details”')
+ expect(guide.objects.map(o=>o.text).join(' ')).toContain('2 observed actions')
  for(let i=1;i<guide.objects.length;i++)expect(guide.objects[i].y).toBeGreaterThanOrEqual(guide.objects[i-1].y+guide.objects[i-1].height)
  expect(guide.height).toBeGreaterThan(guide.objects.at(-1)!.y+guide.objects.at(-1)!.height)
 })
@@ -58,7 +58,7 @@ test('legacy guide upgrade keeps user content and screen positions while avoidin
  expect(upgraded[0]).toBe(home);expect(upgraded[1]).toBe(details)
  const guide=upgraded[2]
  expect(guide.id).toBe('guide');expect(guide.objects.map(o=>o.text).join(' ')).toContain('Select “View details” → open “details”')
- expect(guide.canvasY!+guide.height).toBeLessThanOrEqual(0)
+ expect(guide.canvasY!+guide.height).toBeLessThanOrEqual(another.canvasY!)
  expect(upgradeFlowGuides(upgraded,data)).toBe(upgraded)
  const edited={...legacy,objects:legacy.objects.map((o,i)=>i===2?{...o,text:'My own guide notes'}:o)}
  expect(upgradeFlowGuides([home,details,edited],data)[2]).toBe(edited)

@@ -427,6 +427,7 @@ export function compileStructuredNodes(
     const layout = layoutOf(s)
     const appearance = appearanceOf(s, tag, el.rect.height, el.rect.width)
     const a = el.attributes ?? {}
+    if(a['data-frameui-scroll']){try{const metrics=JSON.parse(a['data-frameui-scroll']);if(['x','y','width','height','contentWidth','contentHeight'].every(key=>typeof metrics[key]==='number'&&Number.isFinite(metrics[key])))appearance.scroll=metrics}catch{/* Ignore incomplete browser metrics. */}}
     if (a.backgroundSrc?.startsWith('data:image/') && appearance.backgroundImage)
       appearance.backgroundImage = appearance.backgroundImage.replace(/url\((?:"[^"]+"|'[^']+'|[^)]*)\)/, `url("${a.backgroundSrc}")`)
     const text = tag === 'frameui-text' ? el.textPreview ?? '' : el.textPreview?.trim()

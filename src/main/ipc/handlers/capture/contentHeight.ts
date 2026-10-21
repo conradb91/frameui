@@ -1,3 +1,4 @@
+import {MATERIALIZE_SCROLL_SCRIPT} from '../../../artifacts/materializePrototypeScroll'
 /** Preserve natural document height, including overflow, without padding short pages to the viewport. */
 export const CONTENT_METRICS_SCRIPT=`(() => {
  const body=document.body,rect=body.getBoundingClientRect(),style=getComputedStyle(body);
@@ -31,5 +32,5 @@ export const PREPARE_ARTIFACT_CONTENT_SCRIPT=`(async () => {
   Promise.allSettled(images.map(img=>img.decode())),
   new Promise(resolve=>setTimeout(resolve,1500))
  ]);
- return images.length;
+ const result=await ${MATERIALIZE_SCROLL_SCRIPT};return result;
 })()`

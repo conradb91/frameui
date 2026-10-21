@@ -103,8 +103,9 @@ export function reconstructSnapshotTree(
   requestedStyles: readonly string[],
   viewport: { width: number; height: number },
   coordinateScale = 1,
+  documentIndex = 0,selectorPrefix = '',
 ): CapturedElement {
-  const doc = snapshot.documents[0]
+  const doc = snapshot.documents[documentIndex]
   if (!doc) return emptyRoot()
   const strings = snapshot.strings
   const str = (index: number | undefined): string =>
@@ -133,6 +134,7 @@ export function reconstructSnapshotTree(
     if (data) for (let k = 0; k < data.index.length; k++) map.set(data.index[k], data.value[k])
     return map
   }
+  const embeddedDocumentOf = rareStringMap(nodes.contentDocumentIndex)
   const shadowRootTypeOf = rareStringMap(nodes.shadowRootType)
   const pseudoTypeOf = rareStringMap(nodes.pseudoType)
   const inputValueOf = rareStringMap(nodes.inputValue)
@@ -339,7 +341,7 @@ export function reconstructSnapshotTree(
       path.unshift(`${tagOf(cursor)}:nth-child(${index})`)
       cursor = parent
     }
-    return `html>${path.join('>')}`
+    return selectorPrefix+`html>${path.join('>')}`
   }
 
   function needsCaptureSelector(tag: string, attrs: Record<string, string>): boolean {
@@ -387,9 +389,17 @@ export function reconstructSnapshotTree(
     for (const [name, value] of Object.entries(attrsAll))
       if (ATTRIBUTE_ALLOWLIST.has(name)) attributes[name] = value
 
-    if (needsCaptureSelector(tag, attrsAll)) attributes.captureSelector = captureSelectorFor(domIndex)
-    if(['onclick','data-tab','data-go','data-cat','data-bs-toggle','data-toggle','aria-controls','aria-expanded'].some(key=>attrsAll[key]!==undefined))attributes['data-frameui-interactive']='true'
+    if (needsCaptureSelector(tag, attrsAll)||attrsAll['data-frameui-selector']) attributes.captureSelector = attrsAll['data-frameui-selector']||captureSelectorFor(domIndex)
+    if(attrsAll['data-frameui-interactive']==='true'||['onclick','data-tab','data-go','data-cat','data-bs-toggle','data-toggle','aria-controls','aria-expanded'].some(key=>attrsAll[key]!==undefined))attributes['data-frameui-interactive']='true'
 
+    if(attrsAll['data-frameui-scroll'])attributes['data-frameui-scroll']=attrsAll['data-frameui-scroll']
+    let capturedTag=tag
+    const embeddedIndex=embeddedDocumentOf.get(domIndex)
+    if(tag==='iframe'&&embeddedIndex!==undefined&&embeddedIndex!==documentIndex){
+      const embedded=snapshot.documents[embeddedIndex],address=str(embedded?.documentURL),parentAddress=str(doc.documentURL)
+      let sameOrigin=false;try{sameOrigin=address==='about:srcdoc'||address==='about:blank'||new URL(address).origin===new URL(parentAddress).origin}catch{/* External frame stays a reported raster fallback. */}
+      if(sameOrigin){const child=reconstructSnapshotTree(snapshot,requestedStyles,{width:rect.width,height:rect.height},coordinateScale,embeddedIndex,(attributes.captureSelector??captureSelectorFor(domIndex))+' ||| ');const dx=rect.x+(parseFloat(styles.borderLeftWidth)||0),dy=rect.y+(parseFloat(styles.borderTopWidth)||0);const shift=(node:CapturedElement)=>{node.rect.x+=dx;node.rect.y+=dy;node.children.forEach(shift)};shift(child);childDescendants.push(child);capturedTag='frameui-embedded';styles.overflow='hidden';styles.overflowX='hidden';styles.overflowY='hidden';attributes['data-frameui-embedded']='true'}
+    }
     const baseURL = str(doc.baseURL) || str(doc.documentURL)
     if (tag === 'a' && attrsAll.href !== undefined) {
       try {
@@ -448,7 +458,7 @@ export function reconstructSnapshotTree(
 
     return [
       {
-        tag,
+        tag:capturedTag,
         id: attrsAll.id || undefined,
         classes: attrsAll.class || undefined,
         attributes,

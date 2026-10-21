@@ -33,6 +33,7 @@ export function executeInteraction(doc: VisualDocument, previous: RuntimeState, 
         s.pageId = id!;
         s.overlays = [];
     } };
+    if(i.capturedView&&i.destinationId){go(i.destinationId);return s}
     switch (i.action) {
         case 'navigate':
             go(i.destinationId);

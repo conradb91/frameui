@@ -1009,7 +1009,7 @@ test('off-canvas source artboards are packed within XD visible bounds without sc
     expect(b.y + b.height).toBeLessThanOrEqual(25000)
   }
   expect(Object.values(resources.artboards).map((b: any) => b.width)).toEqual(d.pages.map((p) => p.width))
-  expect(built.report.warnings.some((w) => w.includes('rearranged'))).toBe(true)
+  expect(built.report.warnings.some((w) => w.includes('Flow groups translated'))).toBe(true)
 })
 
 test('CSS positioned content paints above later zero-index pseudo gradients and native text tracking uses em units', () => {
@@ -1164,4 +1164,20 @@ test('missing exact source faces warn about XD weight and metric substitution',(
  expect(result.report.warnings.some(w=>w.includes('Source font face is not installed: Source Family Medium (SourceFamily-Medium)'))).toBe(true)
  const matched=buildXdDocument({jobId:'installed-face',document:d,scope:'all',includePrototype:false},()=>{},[{family:'Source Family',style:'Medium',postscript:'SourceFamily-Medium'}],measured)
  expect(matched.report.warnings.some(w=>w.includes('Source font face is not installed:'))).toBe(false)
+})
+
+test('XD serializes native flow roots and scroll groups while retaining hidden editable children',()=>{
+ const d=fixture()
+ const child:any={id:'row',name:'Welcome back',type:'Text',parentId:'scroll',children:[],bounds:{x:0,y:400,width:300,height:30},layout:{mode:'free'},appearance:{opacity:1,rotation:0,clip:false},source:{tag:'span'},constraints:{position:'static'},visibility:true,locked:false,typography:{text:'Welcome back',fontFamily:'Arial',fontWeight:'400',fontSize:14,lineHeight:20,letterSpacing:0,textAlign:'left',color:'#000000'}}
+ const group:any={id:'scroll',name:'Scrollable crew',type:'Container',parentId:null,children:[child],bounds:{x:24,y:100,width:342,height:100},layout:{mode:'free'},appearance:{opacity:1,rotation:0,clip:true,clipY:true,scroll:{x:0,y:0,width:342,height:100,contentWidth:342,contentHeight:500}},source:{tag:'div'},constraints:{position:'static'},visibility:true,locked:false}
+ d.pages[0].objects=[]
+ d.pages[0].structured={id:'frame',name:'Frame',width:390,height:844,viewport:'390x844',sourceRoute:'/',children:[group]} as any
+ d.prototype={version:1,flows:[{id:'flow',name:'View crew details',startArtboardId:'first',artboardIds:['first','second'],positions:{},createdAt:d.updatedAt,updatedAt:d.updatedAt}],interactions:[],variables:{},scenarios:[],imports:[]}
+ const b=build(d),all=b.entries.filter(e=>e.path.endsWith('.agc')).flatMap(e=>nodes(JSON.parse(e.data.toString())))
+ const root=all.find(n=>(n.artboard as any)?.meta?.ux?.isFlowRoot)
+ expect((root?.artboard as any).meta.ux.flowName).toBe('View crew details')
+ const scroll=all.find(n=>(n.meta as any)?.ux?.scrollingType==='vertical')
+ expect((scroll?.meta as any).ux.viewportHeight).toBe(100)
+ expect(JSON.stringify(scroll)).toContain('Welcome back')
+ expect(b.report.scrollGroups).toBe(1)
 })

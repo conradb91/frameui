@@ -98,27 +98,25 @@ export function xdCanvasPlacement(pages: CanvasPage[], flows: {id:string;artboar
   if(group.length)groups.push(group)
  }
  for(const p of pages)if(!placed.has(p.id))groups.push([p])
- // Each group is a small shelf composition. Try several widths, keeping the full canvas
- // available to the outer shelves rather than forcing everything into a narrow square.
- const shelf=(items:CanvasPage[],width:number)=>{
-  let x=0,y=0,rowHeight=0,usedWidth=0
-  const positions=new Map<string,Bounds>()
-  for(const p of items){if(x&&x+p.width>width){x=0;y+=rowHeight+gap;rowHeight=0}positions.set(p.id,{x,y,width:p.width,height:p.height});usedWidth=Math.max(usedWidth,x+p.width);x+=p.width+gap;rowHeight=Math.max(rowHeight,p.height)}
-  return {positions,width:usedWidth,height:y+rowHeight}
- }
+ // Translate whole journeys as rigid units. Never reorder screens inside a flow.
+ const units=groups.map(group=>{
+  const items=group.map(p=>[p.id,bounds.get(p.id)!] as const)
+  const x=Math.min(...items.map(([,b])=>b.x)),y=Math.min(...items.map(([,b])=>b.y))
+  const width=Math.max(...items.map(([,b])=>b.x+b.width))-x,height=Math.max(...items.map(([,b])=>b.y+b.height))-y
+  return {width,height,positions:new Map(items.map(([id,b])=>[id,{...b,x:b.x-x,y:b.y-y}]))}
+ })
+ if(units.some(u=>u.width>limit||u.height>limit))throw new Error('A flow exceeds Adobe XD canvas limits. Export a smaller flow; its screen arrangement was not changed.')
  let best: {positions:Map<string,Bounds>;width:number;height:number;score:number}|undefined
- for(const groupWidth of [6000,10000,16000,24000,32000,limit]){
-  const units=groups.map(g=>shelf(g,Math.max(groupWidth,...g.map(p=>p.width))))
-  if(units.some(u=>u.height>limit||u.width>limit))continue
+ for(const shelfWidth of [10000,16000,24000,32000,limit]){
   let x=0,y=0,rowHeight=0,width=0
   const positions=new Map<string,Bounds>()
   for(const unit of units){
-   if(x&&x+unit.width>limit){x=0;y+=rowHeight+gap;rowHeight=0}
+   if(x&&x+unit.width>Math.max(shelfWidth,unit.width)){x=0;y+=rowHeight+gap;rowHeight=0}
    for(const [id,b] of unit.positions)positions.set(id,{...b,x:b.x+x,y:b.y+y})
    width=Math.max(width,x+unit.width);x+=unit.width+gap;rowHeight=Math.max(rowHeight,unit.height)
   }
   const height=y+rowHeight,score=Math.max(width,height)
-  if(height<=limit&&(!best||score<best.score))best={positions,width,height,score}
+  if(width<=limit&&height<=limit&&(!best||score<best.score))best={positions,width,height,score}
  }
  if(!best)throw new Error('The selected flow groups exceed Adobe XD canvas limits. Export fewer flows; dimensions were not scaled.')
  for(const b of best.positions.values()){b.x-=best.width/2;b.y-=best.height/2}

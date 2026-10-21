@@ -1,0 +1,9 @@
+{
+  "discoveryStopMs": 281,
+  "captureStopMs": 123,
+  "slowRequests": 1,
+  "retrySucceeded": true,
+  "backgroundReopen": true,
+  "backgroundCompletionDoesNotNavigate": true,
+  "stoppedImportsPublished": false
+}

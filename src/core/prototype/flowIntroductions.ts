@@ -30,21 +30,21 @@ export function flowSteps(pages: VisualPage[], flow: PrototypeFlow, data?: Proto
 export function flowIntroduction(pages:VisualPage[],flow:PrototypeFlow,index:number,data?:PrototypeData):VisualPage {
  const existing=pages.find(p=>p.flowIntroductionFor===flow.id)
  if(existing)return existing
- const start=pages.find(p=>p.id===flow.startArtboardId)
- const wrap=(value:string,width:number)=>value.trim().split(/\s+/).reduce((lines,word)=>{const last=lines.length-1;if(lines[last]&&lines[last].length+word.length+1>width)lines.push(word);else lines[last]+=(lines[last]?' ':'')+word;return lines},['']).join('\n')
- const objects: VisualPage['objects']=[]
- let y=48
- const text=(name:string,value:string,size:number,weight='400',color='#172b40')=>{
-  const content=wrap(value,size===32?60:96),height=content.split('\n').length*Math.round(size*1.5)
-  objects.push(object('Text',{name,text:content,x:56,y,width:1328,height,fontFamily:'Arial, sans-serif',fontSize:size,fontWeight:weight,lineHeight:Math.round(size*1.5),fill:color}));y+=height+24
+ const start=pages.find(p=>p.id===flow.startArtboardId),width=Math.max(390,Math.min(1440,start?.width??1440)),objects:VisualPage['objects']=[]
+ let y=20
+ const add=(name:string,value:string,size:number,weight='400',maxLines=2)=>{
+  const capacity=Math.max(20,Math.floor((width-56)/(size*.58))),words=value.split(/\s+/),lines=['']
+  for(const word of words){const last=lines.length-1;if(lines[last]&&lines[last].length+word.length+1>capacity)lines.push(word);else lines[last]+=(lines[last]?' ':'')+word}
+  const content=lines.slice(0,maxLines).map(line=>line.length>capacity?line.slice(0,capacity-1)+'…':line).join('\n')+(lines.length>maxLines?'…':''),height=content.split('\n').length*size*1.5
+  objects.push(object('Text',{name,text:content,x:28,y,width:width-56,height,fontFamily:'Arial, sans-serif',fontSize:size,fontWeight:weight,lineHeight:size*1.5,fill:'#172b40'}));y+=height+10
  }
- text('Flow number',`FLOW ${index+1}`,14,'700','#64748b')
- text('Flow title',flow.name,32,'700')
- text('Flow description',`Start on “${start?.name||'the entry screen'}”. Follow the labelled actions below.`,20)
- const steps=[...new Set(flowSteps(pages,flow,data).map(step=>step.replace(/^On “[^”]*”: /,'')))]
- if(steps.length) steps.forEach((step,i)=>text(`Step ${i+1}`,`${i+1}. ${step}`,20))
- else text('Flow notes',flow.description||'No linked actions were captured for this screen. Explore it in the prototype to capture further states.',20)
- return {id:crypto.randomUUID(),flowIntroductionFor:flow.id,name:`Flow ${index+1} · ${flow.name}`,folder:'Flow guides',pinned:false,state:'Flow guide',width:1440,height:Math.max(400,y+32),objects}
+ add('Flow number',`FLOW ${index+1} · ${flow.artboardIds.length} views`,12,'700',1)
+ add('Flow title',flow.name,24,'700')
+ const steps=flowSteps(pages,flow,data),first=steps[0]?.replace(/^On “[^”]*”: /,'')
+ add('Flow description',first||flow.description||`Start on ${start?.name??'the first screen'}.`,14)
+ add('Flow notes',`${steps.length} observed actions · Follow the labelled connections.`,12,'400',2)
+ return {id:crypto.randomUUID(),flowIntroductionFor:flow.id,name:`Flow ${index+1} · ${flow.name}`,folder:'Flow guides',pinned:false,state:'Flow guide',width,height:Math.max(176,y+10),objects}
+
 }
 
 /** Upgrade only untouched legacy generated guides, preserving all actual screen positions. */
@@ -66,24 +66,28 @@ export function upgradeFlowGuides(pages:VisualPage[],data:PrototypeData):VisualP
  return result
 }
 
-/** Each journey gets a white guide followed by its screens, without copying shared screens. */
+/** One compact header per journey. Branch columns and tab lanes use actual screen heights. */
 export function layoutFlowGroups(pages:VisualPage[],data:PrototypeData,originX=0,originY=0,only?:ReadonlySet<string>){
  const real=pages.filter(p=>!p.flowIntroductionFor),byId=new Map(real.map(p=>[p.id,p])),placed=new Set(only?real.filter(p=>!only.has(p.id)).map(p=>p.id):[])
- const column=Math.max(1440,...real.map(p=>p.width||1440))+240
+ const column=Math.max(390,...real.map(p=>p.width||1440))+200
  let band=originY
  for(const [index,flow] of data.flows.entries()){
-  const available=flow.artboardIds.filter(id=>byId.has(id)&&!placed.has(id))
-  if(!available.length)continue
-  const guide=flowIntroduction(pages,flow,index,data),isNew=!pages.includes(guide);if(isNew)pages.push(guide)
-  if(isNew||!only||only.has(guide.id)){guide.canvasX=originX;guide.canvasY=band}
-  const members=new Set(flow.artboardIds),depth=new Map<string,number>(),queue=[flow.startArtboardId??available[0]];depth.set(queue[0],0)
-  while(queue.length){const id=queue.shift()!;for(const edge of data.interactions){if(edge.sourceArtboardId!==id)continue;for(const dest of [edge.destinationId,edge.elseDestinationId])if(dest&&members.has(dest)&&!depth.has(dest)){depth.set(dest,(depth.get(id)??0)+(['open-modal','open-drawer','open-overlay'].includes(edge.action)?0:1));queue.push(dest)}}}
-  const firstDepth=Math.min(...available.map(id=>depth.get(id)??0)),bottoms=new Map<number,number>();let bottom=band+guide.height
-  for(const id of available){const p=byId.get(id)!,level=flow.name.startsWith('Tabs · ')?available.indexOf(id):Math.max(0,(depth.get(id)??0)-firstDepth),y=bottoms.get(level)??band;p.canvasX=originX+(level+1)*column;p.canvasY=y;bottoms.set(level,y+(p.height||1024)+180);bottom=Math.max(bottom,y+(p.height||1024));placed.add(id)}
-  const graphRows=new Map<number,number>()
-  for(const id of flow.artboardIds){const p=byId.get(id),level=depth.get(id)??0,row=graphRows.get(level)??0;graphRows.set(level,row+1);if(p&&(!only||only.has(id)))flow.positions[id]={x:level*340,y:row*300}}
-  band=bottom+400
+  const available=flow.artboardIds.filter(id=>byId.has(id)&&!placed.has(id));if(!available.length)continue
+  const guide=flowIntroduction(pages,flow,index,data);if(!pages.includes(guide))pages.push(guide)
+  if(!only||!pages.includes(guide)||guide.canvasX===undefined){guide.canvasX=originX;guide.canvasY=band}
+  const members=new Set(flow.artboardIds),root=flow.startArtboardId??available[0],depth=new Map([[root,0]]),queue=[root]
+  const links=data.interactions.filter(e=>members.has(e.sourceArtboardId)&&[e.destinationId,e.elseDestinationId].some(id=>id&&members.has(id)))
+  while(queue.length){const id=queue.shift()!;for(const edge of links)if(edge.sourceArtboardId===id)for(const destination of [edge.destinationId,edge.elseDestinationId])if(destination&&members.has(destination)&&!depth.has(destination)){depth.set(destination,depth.get(id)!+(!edge.capturedView&&['open-modal','open-drawer','open-overlay'].includes(edge.action)?0:1));queue.push(destination)}}
+  const tabRoots=[root,...new Set(links.filter(e=>e.kind==='tab'&&e.destinationId!==root).map(e=>e.destinationId!))],owner=new Map<string,string>()
+  if(flow.kind==='tabs'){
+   for(const tab of tabRoots)owner.set(tab,tab)
+   for(const tab of tabRoots){const pending=[tab];while(pending.length){const id=pending.shift()!;for(const edge of links)if(edge.sourceArtboardId===id&&edge.kind!=='tab'&&edge.destinationId&&!owner.has(edge.destinationId)){owner.set(edge.destinationId,tab);pending.push(edge.destinationId)}}}
+  }
+  const offsets=new Map<number,number>(),rows=new Map<number,number>(),screenTop=band+guide.height+80;let bottom=screenTop
+  const ordered=[...available].sort((a,b)=>flow.kind==='tabs'?Number(!tabRoots.includes(a))-Number(!tabRoots.includes(b))||(depth.get(a)??0)-(depth.get(b)??0):(depth.get(a)??0)-(depth.get(b)??0))
+  for(const id of ordered){const p=byId.get(id)!,level=flow.kind==='tabs'?Math.max(0,tabRoots.indexOf(owner.get(id)??root)):depth.get(id)??0,y=offsets.get(level)??screenTop,row=rows.get(level)??0;p.canvasX=originX+level*column;p.canvasY=y;offsets.set(level,y+p.height+140);rows.set(level,row+1);bottom=Math.max(bottom,y+p.height);placed.add(id);flow.positions[id]={x:level*340,y:row*300}}
+  band=bottom+280
  }
  let index=0,rowHeight=0,y=band
- for(const p of real){if(placed.has(p.id))continue;if(index&&index%4===0){y+=rowHeight+180;rowHeight=0}p.canvasX=originX+index%4*column;p.canvasY=y;rowHeight=Math.max(rowHeight,p.height||1024);placed.add(p.id);index++}
+ for(const p of real){if(placed.has(p.id))continue;if(index&&index%4===0){y+=rowHeight+140;rowHeight=0}p.canvasX=originX+index%4*column;p.canvasY=y;rowHeight=Math.max(rowHeight,p.height||1024);placed.add(p.id);index++}
 }

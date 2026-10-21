@@ -1,3 +1,6 @@
+import {PROTOTYPE_INSTRUMENTATION_SCRIPT} from '../../artifacts/prototypePageScripts'
+import type {ReplayStep} from '@shared/artifactDiscovery'
+import type {DiscoveryCheckpoint} from '../../artifacts/explorePrototype'
 import {captureScrolledPageScreenshot} from './capture/scrollScreenshot'
 import {SETTLE_REVEALS_SCRIPT,RESTORE_REVEALS_SCRIPT} from './capture/revealAnimations'
 import {captureCompletenessWarnings} from '../../../core/capture-compiler/completeness'
@@ -6,7 +9,7 @@ import {referenceImage} from './capture/referenceImages'
 import {documentRequest} from '../../design/documentStore'
 import { PREPARE_ARTIFACT_CONTENT_SCRIPT } from './capture/contentHeight'
 import { importSignal, importProject, abortable } from '../../artifacts/importJob'
-import { explorePrototype, replayPrototype } from '../../artifacts/explorePrototype'
+import { explorePrototype, replayPrototype,inspectScript } from '../../artifacts/explorePrototype'
 import { managedPrototypeRoutes, servePrototype } from '../../artifacts/prototypeImport'
 import { runtimeAllowed } from '../../security/runtimePolicy'
 import { enableCaptureMotion } from './cdp/captureMotion'
@@ -199,7 +202,7 @@ let approved: {
   origin: string
   projectId: string
   profile: string
-  artifactSteps?: Record<string,string[]>
+  artifactSteps?: Record<string,ReplayStep[]>
 } | null = null
 let capturing = false
 let captureAbort: AbortController | null = null
@@ -468,13 +471,14 @@ function heightForWidth(width: number): number {
 async function browser(url: string, width = 1440, height = 1000, signal?: AbortSignal, profile = 'standard',project=getActiveProject()) {
   signal?.throwIfAborted()
   if(!runtimeAllowed(app.getPath('userData'),project?.projectId,url))throw new Error('Connect this app address to its project before capturing.')
+  const artifactRuntime=!!project?.rootPath.includes('/artifact-projects/')
   const win = new BrowserWindow({
     show: false,
     useContentSize: true,
     width,
     height,
     webPreferences: {
-      partition: partition(profile,project?.projectId),
+      partition: artifactRuntime?'frameui-artifact-'+crypto.randomUUID():partition(profile,project?.projectId),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -514,6 +518,7 @@ async function browser(url: string, width = 1440, height = 1000, signal?: AbortS
     // design, so the page's accessible reduced-motion layout is the complete
     // representation of those sections.
     await enableCaptureMotion(win.webContents)
+    if(artifactRuntime){await win.webContents.debugger.sendCommand('Page.enable');await win.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument',{source:PROTOTYPE_INSTRUMENTATION_SCRIPT})}
     await abortable(Promise.race([
       win.loadURL(url),
       new Promise<never>((_, reject) =>
@@ -693,7 +698,7 @@ export function registerDesignIdeHandlers() {
   // Source routes are already indexed. Approve only the user-selected paths;
   // do not crawl the whole application before a single-page capture.
   ipcMain.handle('design:discoverArtifact', async (event,raw) => {
-    const {id,width}=z.object({id:z.string().uuid(),width:z.number().int().min(240).max(3840).default(1440)}).parse(typeof raw==='string'?{id:raw}:raw),signal=importSignal(event.sender.id,id)
+    const {id,width,resume}=z.object({id:z.string().uuid(),width:z.number().int().min(240).max(3840).default(1440),resume:z.boolean().optional()}).parse(typeof raw==='string'?{id:raw}:raw),signal=importSignal(event.sender.id,id)
     const active=importProject(event.sender.id,id)
     if(!active.rootPath.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep))throw new Error('Import a local HTML or ZIP prototype first.')
     if(capturing)throw new Error('Wait for capture to finish.')
@@ -703,15 +708,18 @@ export function registerDesignIdeHandlers() {
     try {
       signal.throwIfAborted()
       const url=await servePrototype(active.rootPath)
+      const checkpointPath=path.join(active.rootPath,'frameui-discovery-checkpoint.json')
+      let checkpoint:DiscoveryCheckpoint|undefined
+      if(resume){try{const stored=JSON.parse(await fs.promises.readFile(checkpointPath,'utf8'));if(stored.version===2&&stored.width===width)checkpoint=stored.checkpoint}catch{/* A fresh traversal is safe if the checkpoint is unavailable. */}}
       const result=await abortable(explorePrototype(url,await managedPrototypeRoutes(active.rootPath),address=>browser(address,width,heightForWidth(width),controller.signal,'standard',active),controller.signal,progress=>{
         if(!event.sender.isDestroyed())event.sender.send('project:prototypeImportProgress',{...progress,id,stage:'discover'})
-      }),controller.signal)
+      },{checkpoint,onCheckpoint:async value=>{const temporary=checkpointPath+'.tmp';await fs.promises.writeFile(temporary,JSON.stringify({version:2,width,checkpoint:value}));await fs.promises.rename(temporary,checkpointPath)}}),controller.signal)
       signal.throwIfAborted()
-      await fs.promises.writeFile(path.join(active.rootPath,'frameui-discovery-report.json'),JSON.stringify({createdAt:new Date().toISOString(),scope:'Bounded safe navigation and disclosure exploration',limits:{screens:40,attempts:60,steps:4,controlsPerScreen:32,visualElements:500},queryPolicy:'Sorted query parameters distinguish state; ordinary scroll anchors do not.',deduplication:result.deduplication,warnings:result.warnings},null,2))
+      await fs.promises.writeFile(path.join(active.rootPath,'frameui-discovery-report.json'),JSON.stringify({createdAt:new Date().toISOString(),scope:'Bounded safe navigation and disclosure exploration',limits:result.coverage.limits,coverage:result.coverage,queryPolicy:'Sorted query parameters distinguish state; ordinary scroll anchors do not.',deduplication:result.deduplication,warnings:result.warnings},null,2))
       if(!result.states.length)throw new Error('The prototype did not render a visible interface. Export standalone HTML with its assets, or connect a running app for source-only projects.')
       const routes=result.states.map(state=>({pattern:state.pattern,url:state.url,name:state.name,sources:['runtime' as const]}))
       approved={token:crypto.randomUUID(),routes,origin:new URL(url).origin,projectId:active.projectId,profile:'standard',artifactSteps:Object.fromEntries(result.states.map(s=>[s.pattern,s.steps]))}
-      return {token:approved.token,transitions:result.transitions,warnings:result.warnings,routes}
+      return {token:approved.token,transitions:result.transitions,warnings:result.warnings,routes,coverage:result.coverage}
     }finally{signal.removeEventListener('abort',abort);capturing=false;captureAbort=null;captureOwner=null}
   })
   ipcMain.handle('design:prepareCapture', async (_event, raw) => {
@@ -1094,7 +1102,8 @@ export function registerDesignIdeHandlers() {
                   `This route redirects to ${finalPath}. Capture that destination instead; the redirected screen was not saved as ${r.name}.`,
                 )
               if(plan.artifactSteps?.[r.pattern])await replayPrototype(win.webContents,plan.artifactSteps[r.pattern],signal)
-              if(plan.artifactSteps)await abortable(win.webContents.executeJavaScript(PREPARE_ARTIFACT_CONTENT_SCRIPT),signal)
+              const artifactContentWarnings:string[]=[]
+              if(plan.artifactSteps){const prepared=await abortable(win.webContents.executeJavaScript(PREPARE_ARTIFACT_CONTENT_SCRIPT),signal) as {warnings?:string[]};artifactContentWarnings.push(...prepared.warnings??[]);const observed=await abortable(win.webContents.executeJavaScript(inspectScript),signal) as {reconstructed?:boolean};if(observed.reconstructed)artifactContentWarnings.push('Native select menu reconstructed as editable options from the source control.')}
               await scrollToSettle(win, signal)
               await abortable(win.webContents.executeJavaScript(SETTLE_REVEALS_SCRIPT),signal)
               const fullPageScreenshot = await captureFullPageScreenshot(win, signal)
@@ -1102,7 +1111,7 @@ export function registerDesignIdeHandlers() {
               const domSnapshotStartedAt = performance.now()
               const root = await captureDomSnapshot(win.webContents, { width: viewportWidth, height: viewportHeight }, signal)
               const screenshot = await abortable(win.webContents.capturePage(), AbortSignal.any([signal,AbortSignal.timeout(30000)]))
-              const captureWarnings: string[] = []
+              const captureWarnings: string[] = [...artifactContentWarnings]
               const fonts = await captureResources(win.webContents, root, r.url, signal, imageCache, captureWarnings)
               const objects = normalizeVisual(root, {
                 file: r.source,

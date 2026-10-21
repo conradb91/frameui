@@ -106,7 +106,9 @@ export interface VisualObject {
 export interface VisualPage {
   /** Editable canvas-only explanation for an imported prototype journey. */
   flowIntroductionFor?: string
-  artifactSource?: { path: string; steps: string[] }
+  canonicalStateId?:string
+  flowInstanceFor?:string
+  artifactSource?: { path: string; steps: import('../artifactDiscovery').ReplayStep[] }
   sourceDesign?: { pageId: string; state: string; states: string[]; status: 'ready' | 'partial' | 'unsupported'; generatedData: boolean }
   id: string
   name: string

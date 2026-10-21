@@ -116,8 +116,9 @@ export const CAPTURE_SCRIPT = `
       })
       var classes = typeof el.className === 'string' && el.className ? el.className : undefined
       var attributes = {}; ['src','alt','placeholder','type','viewBox','d','fill','stroke','cx','cy','r','rx','ry','x1','x2','y1','y2','stroke-width','transform','x','y','width','height','points','data-frameui-source','poster'].forEach(function(name) { var value=el.getAttribute(name); if(value !== null) attributes[name]=value });
-      if(el.matches('[onclick],[data-tab],[aria-expanded],[aria-controls]'))attributes['data-frameui-interactive']='true'
-      if(el.matches('button,a,summary,dialog,input,select,textarea,[onclick],[data-tab],[aria-expanded],[aria-controls],[role="tab"],[role="button"],[data-component],[data-frameui-component],iframe,frame')) {
+      if(el.getAttribute('data-frameui-interactive')==='true'||el.matches('[onclick],[data-tab],[aria-expanded],[aria-controls]'))attributes['data-frameui-interactive']='true'
+      if(el.hasAttribute('data-frameui-selector'))attributes.captureSelector=el.getAttribute('data-frameui-selector')
+      if(!attributes.captureSelector&&el.matches('button,a,summary,dialog,input,select,textarea,[onclick],[data-tab],[aria-expanded],[aria-controls],[role="tab"],[role="button"],[data-component],[data-frameui-component],iframe,frame')) {
         var path=[]; var cursor=el;
         while(cursor && cursor.parentElement && cursor!==document.documentElement){
           var index=Array.prototype.indexOf.call(cursor.parentElement.children,cursor)+1

@@ -1,0 +1,25 @@
+{
+  "verifiedAt": "2026-10-21T06:50:34.313Z",
+  "tests": {
+    "passed": 548,
+    "failed": 0
+  },
+  "build": "passed",
+  "packagedHtmlAndZipImport": "passed",
+  "projectReopenAndPrototypePlayback": "passed",
+  "nativeXdWorkerCancellationAndRetry": "passed",
+  "dmgChecksum": "valid",
+  "reviewProfile": "review-1792565353718-db99fef2-57bb-4af5-b6b8-6235741a38f3",
+  "reviewProfileFresh": true,
+  "endToEnd": {
+    "screens": 12,
+    "flows": 1,
+    "connections": 36,
+    "exact": 18,
+    "simulated": 18,
+    "unsupported": 0,
+    "scrollGroups": 6
+  },
+  "adobeXdApplicationValidation": "unverified — Adobe XD is not installed",
+  "sha256": "80f8dd05eb60bfb7d833ee8c0e8f401164f6c894077b95f7ca2ffd8bbc5720f6"
+}

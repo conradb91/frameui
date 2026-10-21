@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import { unpackPrototype, prototypePages, servePrototype } from '../../src/main/artifacts/prototypeImport'
+import { unpackPrototype, unpackPrototypes, managedPrototypeRoutes, stopPrototype, prototypePages, servePrototype } from '../../src/main/artifacts/prototypeImport'
 import { createStoredZip } from '../../src/main/export/storedZip'
 import { artifactFlow } from '../../src/core/prototype/artifactFlow'
 import { prototypeSchema } from '../../src/core/prototype/schema'
@@ -58,4 +58,36 @@ test('ZIP extraction reports file progress and honours cancellation before writi
   expect(updates.length).toBeGreaterThan(0)
   expect(await fs.stat(path.join(root,'out','page-19.html')).catch(()=>null)).toBeNull()
  }finally{await fs.rm(root,{recursive:true,force:true})}
+})
+
+test('multiple HTML and ZIP files retain separate asset roots and sibling HTML links',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'frameui-multiple-prototypes-'))
+ try{
+ const folder=path.join(root,'project'),html=path.join(root,'intro.html'),sibling=path.join(root,'details.html'),first=path.join(root,'first.zip'),second=path.join(root,'second.zip')
+ await fs.writeFile(html,'<h1>Intro</h1><a href="details.html">Details</a>');await fs.writeFile(sibling,'<h1>Details</h1>')
+ for(const [file,name] of [[first,'First'],[second,'Second']])await fs.writeFile(file,createStoredZip([{path:'wrapper/index.html',data:Buffer.from(`<h1>${name}</h1><link rel="stylesheet" href="/assets/theme.css">`)},{path:'wrapper/assets/theme.css',data:Buffer.from(`/* ${name} */`)},{path:'wrapper/settings.html',data:Buffer.from(`<h1>${name} settings</h1>`)}]))
+ await unpackPrototypes([html,sibling,first,second],path.join(folder,'prototype'))
+ const routes=await managedPrototypeRoutes(folder);expect(routes).toHaveLength(6)
+ expect(routes).toContain('/source-1/intro.html');expect(routes).toContain('/source-1/details.html');expect(routes).toContain('/source-2/index.html');expect(routes).toContain('/source-3/index.html')
+ const url=await servePrototype(folder)
+ for(const [prefix,name] of [['source-2','First'],['source-3','Second']]){
+ const home=await fetch(url+prefix+'/index.html');expect(await home.text()).toContain(name)
+ expect(home.headers.get('set-cookie')).toContain('frameui-source='+prefix)
+ const asset=await fetch(url+'assets/theme.css',{headers:{Referer:url+prefix+'/index.html'}});expect(await asset.text()).toContain(name);expect(asset.url).toContain('/'+prefix+'/assets/theme.css')
+ const link=await fetch(url+'settings.html',{headers:{Cookie:'frameui-source='+prefix}});expect(await link.text()).toContain(name+' settings')
+ }
+ expect(await (await fetch(url+'source-1/details.html')).text()).toContain('Details')
+ }finally{await fs.rm(root,{recursive:true,force:true})}
+})
+
+ test('closing a prototype releases its listener and a preserved project can reopen',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'frameui-prototype-close-'))
+ try{await fs.mkdir(path.join(root,'prototype'));await fs.writeFile(path.join(root,'prototype/index.html'),'<h1>Preserved project</h1>');const url=await servePrototype(root);expect((await fetch(url)).ok).toBe(true);stopPrototype(root);await expect(fetch(url)).rejects.toThrow();expect(await fs.readFile(path.join(root,'prototype/index.html'),'utf8')).toContain('Preserved project');const reopened=await servePrototype(root);expect((await fetch(reopened)).ok).toBe(true);stopPrototype(root)}finally{await fs.rm(root,{recursive:true,force:true})}
+})
+
+test('missing captured destinations are reported as failed connections instead of silently complete',()=>{
+ const coverage:any={version:2,complete:true,captured:1,failed:0,entries:[{state:'/a',selector:'button',label:'View',event:'click',status:'captured',destination:'/b'}]}
+ const pages:any[]=[{id:'a',name:'A',route:'/a',width:800,height:600,objects:[],structured:{children:[{id:'button',source:{selector:'button'},children:[]}]}}]
+ const result=artifactFlow(pages,[{source:'/a',destination:'/b',selector:'button',label:'View'}],'Demo',coverage)
+ expect(result.interactions).toHaveLength(0);expect(result.coverage?.complete).toBe(false);expect(result.coverage?.captured).toBe(0);expect(result.coverage?.failed).toBe(1)
 })

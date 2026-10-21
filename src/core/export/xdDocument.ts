@@ -1,3 +1,5 @@
+import {xdPrototype} from './xdPrototype'
+import {isolateImportedFlows} from '../prototype/flowComposition'
 import {embeddedFontResolver} from './embeddedFonts'
 import {iconFontResolver,isIconFontText,type IconFontCache} from './xdIconFonts'
 import { upgradeFlowGuides } from '../prototype/flowIntroductions'
@@ -102,6 +104,7 @@ export function buildXdDocument(
     resolvedCache.set(key, fallback)
     return fallback
   }
+  request={...request,document:isolateImportedFlows(request.document)}
   const sourcePages = request.document.prototype ? upgradeFlowGuides(request.document.pages, request.document.prototype) : request.document.pages
   const selected = sourcePages.filter(
     (p) =>
@@ -1193,6 +1196,12 @@ export function buildXdDocument(
         type: 'group',
         group: { children },
       }
+      const scroll=n.captureAppearance?.scroll
+      if(scroll&&(scroll.contentHeight>scroll.height+2||scroll.contentWidth>scroll.width+2)){
+        const vertical=scroll.contentHeight>scroll.height+2,horizontal=scroll.contentWidth>scroll.width+2
+        group.meta={...(group.meta as Agc??{}),ux:{...((group.meta as Agc|undefined)?.ux as Agc??{}),scrollingType:vertical&&horizontal?'panning':vertical?'vertical':'horizontal',...(vertical?{viewportHeight:n.height,offsetY:0}:{}),...(horizontal?{viewportWidth:n.width,offsetX:0}:{}),nameL10N:'SHAPE_SCROLLABLE_GROUP'}}
+        report.scrollGroups=(report.scrollGroups??0)+1
+      }
       return clipped(group, n, svg?.definitions)
     }
     report.editableVectors++
@@ -1201,13 +1210,14 @@ export function buildXdDocument(
   const artboards: Record<string, unknown> = {}
   const artwork: Agc[] = []
   const placement = xdCanvasPlacement(selected, request.document.prototype?.flows)
-  if (placement.rearranged) warn('Artboards rearranged within Adobe XD canvas limits; original pixel dimensions are preserved.')
+  if (placement.rearranged) warn('Flow groups translated within Adobe XD canvas limits; screen order, relative positions and pixel dimensions are preserved.')
   for (const [index, p] of pages.entries()) {
     progress(`Serializing artboard ${index + 1} of ${pages.length}`)
     const source = selected.find((s) => s.id === p.id)!
     const id = idFor(p.id)
     const bounds = placement.bounds.get(p.id)!
     artboards[id] = { ...bounds, name: p.name }
+    const flowStart=request.document.prototype?.flows.find(flow=>flow.startArtboardId===p.id)
     pageNamespace = p.id
     const interactionTargets = new Set(
       (request.document.prototype?.interactions ?? []).flatMap((interaction) =>
@@ -1238,7 +1248,7 @@ export function buildXdDocument(
             },
             artboard: {
               children: nativeChildren,
-              meta: { ux: { path: id } },
+              meta: { ux: { path: id,...(flowStart?{isFlowRoot:true,flowName:flowStart.name}:{}) } },
               ref: id,
             },
           },
@@ -1296,43 +1306,9 @@ export function buildXdDocument(
       artboards,
     }),
   )
-  const interactions: Record<string, Agc[]> = {}
-  if (request.includePrototype)
-    for (const interaction of request.document.prototype?.interactions ?? []) {
-      if (!selected.some((p) => p.id === interaction.sourceArtboardId)) continue
-      const sourceId = interaction.sourceElementId
-        ? idFor(interaction.sourceArtboardId + ':' + interaction.sourceElementId)
-        : idFor(interaction.sourceArtboardId)
-      const append = (action: Agc) => {
-        const sourceActions = (interactions[sourceId] ??= [])
-        sourceActions.push({
-          ...action,
-          id: idFor(interaction.id),
-          triggerEvent: 'tap',
-        })
-      }
-      if (interaction.trigger !== 'click') {
-        warn(`Unsupported prototype trigger: ${interaction.trigger}`)
-        continue
-      }
-      if (
-        interaction.action === 'navigate' &&
-        selected.some((p) => p.id === interaction.destinationId)
-      )
-        append({
-          action: 'artboard-transition',
-          properties: {
-            destination: idFor(interaction.destinationId!),
-            transition: interaction.transition === 'fade' ? 'dissolve' : 'none',
-            duration: interaction.transition === 'fade' ? 0.3 : 0,
-            easing: 'ease-out',
-            preserveScrollPosition: false,
-          },
-        })
-      else if (interaction.action === 'back')
-        append({ action: 'previous-artboard', properties: {} })
-      else warn(`Prototype action requires reconnecting in Adobe XD: ${interaction.action}`)
-    }
+  const compiledPrototype=request.includePrototype?xdPrototype(request.document,selected,idFor,warn):undefined
+  const interactions=compiledPrototype?.interactions??{}
+  report.prototype=compiledPrototype?.report
   entries.push(
     jsonEntry('interactions/interactions.json', {
       version: '0.24',

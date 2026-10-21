@@ -62,7 +62,8 @@ const structuredAppearanceSchema = z.object({
   backdropFilter: z.string().optional(),
   mixBlendMode: z.string().optional(),
   isolation: z.string().optional(),
-  overflowClipMargin: z.string().optional(),
+  scroll:z.object({x:z.number(),y:z.number(),width:z.number(),height:z.number(),contentWidth:z.number(),contentHeight:z.number()}).optional(),
+    overflowClipMargin: z.string().optional(),
 
   objectPosition: z.string().optional(),
   border: z.object({ width: finite, style: z.string().optional(), color: z.string().optional() }).optional(),

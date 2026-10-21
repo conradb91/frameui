@@ -1,0 +1,349 @@
+{
+  "source": "/Users/leadsprint/Desktop/Frame UI/docs/verification/prototype-engine-2026-10-21/interaction-fixture.html",
+  "output": "/Users/leadsprint/Desktop/Frame UI/docs/verification/prototype-engine-2026-10-21/crew-flows.xd",
+  "screens": 12,
+  "guides": 1,
+  "observedConnections": 36,
+  "discoveryWarnings": [],
+  "export": {
+    "format": "xd",
+    "structuralValidation": "passed",
+    "applicationValidation": "unverified",
+    "artboards": 13,
+    "layers": 1216,
+    "editableText": 610,
+    "editableVectors": 0,
+    "images": 0,
+    "components": 0,
+    "linkedInstances": 0,
+    "clippingMasks": 18,
+    "nativeEffects": 480,
+    "warnings": [
+      "Adobe XD open, edit, save and reopen validation has not been performed. Fonts must be installed on the receiving computer.",
+      "Imported HTML interactions represent captured states and observed click connections. JavaScript execution, data filtering, file generation and other HTML runtime behaviour are not embedded in Adobe XD.",
+      "Simulated interaction: View crew · The captured complete view is shown as a linked artboard.",
+      "Simulated interaction: Close details · The captured complete view is shown as a linked artboard.",
+      "Simulated interaction: Dismiss Crew details · key is represented by a tap to its captured outcome."
+    ],
+    "scrollGroups": 6,
+    "prototype": {
+      "exact": 18,
+      "simulated": 18,
+      "unsupported": 0,
+      "details": [
+        {
+          "id": "2904e178-7df8-41b3-be12-1d3c94bd09e5",
+          "source": "363480ea-6f24-48e3-ac34-57da1d760f5d",
+          "destination": "afce8b75-68d1-4e44-a77a-ee857f00974d",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "33dd3f22-8952-452a-b84a-42b430d4a8b6",
+          "source": "363480ea-6f24-48e3-ac34-57da1d760f5d",
+          "destination": "496ea57a-cefc-4a2a-8e98-8a14494e47bf",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "0f287050-a415-4ef9-a957-2b41b4c74438",
+          "source": "363480ea-6f24-48e3-ac34-57da1d760f5d",
+          "destination": "3f1bd4e0-3248-40d2-b225-e35c09c69cbb",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "5c94ba5f-aa58-4381-b82f-6b2810e60137",
+          "source": "363480ea-6f24-48e3-ac34-57da1d760f5d",
+          "destination": "5776143f-09ff-4bb3-bed2-d4879b48eea3",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "db3b06e2-b989-4e8d-b3e9-7bc3974bf0fd",
+          "source": "afce8b75-68d1-4e44-a77a-ee857f00974d",
+          "destination": "363480ea-6f24-48e3-ac34-57da1d760f5d",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "5c7a8ec0-2842-4e6a-be2f-26a4ae850371",
+          "source": "afce8b75-68d1-4e44-a77a-ee857f00974d",
+          "destination": "496ea57a-cefc-4a2a-8e98-8a14494e47bf",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "c05d4a43-3a69-4579-a75f-748fdae363f6",
+          "source": "afce8b75-68d1-4e44-a77a-ee857f00974d",
+          "destination": "75025e4e-e456-4b11-b25c-c704b77995ca",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "59713187-76b7-4633-895b-291f69180ee3",
+          "source": "afce8b75-68d1-4e44-a77a-ee857f00974d",
+          "destination": "da0e472c-14b9-42ec-b55f-779096209294",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "f734a646-4f7e-41a1-9c40-b276d2076aac",
+          "source": "496ea57a-cefc-4a2a-8e98-8a14494e47bf",
+          "destination": "363480ea-6f24-48e3-ac34-57da1d760f5d",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "0a838719-db9e-45d5-b1cf-5bdf82f2a829",
+          "source": "496ea57a-cefc-4a2a-8e98-8a14494e47bf",
+          "destination": "afce8b75-68d1-4e44-a77a-ee857f00974d",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "4241156f-607c-4c2a-a924-bc474b7723cb",
+          "source": "496ea57a-cefc-4a2a-8e98-8a14494e47bf",
+          "destination": "d5eb573f-198b-4b52-a98b-6ade35fe2092",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "96cd06eb-1c9a-4bcb-8d56-38f710725ecb",
+          "source": "496ea57a-cefc-4a2a-8e98-8a14494e47bf",
+          "destination": "29c8203f-13c8-4566-995d-6960314ae5a6",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "0d473f12-be6d-441d-8dad-3ed5e1aa974a",
+          "source": "3f1bd4e0-3248-40d2-b225-e35c09c69cbb",
+          "destination": "75025e4e-e456-4b11-b25c-c704b77995ca",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "88fc361b-3297-4680-bbb2-c16637633145",
+          "source": "3f1bd4e0-3248-40d2-b225-e35c09c69cbb",
+          "destination": "d5eb573f-198b-4b52-a98b-6ade35fe2092",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "9885b3df-e7cd-4193-a97f-1b002d392c2b",
+          "source": "3f1bd4e0-3248-40d2-b225-e35c09c69cbb",
+          "destination": "363480ea-6f24-48e3-ac34-57da1d760f5d",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "92a50b7a-71bf-40ce-8964-c596561c2b7c",
+          "source": "3f1bd4e0-3248-40d2-b225-e35c09c69cbb",
+          "destination": "c1b29481-f91d-4919-98d6-d0976916c27b",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "3dfa306e-61a2-4182-bee1-ac7eb4cecda1",
+          "source": "5776143f-09ff-4bb3-bed2-d4879b48eea3",
+          "destination": "363480ea-6f24-48e3-ac34-57da1d760f5d",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "7fde79ac-74c4-4500-9d6a-578e24415441",
+          "source": "75025e4e-e456-4b11-b25c-c704b77995ca",
+          "destination": "3f1bd4e0-3248-40d2-b225-e35c09c69cbb",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "7169eaf4-a5a8-412d-b027-86c3d7a93ed7",
+          "source": "75025e4e-e456-4b11-b25c-c704b77995ca",
+          "destination": "d5eb573f-198b-4b52-a98b-6ade35fe2092",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "9da7317b-c061-4dac-afbe-2ff2d9e56660",
+          "source": "75025e4e-e456-4b11-b25c-c704b77995ca",
+          "destination": "afce8b75-68d1-4e44-a77a-ee857f00974d",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "7ceb9568-5f96-4dde-858c-c8e42def2ff6",
+          "source": "75025e4e-e456-4b11-b25c-c704b77995ca",
+          "destination": "98de3711-ace5-469a-a2d5-4c612b5c4b15",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "8f823616-7137-457a-9080-f338e9ba3857",
+          "source": "da0e472c-14b9-42ec-b55f-779096209294",
+          "destination": "afce8b75-68d1-4e44-a77a-ee857f00974d",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "c56e2301-eddf-497b-88fc-db7e9f740bfd",
+          "source": "d5eb573f-198b-4b52-a98b-6ade35fe2092",
+          "destination": "3f1bd4e0-3248-40d2-b225-e35c09c69cbb",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "36f90da7-56fb-498f-9428-09222e895ad7",
+          "source": "d5eb573f-198b-4b52-a98b-6ade35fe2092",
+          "destination": "75025e4e-e456-4b11-b25c-c704b77995ca",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "a13db89c-0150-4bd1-b5c6-af620c9e8413",
+          "source": "d5eb573f-198b-4b52-a98b-6ade35fe2092",
+          "destination": "496ea57a-cefc-4a2a-8e98-8a14494e47bf",
+          "trigger": "click",
+          "status": "exact",
+          "reason": ""
+        },
+        {
+          "id": "7bb2fda5-760c-4890-a47a-38fafd362cda",
+          "source": "d5eb573f-198b-4b52-a98b-6ade35fe2092",
+          "destination": "e89f9e31-65b8-4aa2-911d-c3be76a71664",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "7ff702e5-6ef9-48b9-9bf9-8a2a8dc6777a",
+          "source": "29c8203f-13c8-4566-995d-6960314ae5a6",
+          "destination": "496ea57a-cefc-4a2a-8e98-8a14494e47bf",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "03df8833-cdbe-47d5-8de3-87fc7ad146a2",
+          "source": "c1b29481-f91d-4919-98d6-d0976916c27b",
+          "destination": "3f1bd4e0-3248-40d2-b225-e35c09c69cbb",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "2fc8671d-944b-4924-ab26-e18540da6316",
+          "source": "98de3711-ace5-469a-a2d5-4c612b5c4b15",
+          "destination": "75025e4e-e456-4b11-b25c-c704b77995ca",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "426c18f4-f328-42c4-b172-9a8d0a503079",
+          "source": "e89f9e31-65b8-4aa2-911d-c3be76a71664",
+          "destination": "d5eb573f-198b-4b52-a98b-6ade35fe2092",
+          "trigger": "click",
+          "status": "simulated",
+          "reason": "The captured complete view is shown as a linked artboard."
+        },
+        {
+          "id": "8d410c67-e17d-4c93-b45a-b87cd50af396",
+          "source": "5776143f-09ff-4bb3-bed2-d4879b48eea3",
+          "destination": "363480ea-6f24-48e3-ac34-57da1d760f5d",
+          "trigger": "key",
+          "status": "simulated",
+          "reason": "key is represented by a tap to its captured outcome."
+        },
+        {
+          "id": "25a8d70c-8d81-4fcc-a258-9ad675a00c9b",
+          "source": "da0e472c-14b9-42ec-b55f-779096209294",
+          "destination": "afce8b75-68d1-4e44-a77a-ee857f00974d",
+          "trigger": "key",
+          "status": "simulated",
+          "reason": "key is represented by a tap to its captured outcome."
+        },
+        {
+          "id": "a092f89c-04b1-4b16-b2d9-6674cd5c8a88",
+          "source": "29c8203f-13c8-4566-995d-6960314ae5a6",
+          "destination": "496ea57a-cefc-4a2a-8e98-8a14494e47bf",
+          "trigger": "key",
+          "status": "simulated",
+          "reason": "key is represented by a tap to its captured outcome."
+        },
+        {
+          "id": "501c0a0c-36af-479c-8706-1daac6d7e94f",
+          "source": "c1b29481-f91d-4919-98d6-d0976916c27b",
+          "destination": "3f1bd4e0-3248-40d2-b225-e35c09c69cbb",
+          "trigger": "key",
+          "status": "simulated",
+          "reason": "key is represented by a tap to its captured outcome."
+        },
+        {
+          "id": "f056e477-bfff-4ba5-8b75-1222ee3354e1",
+          "source": "98de3711-ace5-469a-a2d5-4c612b5c4b15",
+          "destination": "75025e4e-e456-4b11-b25c-c704b77995ca",
+          "trigger": "key",
+          "status": "simulated",
+          "reason": "key is represented by a tap to its captured outcome."
+        },
+        {
+          "id": "5dce410d-25e9-4355-afb6-d30c58d01305",
+          "source": "e89f9e31-65b8-4aa2-911d-c3be76a71664",
+          "destination": "d5eb573f-198b-4b52-a98b-6ade35fe2092",
+          "trigger": "key",
+          "status": "simulated",
+          "reason": "key is represented by a tap to its captured outcome."
+        }
+      ],
+      "flows": [
+        {
+          "id": "78a32ee8-af91-4ad9-99d9-d3ab7bf3c231",
+          "name": "Crew readiness",
+          "start": "ecaa0e34-8c9f-4c26-ac89-c155305aa164",
+          "artboards": [
+            "ecaa0e34-8c9f-4c26-ac89-c155305aa164",
+            "dd401f8e-ec32-4686-a3fd-e467c4f145ea",
+            "b0cee0fb-ad5e-4f68-ae31-b08b304e8d38",
+            "f24972f0-1b24-4584-a62b-2f59f382f46a",
+            "b5e49719-ad76-4553-aa8b-33360a1223df",
+            "697bdcb8-495f-45bd-a60a-a832e31338cd",
+            "7ec528be-8788-4fad-aa12-4ad85b4eda86",
+            "d064f9cd-3b12-402f-a6a8-2a821aa46c19",
+            "54fde9b2-7ff1-43de-a2eb-935b81217e29",
+            "9d12a160-c300-4242-a5f5-61302f174327",
+            "6154270b-6f64-46d0-a141-817f129c1b0e",
+            "364dc464-c060-4995-aa7c-3a997fe2eb18"
+          ]
+        }
+      ],
+      "ready": false,
+      "status": "application-validation-required"
+    }
+  },
+  "temporaryDesign": "/var/folders/90/gc1n68853tjdwz7gdsdnbvlm0000gn/T/frameui-html-xd-1VStj6/design.json"
+}

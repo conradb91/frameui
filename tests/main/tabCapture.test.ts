@@ -65,3 +65,27 @@ test('exploration connects every tab back to its active screen without duplicate
  expect(result.warnings).toEqual([])
  }finally{await browser.close();server.stop()}
 },30000)
+
+test('virtualized rows are harvested without changing the visible scroll viewport',async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true})
+ try{
+ const page=await browser.newPage()
+ await page.setContent(`<style>*{box-sizing:border-box}#viewport{width:400px;height:120px;overflow:auto}#rows{position:relative;height:1200px}.row{position:absolute;width:400px;height:30px;background:white;border-bottom:1px solid #eee}</style><div id="viewport"><div id="rows" role="rowgroup"></div></div><script>const v=document.querySelector('#viewport'),b=document.querySelector('#rows');function render(){const start=Math.floor(v.scrollTop/30);b.innerHTML=Array.from({length:Math.min(6,40-start)},(_,i)=>'<div class="row" role="row" aria-rowindex="'+(start+i)+'" style="top:'+((start+i)*30)+'px">Member '+(start+i)+'</div>').join('')}v.addEventListener('scroll',render);render()</script>`)
+ const before=await page.locator('#viewport').screenshot()
+ const result:any=await page.evaluate(PREPARE_ARTIFACT_CONTENT_SCRIPT)
+ expect(result.regions[0]).toMatchObject({rows:40,complete:true})
+ expect(await page.locator('[role="row"]').count()).toBe(40)
+ expect(await page.locator('#viewport').evaluate(el=>({height:el.clientHeight,top:el.scrollTop}))).toEqual({height:120,top:0})
+ expect(await page.locator('#viewport').screenshot()).toEqual(before)
+ const root:any=await page.evaluate(CAPTURE_SCRIPT)
+ expect(JSON.stringify(compileStructuredNodes(root))).toContain('Member 39')
+ }finally{await browser.close()}
+},30000)
+
+test('independent flows clone shared screens and keep every connection inside its own flow',()=>{
+ const pages:any[]=['home','details','settings'].map(id=>({id,name:id,route:'/'+id,width:800,height:600,objects:[],structured:{children:['view','settings','back'].map(k=>({id:id+k,source:{selector:k},children:[]}))}}))
+ const data=artifactFlow(pages,[{source:'/home',destination:'/details',selector:'view',label:'View details'},{source:'/home',destination:'/settings',selector:'settings',label:'Open settings'},{source:'/details',destination:'/home',selector:'back',label:'Close details'},{source:'/settings',destination:'/home',selector:'back',label:'Close settings'}],'Project')
+ expect(data.flows).toHaveLength(2)
+ expect(data.flows[0].artboardIds.every(id=>!data.flows[1].artboardIds.includes(id))).toBe(true)
+ for(const edge of data.interactions){const owner=data.flows.find(flow=>flow.artboardIds.includes(edge.sourceArtboardId))!;expect(owner.artboardIds).toContain(edge.destinationId!)}
+})

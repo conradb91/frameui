@@ -1,3 +1,4 @@
+import {isolateImportedFlows} from '@core/prototype/flowComposition'
 import {capturePages} from '../../lib/capturePages'
 import { upgradeFlowGuides } from '../../../core/prototype/flowIntroductions'
 import {ArtifactImportModal,ArtifactImportBackground,type ArtifactImportStatus} from './ArtifactImportModal'
@@ -904,6 +905,7 @@ export function DesignIde() {
   }
   const projectActivation=useRef<Promise<unknown>>(Promise.resolve())
   function open(next: VisualDocument) {
+    next=isolateImportedFlows(next)
     if(next.projectId){
       const id=next.id
       projectActivation.current=window.frameui.project.activate(next.projectId).then(({url})=>{
@@ -975,17 +977,18 @@ export function DesignIde() {
   }
   const [starterKind,setStarterKind]=useState<'repository'|'application'|'prototype'|'blank'|null>(null)
   const [starterName,setStarterName]=useState(''),[starterBusy,setStarterBusy]=useState(false),[starterError,setStarterError]=useState('')
+  const [starterFiles,setStarterFiles]=useState<string[]>([])
   const [starterLocation,setStarterLocation]=useState(''),[starterDesignName,setStarterDesignName]=useState('')
-  async function selectStarterLocation(){if(!starterKind)return;try{const selected=await window.frameui.project.selectStarterLocation(starterKind);if(selected)setStarterLocation(selected)}catch(error){setStarterError(userFacingError(error))}}
+  async function selectStarterLocation(){if(!starterKind)return;try{const selected=await window.frameui.project.selectStarterLocation(starterKind);if(selected){if(Array.isArray(selected)){setStarterFiles(selected);setStarterLocation(selected[0]??'')}else setStarterLocation(selected)}}catch(error){setStarterError(userFacingError(error))}}
   const [starterProject,setStarterProject]=useState<RecentProject|null>(null)
-  function startProject(kind:'repository'|'application'|'prototype'|'blank'){setStarterName('');setStarterDesignName('');setStarterLocation('');setStarterError('');setStarterKind(kind);setStarterProject(null)}
+  function startProject(kind:'repository'|'application'|'prototype'|'blank'){setStarterName('');setStarterDesignName('');setStarterLocation('');setStarterFiles([]);setStarterError('');setStarterKind(kind);setStarterProject(null)}
   async function createStarterProject(){
     if(!starterKind||!starterName.trim()||starterBusy||starterKind==='prototype'&&(!starterLocation||!starterDesignName.trim()))return
     setStarterBusy(true);setStarterError('')
     try{
       const project=await window.frameui.project.createStarterProject(starterName.trim(),starterKind,starterKind==='prototype'?undefined:starterLocation||undefined)
       setStarterProject(project);setStarterKind(null)
-      if(starterKind==='prototype')void importClaudePrototype(artifactWidth,project,starterLocation,starterDesignName.trim())
+      if(starterKind==='prototype')void importClaudePrototype(artifactWidth,project,starterFiles,starterDesignName.trim())
       else if(starterKind==='application'){setConnectAppError('');setConnectAppOpen(true)}
       else if(starterKind==='repository')await openProject(undefined,project.id)
       else {const library=buildProjectDocument(project,null,project.name,'');save(library);const next=newDocument(project.name);next.projectId=project.id;next.libraryId=library.id;open(next);save(next)}
@@ -1008,7 +1011,7 @@ export function DesignIde() {
     void window.frameui.project.cancelPrototypeImport(job.id).catch(()=>{})
     job.stop()
   }
-  async function importClaudePrototype(width:1440|1920,project:RecentProject,file:string,designName:string){
+  async function importClaudePrototype(width:1440|1920,project:RecentProject,file:string|string[],designName:string,resume=false){
     setArtifactWidth(width)
     if(artifactJob.current)return
     const id=crypto.randomUUID(),startedAt=Date.now()
@@ -1018,7 +1021,7 @@ export function DesignIde() {
     artifactJob.current=job
     const wait=<T,>(work:Promise<T>)=>Promise.race([work,stopped])
     showArtifactProgress();setArtifactReady(null)
-    setError('');setArtifactStartedAt(startedAt);setArtifactProgress({file:file.split(/[\\/]/).pop(),detail:'Reading your selected prototype…'});setArtifactImportStage('Stage 1 of 4 · Reading prototype files')
+    setError('');setArtifactStartedAt(startedAt);setArtifactProgress({file:(Array.isArray(file)?file:[file]).map(path=>path.split(/[\\/]/).pop()).join(', '),detail:'Reading your selected prototype…'});setArtifactImportStage('Stage 1 of 4 · Reading prototype files')
     const unsubscribeImport=window.frameui.project.onPrototypeImportProgress(progress=>{
       if(progress.id!==id||job.cancelled)return
       setArtifactImportStage(progress.stage==='extract'?'Stage 1 of 4 · Reading prototype files':'Stage 2 of 4 · Discovering screens and connections')
@@ -1030,13 +1033,14 @@ export function DesignIde() {
       setArtifactProgress(previous=>({...previous,value:progress.total?progress.completed/progress.total*100:undefined,completed:progress.completed,total:progress.total,...(progress.thumbnail?{preview:progress.thumbnail,previewName:progress.name}:{}),detail:`${progress.completed} of ${progress.total} screens · ${progress.status==='Failed'?'Could not capture':progress.status==='Complete'?'Captured':'Capturing'} ${progress.name}`}))
     })
     try{
-      const result=await wait(window.frameui.project.importPrototype(id,project.id,file))
+      const result=await wait(resume?window.frameui.project.resumePrototypeImport(id,project.id):window.frameui.project.importPrototype(id,project.id,file))
       if(!result)return
-      const library=buildProjectDocument(result.project,null,result.project.name,result.url)
+      const previousLibrary=resume&&docRef.current?.libraryId?await window.frameui.design.load(docRef.current.libraryId):null
+      const library=previousLibrary??buildProjectDocument(result.project,null,result.project.name,result.url)
       save(library)
       setArtifactImportStage('Stage 2 of 4 · Discovering screens and connections')
       setArtifactProgress(previous=>({...previous,value:undefined,detail:'Opening the prototype and checking its controls…'}))
-      const plan=await wait(window.frameui.design.discoverArtifact(id,width))
+      const plan=await wait(window.frameui.design.discoverArtifact(id,width,resume))
       setArtifactImportStage('Stage 3 of 4 · Creating editable screens')
       setArtifactProgress(previous=>({...previous,value:0,detail:`Preparing ${plan.routes.length} screens`,screens:plan.routes.length,connections:plan.transitions.length}))
       const pages=await wait(capturePages({token:plan.token,artifactImportId:id,widths:[width],unchanged:[]}))
@@ -1046,7 +1050,11 @@ export function DesignIde() {
       const design=newDocument(designName)
       design.projectId=result.project.id;design.libraryId=library.id;design.appUrl=result.url
       const capturedScreens=pages.length
-      design.pages=pages;design.prototype=artifactFlow(pages,plan.transitions,result.project.name)
+      for(const route of plan.routes)if(!pages.some(page=>page.route===route.pattern)){
+        plan.coverage.entries.push({state:route.pattern,selector:'',label:route.name,event:'capture',status:'failed',reason:'This discovered screen could not be captured. Retry it in Capture.'})
+        plan.coverage.complete=false
+      }
+      design.pages=pages;design.prototype=artifactFlow(pages,plan.transitions,result.project.name,plan.coverage)
       const warnings=[...new Set([...plan.warnings,...pages.flatMap(page=>page.captureWarnings??[]),...(capturedScreens<plan.routes.length?['Some screens could not be captured. Open Capture page to retry them.']:[])])]
       if(warnings.length)design.pages[0].captureWarnings=[...(design.pages[0].captureWarnings??[]),...warnings]
       save({...library,pages:structuredClone(design.pages),updatedAt:new Date().toISOString()})
@@ -1055,12 +1063,16 @@ export function DesignIde() {
       setArtifactProgress(previous=>({...previous,value:undefined,detail:'Saving editable screens and flow guides…'}))
       await saveQueue.current
       if(saveError.current){open(design);throw new Error('The imported design is still open but has not been saved. Use Save to retry.')}
-      const summary=`${warnings.length?'Partial discovery':'Import complete'} · ${capturedScreens} of ${plan.routes.length} discovered screens captured · ${design.prototype.interactions.length} connections · Desktop (${width} px)`
+      const summary=`${plan.coverage.complete?'Import complete':'Discovery needs review'} · ${capturedScreens} of ${plan.routes.length} discovered screens captured · ${design.prototype.interactions.length} connections · Desktop (${width} px)`
       setStatus(`Imported ${capturedScreens} ${capturedScreens===1?'screen':'screens'}${warnings.length?' · Review notes':''}`)
       if(artifactHiddenRef.current)setArtifactReady({id:design.id,name:design.name,summary,notes:warnings})
       else{open(design);fitAllAfterCapture.current=true;setArtifactSummary({title:summary,notes:warnings})}
     }catch(error){if(job.cancelled)setStatus('Import stopped');else setError(error instanceof Error?error.message:String(error))}
     finally{unsubscribe();unsubscribeImport();artifactJob.current=null;setArtifactImportStage('');void window.frameui.project.finishPrototypeImport(id).catch(()=>{});void window.frameui.project.listLibrary().then(setProjectLibrary).catch(()=>{})}
+  }
+  async function continueArtifactDiscovery(){
+    const current=docRef.current;if(!current?.projectId||artifactJob.current)return
+    try{const projects=await window.frameui.project.listLibrary(),project=projects.find(p=>p.id===current.projectId);if(!project)throw new Error('The imported project is unavailable.');const width=current.pages.find(p=>!p.flowIntroductionFor)?.width===1920?1920:1440;await importClaudePrototype(width,project,'',current.name+' · Continued',true)}catch(error){setError(userFacingError(error))}
   }
   async function connectRunningApp(){
     setConnectingApp(true);setConnectAppError('')
@@ -2586,13 +2598,13 @@ export function DesignIde() {
           onGettingStarted={openFirstRunOnboarding}
         />
         {starterKind&&<ModalShell size="compact" className="starter-project-modal" ariaLabel="Create project" critical={starterBusy} onClose={()=>setStarterKind(null)}>
-          <ModalHeader title="Create your project" description={starterKind==='prototype'?'Name your project and design, select your HTML or ZIP, and choose the screen width.':'Name your project and choose where to save it.'} onClose={()=>setStarterKind(null)}/>
+          <ModalHeader title="Create your project" description={starterKind==='prototype'?'Name your project and design, select your HTML or ZIP files, and choose the screen width.':'Name your project and choose where to save it.'} onClose={()=>setStarterKind(null)}/>
           <ModalBody>
             <ModalField label="Project name"><input autoFocus aria-label="Project name" maxLength={120} value={starterName} disabled={starterBusy} placeholder="e.g. One Glance Audit" onChange={e=>setStarterName(e.target.value)}/></ModalField>
             {starterKind==='prototype'&&<ModalField label="Design name"><input aria-label="Design name" maxLength={120} value={starterDesignName} disabled={starterBusy} placeholder="e.g. Crew readiness dashboard" onChange={e=>setStarterDesignName(e.target.value)}/></ModalField>}
-            <div className="starter-location"><strong>{starterKind==='prototype'?'Select your file to import · ZIP or HTML':'Project location'}</strong><div><span title={starterLocation}>{(starterKind==='prototype'?starterLocation.split(/[\\/]/).pop():starterLocation)||(starterKind==='prototype'?'No file selected':'FrameUI project folder')}</span><button disabled={starterBusy} onClick={()=>void selectStarterLocation()}>{starterKind==='prototype'?(starterLocation?'Change file':'Select file'):'Select folder'}</button></div></div>
+            <div className="starter-location"><strong>{starterKind==='prototype'?'Select your files to import · ZIP or HTML':'Project location'}</strong><div><span title={starterLocation}>{(starterKind==='prototype'?starterFiles.map(file=>file.split(/[\\/]/).pop()).join(', '):starterLocation)||(starterKind==='prototype'?'No files selected':'FrameUI project folder')}</span><button disabled={starterBusy} onClick={()=>void selectStarterLocation()}>{starterKind==='prototype'?(starterLocation?'Change files':'Select files'):'Select folder'}</button></div></div>
             {starterKind==='prototype'&&<fieldset className="artifact-import-width"><legend>Artboard width</legend>{([1440,1920] as const).map(value=><label key={value}><input type="radio" name="prototype-width" value={value} checked={artifactWidth===value} disabled={starterBusy} onChange={()=>setArtifactWidth(value)}/><span><strong>{value} px</strong><small>{value===1440?'Standard desktop':'Wide desktop'}</small></span></label>)}</fieldset>}
-            <p className="muted">{starterKind==='prototype'?'Your source file stays in place. Editable screens are saved in your project.':'A new project folder will be created inside the selected location.'}</p>
+            <p className="muted">{starterKind==='prototype'?'Select multiple HTML or ZIP files to add their screens to one canvas. Your source files stay in place.':'A new project folder will be created inside the selected location.'}</p>
             {starterError&&<p role="alert">{starterError}</p>}
           </ModalBody>
           <ModalFooter><button disabled={starterBusy} onClick={()=>setStarterKind(null)}>Cancel</button><button className="primary" disabled={starterBusy||!starterName.trim()||starterKind==='prototype'&&(!starterLocation||!starterDesignName.trim())} onClick={()=>void createStarterProject()}>{starterBusy?'Creating project…':starterKind==='prototype'?'Create project and import':'Create project'}</button></ModalFooter>
@@ -3281,7 +3293,7 @@ export function DesignIde() {
                 }
                 transform={`translate(${camera.x} ${camera.y}) scale(${camera.zoom})`}
               >
-                {!present&&inspector==='Prototype'&&doc.pages.some(p=>p.artifactSource)&&<g data-canvas-flow-links="true" pointerEvents="none" fill="none" stroke="var(--ide-accent)" opacity={0.6}>{[...new Map((doc.prototype?.interactions??[]).filter(i=>i.destinationId&&i.destinationId!==i.sourceArtboardId).map(i=>[i.sourceArtboardId+':'+i.destinationId,i])).values()].map(edge=>{const from=canvasFrames.find(f=>f.page.id===edge.sourceArtboardId),to=canvasFrames.find(f=>f.page.id===edge.destinationId);if(!from||!to)return null;const x1=from.x+from.page.width,y1=from.y+Math.min(180,from.page.height/2),x2=to.x,y2=to.y+Math.min(180,to.page.height/2);return <path key={edge.id} data-flow-connection={edge.id} d={`M${x1} ${y1} C${x1+120} ${y1},${x2-120} ${y2},${x2} ${y2}`} strokeWidth={1.5/camera.zoom} markerEnd="url(#canvas-flow-arrow)"/>})}</g>}
+                {!present&&inspector==='Prototype'&&doc.pages.some(p=>p.artifactSource)&&<g data-canvas-flow-links="true" pointerEvents="none" fill="none" stroke="var(--ide-accent)" opacity={0.6}>{[...new Map((doc.prototype?.interactions??[]).filter(i=>i.destinationId&&i.destinationId!==i.sourceArtboardId).map(i=>[i.sourceArtboardId+':'+i.destinationId,i])).values()].map(edge=>{const from=canvasFrames.find(f=>f.page.id===edge.sourceArtboardId),to=canvasFrames.find(f=>f.page.id===edge.destinationId);if(!from||!to)return null;const x1=from.x+from.page.width,y1=from.y+Math.min(180,from.page.height/2),x2=to.x,y2=to.y+Math.min(180,to.page.height/2);return <g key={edge.id}><path data-flow-connection={edge.id} d={`M${x1} ${y1} C${x1+120} ${y1},${x2-120} ${y2},${x2} ${y2}`} strokeWidth={1.5/camera.zoom} markerEnd="url(#canvas-flow-arrow)"/><text x={(x1+x2)/2} y={(y1+y2)/2-12} textAnchor="middle" stroke="none" fill="var(--ide-text)" fontSize={12/camera.zoom}>{edge.label?.slice(0,70)}</text></g>})}</g>}
                 {!present && canvasFrames
                   .filter((frame) => frame.page.id !== page?.id)
                   .map((frame) => (
@@ -3699,6 +3711,7 @@ export function DesignIde() {
               </button>
             ))}
           </div>
+          {doc.prototype?.coverage&&<details className="ide-source-status" data-interaction-coverage="true"><summary>Interaction coverage · {doc.prototype.coverage.captured} captured · {doc.prototype.coverage.pending} pending</summary><p>{doc.prototype.coverage.complete?'All discovered actions were checked.':`${doc.prototype.coverage.blocked} blocked · ${doc.prototype.coverage.failed} failed · Review unfinished actions below.`}</p>{(doc.prototype.coverage.pending>0||doc.prototype.coverage.failed>0)&&<><p>Continue discovery creates an updated design file and keeps this design unchanged.</p><button disabled={!!artifactImportStage} onClick={()=>void continueArtifactDiscovery()}>Continue discovery</button></>}<div className="ide-capture-notes">{doc.prototype.coverage.entries.filter(e=>['pending','blocked','failed'].includes(e.status)).map((entry,index)=><p key={index}><strong>{entry.label}</strong> · {entry.status}{entry.reason?` · ${entry.reason}`:''}</p>)}</div></details>}
           {artifactSummary&&<ImportReviewNotice title={artifactSummary.title} notes={artifactSummary.notes} onReview={()=>{setCaptureMode(true);setArtifactSummary(null)}} onDismiss={()=>setArtifactSummary(null)}/>}
           {inspector !== 'Claude' && (page?.sourceDesign||page?.artifactSource) && <details className="ide-source-status"><summary>{page.artifactSource?'Imported prototype':page.sourceDesign?.generatedData ? 'Preview Data · generated locally' : 'Source Reference'}{page.sourceDesign && page.sourceDesign.status !== 'ready' ? ' · Partial' : ''}{page.captureWarnings?.length ? ` · ${page.captureWarnings.length} ${page.captureWarnings.length===1?'note':'notes'}` : ''}</summary><p>Content edits belong to this design only. Changing source state or viewport creates a separate editable version.</p><div className="ide-capture-notes">{page.captureWarnings?.map(warning => <p key={warning}>{readableImportNote(warning)}</p>)}</div></details>}
           {inspector === 'Claude' ? <><button className="studio-text-edit" hidden={!selectedStructured.length&&!selected.length} onClick={()=>setInspector('Design')}>Edit selected layer</button><ClaudePanel onWorkspaceChange={setStudioActive} onCapture={()=>void openCaptureWorkspace()} key={doc.id} document={doc} flowId={flowId} pageId={pageId} selection={page?.structured ? selectedStructured : selected} onDocument={next => { fitAllAfterCapture.current=true; change(next); const added=next.pages.find(p=>!doc.pages.some(old=>old.id===p.id)); if(added)setPageId(added.id) }} /></> : inspector === 'Inspect' ? (

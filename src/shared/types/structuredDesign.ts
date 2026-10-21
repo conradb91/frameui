@@ -99,6 +99,7 @@ export interface StructuredAppearance {
   backdropFilter?: string
   mixBlendMode?: string
   isolation?: string
+  scroll?:{x:number;y:number;width:number;height:number;contentWidth:number;contentHeight:number}
   overflowClipMargin?: string
 
   objectPosition?: string

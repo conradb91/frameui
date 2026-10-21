@@ -20,6 +20,8 @@ export interface XdExportReport {
   linkedInstances: number
   clippingMasks: number
   nativeEffects: number
+  scrollGroups?:number
+  prototype?:{exact:number;simulated:number;unsupported:number;ready:false;status:'unsupported-interactions'|'partial-discovery'|'application-validation-required';details:{id:string;source:string;destination?:string;trigger:string;status:'exact'|'simulated'|'unsupported';reason:string}[];flows:{id:string;name:string;start?:string;artboards:string[]}[]}
   warnings: string[]
 }
 export interface XdExportResult {

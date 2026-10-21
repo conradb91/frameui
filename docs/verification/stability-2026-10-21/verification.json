@@ -1,0 +1,55 @@
+{
+  "verifiedAt": "2026-10-21T07:17:06.834Z",
+  "platform": "macOS x64",
+  "tests": {
+    "passed": 554,
+    "failed": 0
+  },
+  "typecheckAndProductionBuild": "passed",
+  "checks": {
+    "projectSetupAndDeletion": "passed",
+    "multipleHtmlAndZipImport": "passed",
+    "captureAndInlineTextEditing": "passed",
+    "modalFocusKeyboardAndSmallWindowLayout": "passed",
+    "stalledImportCancellationAndRetry": "passed",
+    "backgroundImportAndBrowserCleanup": "passed",
+    "inlineXdSaveErrorAndRetry": "passed",
+    "packagedXdWorkerCancellationAndRetry": "passed",
+    "rendererErrorsInCheckedWorkflows": 0,
+    "dmgChecksum": "valid"
+  },
+  "fixes": [
+    "Blank or failed screens cannot claim complete discovery.",
+    "Successful retries clear pending load failures.",
+    "Action-window load failures are recorded without aborting the whole import.",
+    "Missing captured screens or flow destinations are reported as failed coverage.",
+    "Removing projects closes their prototype servers while preserving source files by default."
+  ],
+  "performance": {
+    "navigation": {
+      "max": 20.5,
+      "p95": 17.69999998807907,
+      "nodes": 99
+    },
+    "save": {
+      "elapsed": 431.7000000476837,
+      "max": 17.799999952316284,
+      "p95": 17.700000047683716,
+      "frames": 27,
+      "persistedX": 123
+    }
+  },
+  "cancellation": {
+    "discoveryStopMs": 281,
+    "captureStopMs": 123,
+    "slowRequests": 1,
+    "retrySucceeded": true,
+    "backgroundReopen": true,
+    "backgroundCompletionDoesNotNavigate": true,
+    "stoppedImportsPublished": false
+  },
+  "reviewProfile": "review-1792566884882-7f76231f-5dca-4bdd-ae7b-0009e44f31f8",
+  "freshReviewProfile": true,
+  "adobeXdApplicationValidation": "unverified: Adobe XD is not installed",
+  "sha256": "ffcc2dae3a4a2d9d0b0ea05d43332881581ded4686200cc436ee77df42aadae4"
+}

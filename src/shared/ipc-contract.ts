@@ -58,7 +58,7 @@ export interface FrameUiApi {
      * check reusing the same guest-browser mechanism as `discover`, but never
      * crawls links or touches the route model. */
     testConnection(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ ok: true; address: string; title: string; route: string; assetsLoaded: number; assetsTotal: number }>
-    discoverArtifact(importId:string,width?:number): Promise<{token:string;routes:CaptureRoute[];transitions:import('../core/prototype/artifactFlow').DetectedTransition[];warnings:string[]}>
+    discoverArtifact(importId:string,width?:number,resume?:boolean): Promise<{token:string;routes:CaptureRoute[];transitions:import('../core/prototype/artifactFlow').DetectedTransition[];warnings:string[];coverage:import('./artifactDiscovery').DiscoveryCoverage}>
     prepareCapture(input: { url: string; profile?: 'standard' | 'admin' | 'super-admin'; routes: { pattern: string; path: string; name: string }[] }): Promise<{ token: string }>
     discover(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ token: string; routes: CaptureRoute[]; components: number; layouts: number; warnings: string[] }>
     addRoute(token: string, address: string): Promise<CaptureRoute[]>
@@ -242,9 +242,10 @@ export interface FrameUiApi {
     cancelPrototypeImport(id:string):Promise<{ok:boolean}>
     finishPrototypeImport(id:string):Promise<void>
     onPrototypeImportProgress(callback:(progress:import('./types/artifactImport').ArtifactImportProgress)=>void):()=>void
-    selectStarterLocation(kind:'repository'|'application'|'prototype'|'blank'): Promise<string|null>
+    selectStarterLocation(kind:'repository'|'application'|'prototype'|'blank'): Promise<string|string[]|null>
     createStarterProject(name:string,kind:'repository'|'application'|'prototype'|'blank',parentPath?:string): Promise<RecentProject>
-    importPrototype(id:string,projectId?:string,file?:string): Promise<{project:RecentProject;url:string;routes:string[]} | null>
+    resumePrototypeImport(id:string,projectId:string):Promise<{project:RecentProject;url:string;routes:string[]}>
+    importPrototype(id:string,projectId?:string,file?:string|string[]): Promise<{project:RecentProject;url:string;routes:string[]} | null>
     connectApplication(url:string,projectId?:string): Promise<RecentProject>
     getRuntime(): Promise<import('./types/project').RuntimeConnection | null>
     configureRuntime(url: string, source: import('./types/project').RuntimeSource): Promise<import('./types/project').RuntimeConnection>

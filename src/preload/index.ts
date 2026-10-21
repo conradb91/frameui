@@ -50,7 +50,7 @@ const api: FrameUiApi = {
     login: input => ipcRenderer.invoke('design:login',input),
     scan: () => ipcRenderer.invoke('design:scan'),
     testConnection: (url, profile) => ipcRenderer.invoke('design:testConnection', {url, profile}),
-    discoverArtifact: (id,width=1440) => ipcRenderer.invoke('design:discoverArtifact',{id,width}),
+    discoverArtifact: (id,width=1440,resume=false) => ipcRenderer.invoke('design:discoverArtifact',{id,width,resume}),
     prepareCapture: input => ipcRenderer.invoke('design:prepareCapture', input),
     discover: (url, profile) => ipcRenderer.invoke('design:discover', {url, profile}),
     addRoute: (token, address) => ipcRenderer.invoke('design:addRoute', {token,address}),
@@ -154,6 +154,7 @@ const api: FrameUiApi = {
   project: {
     selectStarterLocation: kind=>ipcRenderer.invoke('project:selectStarterLocation',kind),
     createStarterProject: (name,kind,parentPath)=>ipcRenderer.invoke('project:createStarterProject',{name,kind,parentPath}),
+    resumePrototypeImport:(id,projectId)=>ipcRenderer.invoke('project:resumePrototypeImport',{id,projectId}),
     importPrototype: (id,projectId,file) => ipcRenderer.invoke('project:importPrototype',projectId?{id,projectId,file}:id),
     cancelPrototypeImport: id=>ipcRenderer.invoke('project:cancelPrototypeImport',id),
     finishPrototypeImport: id=>ipcRenderer.invoke('project:finishPrototypeImport',id),

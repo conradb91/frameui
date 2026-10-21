@@ -18,3 +18,7 @@ test('large journeys retain adjacent flow guides and original dimensions across 
  for(const p of pages){expect(bounds.get(p.id)!.width).toBe(p.width);expect(bounds.get(p.id)!.height).toBe(p.height)}
  for(let i=0;i<8;i++){const g=bounds.get(`guide${i}`)!,first=bounds.get(`screen${i}-0`)!;expect(first.x).toBe(g.x+1680);expect(first.y).toBe(g.y)}
 })
+test('XD refuses an oversized journey instead of silently rearranging its screens',()=>{
+ const pages=[{id:'a',width:1440,height:900,canvasX:0,canvasY:0},{id:'b',width:1440,height:900,canvasX:60000,canvasY:0}]
+ expect(()=>xdCanvasPlacement(pages,[{id:'flow',artboardIds:['a','b']}])).toThrow('screen arrangement was not changed')
+})

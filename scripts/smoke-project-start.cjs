@@ -17,7 +17,7 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),asse
    const modal=page.getByRole('dialog',{name:'Create project',exact:true});await modal.waitFor()
    const create=modal.getByRole('button',{name:i===2?'Create project and import':'Create project',exact:true});assert.equal(await create.isDisabled(),true)
    await modal.getByLabel('Project name',{exact:true}).fill(names[i])
-   if(i===2){await modal.getByLabel('Design name',{exact:true}).fill('Prototype screens');await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]})},prototype);await modal.getByRole('button',{name:'Select file',exact:true}).click()}
+   if(i===2){await modal.getByLabel('Design name',{exact:true}).fill('Prototype screens');await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]})},prototype);await modal.getByRole('button',{name:'Select files',exact:true}).click()}
    await create.click()
    if(i===0){await page.locator('.ide-stage').waitFor();await page.evaluate(()=>window.frameuiFlushSaves?.());await page.getByRole('button',{name:'Projects',exact:true}).click()}
    if(i===1){await page.getByRole('dialog',{name:'Connect a running app'}).waitFor();await page.getByRole('button',{name:'Cancel',exact:true}).click()}

@@ -1,3 +1,4 @@
+import {replayStepSchema} from '../../shared/artifactDiscovery'
 import {textStyleRunSchema} from './textStyleSchema'
 import { prototypeSchema } from '../prototype/schema'
 import { z } from 'zod'
@@ -148,7 +149,8 @@ export const visualDocumentSchema = z.object({
       state: z.string(),
       route: z.string().optional(),
       flowIntroductionFor: z.string().min(1).max(100).optional(),
-      artifactSource: z.object({path:z.string().max(4096),steps:z.array(z.string().max(4096)).max(4)}).optional(),
+      canonicalStateId:z.string().optional(),flowInstanceFor:z.string().optional(),
+      artifactSource: z.object({path:z.string().max(4096),steps:z.array(replayStepSchema).max(128)}).optional(),
       sourceHash: z.string().optional(),
       capturedAt: z.string().optional(),
       width: finite.positive(),

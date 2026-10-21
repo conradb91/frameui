@@ -17,7 +17,7 @@ export function PrototypeRunner({ document: raw, flowId, pageId, onClose, embedd
     initialInteraction?:Interaction;
     onNavigate?:(id:string)=>void;
 }) {
-    const [document] = useState(() => migrate(raw)), flow = document.prototype?.flows.find(f => f.id === flowId), pages = flow ? document.pages.filter(p => flow.artboardIds.includes(p.id)) : document.pages;
+    const [document] = useState(() => migrate(raw)), flow = document.prototype?.flows.find(f => f.id === flowId), pages = flow ? document.pages.filter(p => flow.artboardIds.includes(p.id)) : document.pages.filter(p=>!p.flowIntroductionFor);
     const [start, setStart] = useState(pageId ?? flow?.startArtboardId ?? pages[0]?.id ?? ''), [state, setState] = useState(() => initialInteraction?executeInteraction(document,initialState(document,start),initialInteraction):initialState(document,start)), [hotspots, setHotspots] = useState(false), [scenario, setScenario] = useState(''), [step, setStep] = useState(0);
     const host = useRef<HTMLDivElement>(null), touch = useRef<{
         x: number;
@@ -34,7 +34,7 @@ export function PrototypeRunner({ document: raw, flowId, pageId, onClose, embedd
             ids.push(id);
         node = node.parentElement;
     } if (ids.some(id => state.states[id] === 'disabled' || state.hidden[id]))
-        return; const items = interactions.filter(i => (!requireElement || !!i.sourceElementId) && i.sourceArtboardId === screen && i.trigger === trigger && (!i.sourceElementId || ids.includes(i.sourceElementId)) && (trigger !== 'key' || !i.key || i.key === key)); run(items); };
+        return; const items = interactions.filter(i => (!requireElement || !!i.sourceElementId) && i.sourceArtboardId === screen && i.trigger === trigger && (!i.sourceElementId || ids.includes(i.sourceElementId)) && (trigger !== 'key' || !i.key || i.key === key || i.key==='ESC'&&key==='Escape'||i.key==='ENTER'&&key==='Enter') && (trigger!=='change'||i.inputValue===undefined||String((el as HTMLInputElement)?.value??'')===i.inputValue)); run(items); };
     useEffect(() => { const active = state.overlays.at(-1)?.pageId ?? state.pageId; const timers = interactions.filter(i => i.sourceArtboardId === active && i.trigger === 'timer').map(i => setTimeout(() => run([i]), i.delay ?? 1000)); return () => timers.forEach(clearTimeout); }, [state.pageId, state.overlays,interactions,run]);
     useEffect(() => { if (state.external) {
         void window.frameui.preview.openExternal(state.external);
@@ -66,7 +66,7 @@ export function PrototypeRunner({ document: raw, flowId, pageId, onClose, embedd
     const content=<>{embedded?<details className="prototype-player-options"><summary aria-label="Playback controls" title="Back, restart, input state and test scenarios">Playback options</summary>{controls}</details>:controls}
  {state.error && <p role="alert">{state.error}</p>}
  <div className="prototype-stage" ref={host} onClick={e => { fire('click', e.target); fire('submit', e.target, undefined, true); }} onDoubleClick={e => fire('doubleclick', e.target)} onMouseOver={e => { if (!(e.relatedTarget instanceof Node) || !(e.target as Element).contains(e.relatedTarget))
-        fire('hover', e.target); }} onChange={e => fire('change', e.target)} onKeyDown={e => { if (e.key === 'Escape') {
+        fire('hover', e.target); }} onChange={e => fire('change', e.target)} onKeyDown={e => { if(e.key==='Escape'&&interactions.some(i=>i.sourceArtboardId===state.pageId&&i.trigger==='key'&&(i.key==='ESC'||i.key==='Escape'))){fire('key',e.target,e.key);return} if (e.key === 'Escape') {
         if(state.overlays.length){setState(s=>({...s,overlays:s.overlays.slice(0,-1)}))}else onClose();
         return;
     } fire('key', e.target, e.key);if((e.key==='Enter'||e.key===' ')&&(e.target as HTMLElement).getAttribute('role')==='button'){e.preventDefault();fire('click',e.target);fire('submit',e.target,undefined,true);return;} if (e.key === 'Enter')

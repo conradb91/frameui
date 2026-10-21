@@ -1,119 +1,89 @@
-import { abortable } from './importJob'
-import type { ArtifactImportProgress } from '../../shared/types/artifactImport'
-import type { BrowserWindow, WebContents } from 'electron'
-import { createHash } from 'node:crypto'
-
-export interface ArtifactState {pattern:string;url:string;name:string;steps:string[]}
-export interface ArtifactTransition {source:string;destination:string;selector:string;label:string;kind?:'tab'}
-export function prototypeRouteIdentity(address:string) {
-  const url=new URL(address)
-  url.searchParams.sort()
-  // Query parameters define application state; ordinary fragment anchors do not.
-  return url.pathname+url.search+(/^#!?\//.test(url.hash)?url.hash:'')
-}
-export const inspectScript = `(() => {
-  const selectorCache=new WeakMap(),styleCache=new WeakMap(),rectCache=new WeakMap(),siblingCache=new WeakMap();
-  const positionOf=el=>{const parent=el.parentElement;if(!siblingCache.has(parent))siblingCache.set(parent,new Map(Array.from(parent.children).map((node,index)=>[node,index+1])));return siblingCache.get(parent).get(el)||0};
-  const styleOf=el=>{if(!styleCache.has(el))styleCache.set(el,getComputedStyle(el));return styleCache.get(el)};
-  const rectOf=el=>{if(!rectCache.has(el))rectCache.set(el,el.getBoundingClientRect());return rectCache.get(el)};
-  function selector(el) { if(selectorCache.has(el))return selectorCache.get(el);const original=el,parts=[]; while(el.parentElement && el!==document.documentElement) {parts.unshift(el.tagName.toLowerCase()+':nth-child('+positionOf(el)+')');el=el.parentElement} const result='html>'+parts.join('>');selectorCache.set(original,result);return result }
-  const modal=Array.from(document.querySelectorAll('dialog:modal,[aria-modal="true"]')).find(m=>m.getClientRects().length&&styleOf(m).visibility!=='hidden'&&styleOf(m).display!=='none');
-  const visible=el=>{if(modal&&!modal.contains(el))return false;const r=rectOf(el),s=styleOf(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};
-  const isTab=el=>(el.getAttribute('role')==='tab'||el.hasAttribute('data-tab')||el.getAttribute('data-bs-toggle')==='tab'||el.getAttribute('data-toggle')==='tab')||!!el.closest('[role="tablist"],.tabs,.tab-buttons,.tab-nav,.nav-tabs')||/tab/i.test(el.getAttribute('onclick')||'');
-  const candidates=Array.from(document.querySelectorAll('a[href],button,[role="button"],[role="tab"],[data-tab],[data-bs-toggle="tab"],[data-toggle="tab"],[onclick],summary')).filter(visible);
-  const safe=el=>{const name=(el.getAttribute('aria-label')||el.textContent||el.getAttribute('title')||'').trim();if(el.disabled||el.getAttribute('aria-disabled')==='true'||el.form||el.closest('form')||['submit','reset'].includes(el.getAttribute('type')))return false;if(/delete|remove|purchase|pay|logout|log out|sign out|save|send|submit|confirm|create|upload|download|install/i.test(name))return false;return /expand|collapse|toggle|drawer|modal/i.test(el.getAttribute('onclick')||'')||isTab(el)||el.tagName==='A'||el.tagName==='SUMMARY'||el.getAttribute('role')==='tab'||el.hasAttribute('aria-controls')||el.hasAttribute('aria-expanded')||el.getAttribute('aria-haspopup')==='dialog'||el.hasAttribute('aria-pressed')||el.hasAttribute('data-go')||el.hasAttribute('data-tab')||el.hasAttribute('data-cat')||/^(open|view|show|close|back|next|previous|toggle|menu|filter|settings|cancel)\\b/i.test(name)};
-  const visualElements=[];for(const el of document.querySelectorAll('body *')){if(visible(el))visualElements.push(el);if(visualElements.length===500)break}
-  const eligible=candidates.filter(safe).sort((a,b)=>Number(isTab(b))-Number(isTab(a))||Number(b.hasAttribute('aria-expanded'))-Number(a.hasAttribute('aria-expanded')));
-  return {totalControls:candidates.length,skippedControls:candidates.length-eligible.length,eligibleControls:eligible.length,checkedControls:Math.min(eligible.length,32),visible:!!(document.body.innerText.trim()||document.querySelector('img,svg,canvas')),title:modal?.querySelector('h1,h2,h3')?.textContent?.trim()||document.querySelector('[role="dialog"] h1,dialog[open] h1,main h1,h1')?.innerText?.replace(/\\s+/g,' ').trim()||document.title||'Prototype',
-    signature:document.body.innerText.replace(/\\s+/g,' ').trim()+'|'+Array.from(document.querySelectorAll('dialog[open],[aria-expanded="true"],[aria-selected="true"],details[open]')).map(selector).join('|'),
-    visual:visualElements.map(el=>{const r=rectOf(el),s=styleOf(el);return [selector(el),el.getAttribute('src'),el.getAttribute('viewBox'),el.getAttribute('class'),el.getAttribute('aria-selected'),el.getAttribute('aria-expanded'),Math.round(r.width),Math.round(r.height),s.display,s.visibility,s.backgroundColor,s.backgroundImage,s.color,s.opacity,s.transform,el.getAttribute('d')?.slice(0,256)].join(':')}).join('|'),
-    controls:eligible.slice(0,32).map(el=>({selector:selector(el),kind:isTab(el)?'tab':undefined,label:(el.getAttribute('aria-label')||el.textContent||'Open state').trim().slice(0,100),href:el.tagName==='A'?el.href:undefined}))};
-})()`
-export async function replayPrototype(web:WebContents,steps:string[],signal?:AbortSignal) {
-  for(const selector of steps){
-    signal?.throwIfAborted()
-    const clicked=await abortable(web.executeJavaScript(`(() => {const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;el.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});const r=el.getBoundingClientRect();const hit=document.elementFromPoint(Math.max(0,Math.min(innerWidth-1,r.x+r.width/2)),Math.max(0,Math.min(innerHeight-1,r.y+r.height/2)));if(!hit||!el.contains(hit))return false;el.click();return true})()`),signal)
-    if(!clicked)throw new Error('A prototype control changed. Recapture this state from the live prototype.')
-    await abortable(web.executeJavaScript(`(async()=>{
-      let changed=Date.now();const observer=new MutationObserver(()=>changed=Date.now());
-      observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true});
-      const deadline=Date.now()+1200;
-      try{do{await new Promise(resolve=>setTimeout(resolve,50))}while(Date.now()<deadline&&(Date.now()-changed<150||document.fonts.status==='loading'||Array.from(document.images).some(img=>{const r=img.getBoundingClientRect();return r.width&&r.height&&r.top<innerHeight&&r.bottom>0&&!img.complete})))}finally{observer.disconnect()}
-    })()`),signal)
-  }
-}
-/** Bounded exploration of a user-selected, locally served prototype. Never submits forms. */
-export async function explorePrototype(url:string,paths:string[],open:(url:string)=>Promise<BrowserWindow>,signal?:AbortSignal,progress?:(value:Omit<ArtifactImportProgress,'id'|'stage'>)=>void) {
-  const states:ArtifactState[]=[],transitions:ArtifactTransition[]=[],warnings:string[]=[],deduplication:{source:string;control:string;route:string;fingerprint:string;decision:string;destination?:string}[]=[]
-  const fingerprints=new Map<string,string>(),unrendered=new Set<string>()
-  const origin=new URL(url).origin
-  const exploredTabs=new Map<string,string>(),tabSelectors=new Set<string>()
-  let attempts=0
-  async function openOwned(address:string){
-    const pending=open(address).then(win=>{if(signal?.aborted){if(!win.isDestroyed())win.destroy();signal.throwIfAborted()}return win})
-    return abortable(pending,signal)
-  }
-  async function inspect(state:ArtifactState){
-    const win=await openOwned(state.url)
-    try{await replayPrototype(win.webContents,state.steps,signal);return {...await abortable(win.webContents.executeJavaScript(inspectScript),signal),route:prototypeRouteIdentity(win.webContents.getURL())} as {route:string;totalControls:number;skippedControls:number;eligibleControls:number;checkedControls:number;visible:boolean;title:string;signature:string;visual:string;controls:{selector:string;label:string;href?:string;kind?:'tab'}[]}}
-    finally{if(!win.isDestroyed())win.destroy()}
-  }
-  const inspected=new Map<string,Awaited<ReturnType<typeof inspect>>>()
-  const fingerprint=(value:string)=>createHash('sha256').update(value).digest('hex')
-  // Include unlinked HTML files as well as the entry point.
-  for(const path of paths){
-    const state:ArtifactState={pattern:path,url:new URL(path,url).href,name:decodeURIComponent(path.split('/').pop()||'Prototype').replace(/\.html?$/i,''),steps:[]}
-    states.push(state)
-  }
-  if(states.length>40)warnings.push('All HTML pages will be captured; automatic interaction exploration is limited to the first 40 screens.')
-  for(let cursor=0;cursor<states.length && cursor<40;cursor++){
-    signal?.throwIfAborted()
-    const state=states[cursor]
-    progress?.({completed:cursor,screens:states.length,connections:transitions.length,detail:`Reading ${state.name}`})
-    let info:Awaited<ReturnType<typeof inspect>>
-    try{info=inspected.get(state.pattern)??await inspect(state);inspected.delete(state.pattern)}catch{signal?.throwIfAborted();warnings.push(`Could not explore ${state.name}. Open it in Capture to review.`);continue}
-    if(info.skippedControls)warnings.push(`Partial discovery: ${state.name} has ${info.skippedControls} controls excluded from automatic interaction for safety. Open Capture to review these controls manually.`)
-    if(info.eligibleControls>info.checkedControls)warnings.push(`Partial discovery: ${state.name} has ${info.eligibleControls-info.checkedControls} unexamined controls (32-control limit). Open Capture to continue manually.`)
-    if(!info.visible){unrendered.add(state.pattern);warnings.push(`${state.name} did not render visible content. Export runnable HTML rather than a source-only project.`);continue}
-    if(!state.steps.length)state.name=info.title.slice(0,180)
-    fingerprints.set(fingerprint(info.route+'|'+info.signature+'|'+info.visual),state.pattern)
-    for(const control of info.controls)if(control.kind==='tab')tabSelectors.add(control.selector)
-    for(const control of info.controls){
-      signal?.throwIfAborted()
-      if(attempts>=60||states.length>=40||state.steps.length>=4){warnings.push('Partial discovery: automatic exploration reached its 40-screen, 60-attempt or four-step limit. Open the prototype in Capture to add remaining screens or states.');break}
-      const tabKey=state.url+'|'+state.steps.filter(step=>!tabSelectors.has(step)).join('|')+'|'+control.selector
-      if(control.kind==='tab'&&exploredTabs.has(tabKey)){const destination=exploredTabs.get(tabKey)!;if(destination!==state.pattern)transitions.push({source:state.pattern,destination,selector:control.selector,label:control.label,kind:'tab'});continue}
-      if(control.href){
-        const target=new URL(control.href)
-        if(target.origin!==origin||!/^https?:$/.test(target.protocol))continue
-        // Ordinary anchors scroll within a screen; hash routers change screens.
-        if(target.pathname===new URL(state.url).pathname&&target.search===new URL(state.url).search&&target.hash&&!/^#!?\//.test(target.hash))continue
-        const existing=states.find(s=>s.url===target.href&&!s.steps.length)
-        if(existing){transitions.push({source:state.pattern,destination:existing.pattern,selector:control.selector,label:control.label,kind:control.kind});continue}
-      }
-      progress?.({completed:attempts,screens:states.length,connections:transitions.length,detail:`Checking ${control.label || 'interaction'} on ${state.name}`})
-      attempts++
-      const win=await openOwned(state.url)
-      try{
-        await replayPrototype(win.webContents,[...state.steps,control.selector],signal)
-        if(new URL(win.webContents.getURL()).origin!==origin)continue
-        const next=await abortable(win.webContents.executeJavaScript(inspectScript),signal) as typeof info
-        const key=fingerprint(prototypeRouteIdentity(win.webContents.getURL())+'|'+next.signature+'|'+next.visual)
-        const same=fingerprint(info.route+'|'+info.signature+'|'+info.visual)===key
-        if(same){if(control.kind==='tab')exploredTabs.set(tabKey,state.pattern);deduplication.push({source:state.pattern,control:control.label,route:prototypeRouteIdentity(win.webContents.getURL()),fingerprint:key,decision:'unchanged'});continue}
-        let destination=fingerprints.get(key)
-        if(!destination){
-          destination='/__prototype_state_'+states.length
-          fingerprints.set(key,destination)
-          states.push({pattern:destination,url:state.url,name:(next.title!==info.title?next.title:control.label)||next.title,steps:[...state.steps,control.selector]})
-          inspected.set(destination,{...next,route:prototypeRouteIdentity(win.webContents.getURL())})
-        }
-        if(control.kind==='tab')exploredTabs.set(tabKey,destination)
-        deduplication.push({source:state.pattern,control:control.label,route:prototypeRouteIdentity(win.webContents.getURL()),fingerprint:key,decision:'transition',destination})
-        transitions.push({source:state.pattern,destination,selector:control.selector,label:control.label,kind:control.kind})
-      }catch{signal?.throwIfAborted();warnings.push(`“${control.label}” could not be replayed automatically.`)}finally{if(!win.isDestroyed())win.destroy()}
+import {abortable} from './importJob'
+import type {ArtifactImportProgress} from '../../shared/types/artifactImport'
+import type {BrowserWindow} from 'electron'
+import {createHash} from 'node:crypto'
+import type {ArtifactStep,ReplayStep,DiscoveryCoverage,CoverageEntry,DetectedArtifactTransition,ArtifactInteractionKind} from '../../shared/artifactDiscovery'
+import {inspectScript} from './prototypePageScripts'
+import {replayPrototype} from './prototypeReplay'
+export {inspectScript,replayPrototype}
+export interface ArtifactState {pattern:string;url:string;name:string;steps:ReplayStep[]}
+export type ArtifactTransition=DetectedArtifactTransition
+interface Control extends ArtifactStep {label:string;kind?:ArtifactInteractionKind;href?:string;target?:string}
+interface Inspection {route:string;totalControls:number;skippedControls:number;eligibleControls:number;checkedControls:number;visible:boolean;title:string;signature:string;visual:string;controls:Control[];blocked?:{selector:string;label:string;event:string;reason:string}[];expanded?:string[];overlay?:'modal'|'drawer'|'dropdown';overlaySelector?:string;reconstructed?:boolean;frameWarnings?:string[];popup?:string}
+export interface DiscoveryCheckpoint {version:2;states:ArtifactState[];transitions:ArtifactTransition[];entries:CoverageEntry[];cursor:number;controlIndex:number;fingerprints:[string,string][]}
+export interface DiscoveryOptions {maxStates?:number;maxAttempts?:number;maxDepth?:number;maxMilliseconds?:number;checkpoint?:DiscoveryCheckpoint;onCheckpoint?:(checkpoint:DiscoveryCheckpoint)=>Promise<void>}
+export function prototypeRouteIdentity(address:string){const url=new URL(address);url.searchParams.sort();return url.pathname+url.search+(/^#!?\//.test(url.hash)?url.hash:'')}
+const digest=(value:string)=>createHash('sha256').update(value).digest('hex')
+const keyOf=(entry:Pick<CoverageEntry,'state'|'selector'|'event'|'value'>)=>JSON.stringify([entry.state,entry.selector,entry.event,entry.value??''])
+/** A resumable graph traversal. Limits bound work, never turn pending controls into successes. */
+export async function explorePrototype(url:string,paths:string[],open:(url:string)=>Promise<BrowserWindow>,signal?:AbortSignal,progress?:(value:Omit<ArtifactImportProgress,'id'|'stage'>)=>void,options:DiscoveryOptions={}){
+ const limits={states:options.maxStates??(options.checkpoint?.states.length??0)+160,attempts:options.maxAttempts??800,depth:options.maxDepth??Math.min(128,32+(options.checkpoint?Math.max(0,...options.checkpoint.states.map(s=>s.steps.length)):0)),milliseconds:options.maxMilliseconds??120000}
+ const checkpoint=options.checkpoint,states:ArtifactState[]=structuredClone(checkpoint?.states??paths.map(path=>({pattern:path,url:new URL(path,url).href,name:decodeURIComponent(path.split('/').pop()||'Prototype').replace(/\.html?$/i,''),steps:[]})))
+ // Loopback ports change when reopening the app; replay paths against the current server.
+ for(const state of states){const previous=new URL(state.url);state.url=new URL(previous.pathname+previous.search+previous.hash,url).href}
+ const transitions:ArtifactTransition[]=structuredClone(checkpoint?.transitions??[]),entries:CoverageEntry[]=structuredClone(checkpoint?.entries??[]),warnings:string[]=[],deduplication:{source:string;control:string;route:string;fingerprint:string;decision:string;destination?:string}[]=[]
+ const ledger=new Map(entries.map(e=>[keyOf(e),e])),fingerprints=new Map(checkpoint?.fingerprints??[]),inspected=new Map<string,Inspection>(),origin=new URL(url).origin
+ let cursor=checkpoint?.cursor??0,controlIndex=checkpoint?.controlIndex??0,attempts=0,halted=false;const started=Date.now(),unrendered=new Set<string>()
+ if(checkpoint&&entries.some(e=>e.status==='failed')){for(const entry of entries)if(entry.status==='failed')entry.status='pending';cursor=0;controlIndex=0}
+ async function persist(){await options.onCheckpoint?.({version:2,states,transitions,entries,cursor,controlIndex,fingerprints:[...fingerprints]})}
+ function record(entry:CoverageEntry){const key=keyOf(entry),old=ledger.get(key);if(old)Object.assign(old,entry);else{entries.push(entry);ledger.set(key,entry)}return entry}
+ async function owned(address:string){return abortable(open(address).then(win=>{if(signal?.aborted){if(!win.isDestroyed())win.destroy();signal.throwIfAborted()}return win}),signal)}
+ async function inspect(state:ArtifactState){const win=await owned(state.url);try{await replayPrototype(win.webContents,state.steps,signal);return {...await abortable(win.webContents.executeJavaScript(inspectScript),signal),route:prototypeRouteIdentity(win.webContents.getURL())} as Inspection}finally{if(!win.isDestroyed())win.destroy()}}
+ const fingerprint=(info:Inspection)=>digest(info.route+'|'+info.signature+'|'+info.visual)
+ for(;cursor<states.length;cursor++,controlIndex=0){
+  signal?.throwIfAborted();const state=states[cursor]
+  if(Date.now()-started>=limits.milliseconds){halted=true;break}
+  progress?.({completed:attempts,screens:states.length,connections:transitions.length,detail:`Discovering ${state.name} · ${entries.filter(e=>e.status==='pending').length} actions pending`})
+  let info:Inspection
+  try{info=inspected.get(state.pattern)??await inspect(state);inspected.delete(state.pattern)}catch(error){signal?.throwIfAborted();record({state:state.pattern,selector:'',label:state.name,event:'load',status:'failed',reason:error instanceof Error?error.message:String(error)});warnings.push(`Could not replay ${state.name}.`);continue}
+  if(!info.visible){unrendered.add(state.pattern);record({state:state.pattern,selector:'',label:state.name,event:'load',status:'failed',reason:'The screen did not render visible content.'});warnings.push(`${state.name} did not render visible content.`);continue}
+  const loadEntry=ledger.get(keyOf({state:state.pattern,selector:'',event:'load'}));if(loadEntry)loadEntry.status='unchanged'
+  const inspectionEntry=ledger.get(keyOf({state:state.pattern,selector:'',event:'inspect'}));if(inspectionEntry)inspectionEntry.status='unchanged'
+  if(!state.steps.length)state.name=info.title.slice(0,180)
+  fingerprints.set(fingerprint(info),state.pattern)
+  for(const item of info.blocked??[])record({state:state.pattern,...item,status:'blocked'})
+  for(const warning of info.frameWarnings??[])warnings.push(warning)
+  const controls=info.controls.map(c=>({...c,event:c.event??'click' as const}))
+  for(const control of controls)if(!ledger.has(keyOf({state:state.pattern,...control})))record({state:state.pattern,selector:control.selector,label:control.label,event:control.event,value:control.value,status:'pending'})
+  for(;controlIndex<controls.length;controlIndex++){
+   signal?.throwIfAborted();const control=controls[controlIndex],base={state:state.pattern,selector:control.selector,label:control.label,event:control.event,value:control.value},known=ledger.get(keyOf(base))
+   if(known&&known.status!=='pending')continue
+   if(attempts>=limits.attempts||Date.now()-started>=limits.milliseconds||state.steps.length>=limits.depth){halted=true;break}
+   if(control.href&&!/^javascript:/i.test(control.href)){const target=new URL(control.href);if(target.origin!==origin||!/^https?:$/.test(target.protocol)){record({...base,status:'blocked',reason:'External navigation requires a separate imported source.'});continue}}
+   progress?.({completed:attempts,screens:states.length,connections:transitions.length,detail:`${control.event==='hover'?'Hovering over':'Checking'} ${control.label} on ${state.name}`});attempts++
+   const step:ArtifactStep={selector:control.target??control.selector,event:control.event,...(control.value!==undefined?{value:control.value}:{}),...(control.key?{key:control.key}:{}),...(control.x!==undefined?{x:control.x,y:control.y}:{})}
+   let win:BrowserWindow|undefined
+   try{
+    win=await owned(state.url)
+    await replayPrototype(win.webContents,[...state.steps,step],signal)
+    if(new URL(win.webContents.getURL()).origin!==origin){record({...base,status:'blocked',reason:'Navigation left the imported source.'});continue}
+    const next={...await abortable(win.webContents.executeJavaScript(inspectScript),signal),route:prototypeRouteIdentity(win.webContents.getURL())} as Inspection,key=fingerprint(next)
+    if(next.popup&&new URL(next.popup).origin!==origin){record({...base,status:'blocked',reason:'An external window was requested: '+new URL(next.popup).origin});continue}
+    if(key===fingerprint(info)||['hover','scroll'].includes(control.event)&&next.signature===info.signature){record({...base,status:'unchanged',reason:control.event==='hover'?'No new content or view appeared.':undefined});deduplication.push({source:state.pattern,control:control.label,route:next.route,fingerprint:key,decision:'unchanged'});continue}
+    let destination=fingerprints.get(key)
+    if(!destination){
+     if(states.length>=limits.states){halted=true;break}
+     destination='/__prototype_state_'+states.length;fingerprints.set(key,destination)
+     const actionName=control.event==='select'?`${control.label} · ${control.value}`:control.event==='input'?`${control.label} · ${control.value||'Cleared'}`:control.label
+     states.push({pattern:destination,url:state.url,name:(next.title!==info.title?next.title:actionName).slice(0,180),steps:[...state.steps,step]});inspected.set(destination,next)
     }
+    const trigger=control.event==='hover'?'hover':control.event==='select'&&control.target?'click':control.event==='input'||control.event==='select'?'change':control.event==='key'?'key':control.event==='scroll'?'swipe':'click'
+    const opening=next.overlay&&next.overlay!==info.overlay,closing=info.overlay&&!next.overlay
+    const action:NonNullable<ArtifactTransition['action']>=opening?(next.overlay==='drawer'?'open-drawer':next.overlay==='modal'?'open-modal':'open-overlay'):closing?(info.overlay==='drawer'?'close-drawer':info.overlay==='modal'?'close-modal':'close-overlay'):next.route!==info.route?'navigate':'state'
+    transitions.push({source:state.pattern,destination,selector:control.selector,label:control.label,kind:opening?next.overlay==='dropdown'?'dropdown':next.overlay:control.kind,trigger,action,value:control.value,key:control.key,reconstructed:next.reconstructed})
+    record({...base,status:'captured',destination});deduplication.push({source:state.pattern,control:control.label,route:next.route,fingerprint:key,decision:'transition',destination})
+   }catch(error){signal?.throwIfAborted();record({...base,status:'failed',reason:error instanceof Error?error.message:String(error)})}finally{if(win&&!win.isDestroyed())win.destroy();await persist()}
   }
-  signal?.throwIfAborted()
-  return {states:states.filter(s=>!unrendered.has(s.pattern)),transitions,deduplication,warnings:[...new Set(warnings)]}
+  await persist();if(halted)break
+ }
+ // Record unvisited screens explicitly; continuing starts at the exact pending action.
+ for(let index=cursor+1;index<states.length;index++)record({state:states[index].pattern,selector:'',label:states[index].name,event:'inspect',status:'pending'})
+ if(!halted){for(const entry of entries)if(entry.event==='inspect'&&entry.status==='pending')entry.status='unchanged'}
+ const counts=(status:CoverageEntry['status'])=>entries.filter(e=>e.status===status).length
+ const coverage:DiscoveryCoverage={version:2,complete:!halted&&!counts('failed')&&!counts('blocked')&&!counts('pending'),attempted:counts('captured')+counts('unchanged')+counts('failed'),captured:counts('captured'),unchanged:counts('unchanged'),blocked:counts('blocked'),failed:counts('failed'),pending:counts('pending'),entries,limits}
+ if(halted)warnings.push(`Discovery paused with ${coverage.pending} pending actions. Continue discovery to explore the remaining views.`)
+ if(coverage.failed)warnings.push(`${coverage.failed} actions could not be replayed. Review the interaction coverage.`)
+ if(coverage.blocked)warnings.push(`${coverage.blocked} controls need manual review; they are listed in interaction coverage.`)
+ await persist();signal?.throwIfAborted()
+ return {states:states.filter(s=>!unrendered.has(s.pattern)),transitions,deduplication,warnings:[...new Set(warnings)],coverage}
 }
