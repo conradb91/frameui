@@ -17,7 +17,7 @@ const digest=(value:string)=>createHash('sha256').update(value).digest('hex')
 const keyOf=(entry:Pick<CoverageEntry,'state'|'selector'|'event'|'value'>)=>JSON.stringify([entry.state,entry.selector,entry.event,entry.value??''])
 /** A resumable graph traversal. Limits bound work, never turn pending controls into successes. */
 export async function explorePrototype(url:string,paths:string[],open:(url:string)=>Promise<BrowserWindow>,signal?:AbortSignal,progress?:(value:Omit<ArtifactImportProgress,'id'|'stage'>)=>void,options:DiscoveryOptions={}){
- const limits={states:options.maxStates??(options.checkpoint?.states.length??0)+160,attempts:options.maxAttempts??800,depth:options.maxDepth??Math.min(128,32+(options.checkpoint?Math.max(0,...options.checkpoint.states.map(s=>s.steps.length)):0)),milliseconds:options.maxMilliseconds??120000}
+ const limits={states:options.maxStates??(options.checkpoint?.states.length??0)+Math.max(1,paths.length)*160,attempts:options.maxAttempts??Math.max(1,paths.length)*800,depth:options.maxDepth??Math.min(128,32+(options.checkpoint?Math.max(0,...options.checkpoint.states.map(s=>s.steps.length)):0)),milliseconds:options.maxMilliseconds??Math.max(1,paths.length)*120000}
  const checkpoint=options.checkpoint,states:ArtifactState[]=structuredClone(checkpoint?.states??paths.map(path=>({pattern:path,url:new URL(path,url).href,name:decodeURIComponent(path.split('/').pop()||'Prototype').replace(/\.html?$/i,''),steps:[]})))
  // Loopback ports change when reopening the app; replay paths against the current server.
  for(const state of states){const previous=new URL(state.url);state.url=new URL(previous.pathname+previous.search+previous.hash,url).href}

@@ -30,8 +30,8 @@ export function readJsonFile<T>(filePath: string, fallback: T, schemaVersion = 1
     if (parsed.data === null && fallback !== null) return fallback
     const data=parsed.data as unknown as ResourceDocument & {compression?:string;model?:string}
     if(data?.encoding==='frameui-resources-1'){
-      const resources=data.compression==='gzip'||data.compression==='gzip-json'?data.resources.map(value=>{const text=gunzipSync(Buffer.from(value,'base64'),{maxOutputLength:64_000_000}).toString('utf8');return data.compression==='gzip-json'?JSON.parse(text):text}):data.resources
-      return unpackDocument<T>({...data,resources,value:data.model?JSON.parse(gunzipSync(Buffer.from(data.model,'base64'),{maxOutputLength:128_000_000}).toString('utf8')):data.value})
+      const resources=data.compression==='gzip'||data.compression==='gzip-json'?data.resources.map(value=>{const text=gunzipSync(Buffer.from(value,'base64')).toString('utf8');return data.compression==='gzip-json'?JSON.parse(text):text}):data.resources
+      return unpackDocument<T>({...data,resources,value:data.model?JSON.parse(gunzipSync(Buffer.from(data.model,'base64')).toString('utf8')):data.value})
     }
     return parsed.data
   } catch {

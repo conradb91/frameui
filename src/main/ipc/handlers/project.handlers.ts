@@ -160,8 +160,14 @@ export function registerProjectHandlers(): void {
     const options:Electron.OpenDialogOptions=kind==='prototype'?{title:'Select files to import · ZIP or HTML',properties:['openFile','multiSelections'],filters:[{name:'ZIP or HTML prototype',extensions:['zip','html','htm']}]}:{title:'Select project folder',properties:['openDirectory','createDirectory']}
     const selected=owner?await dialog.showOpenDialog(owner,options):await dialog.showOpenDialog(options)
     if(selected.canceled||!selected.filePaths[0])return null
-    selectedLocations.set(event.sender.id,{kind,path:selected.filePaths[0],files:kind==='prototype'?selected.filePaths:undefined})
+    selectedLocations.set(event.sender.id,{kind,path:selected.filePaths[0],files:kind==='prototype'?[...new Set([...(selectedLocations.get(event.sender.id)?.files??[]),...selected.filePaths])]:undefined})
     return kind==='prototype'?selected.filePaths:selected.filePaths[0]
+  })
+  ipcMain.handle('project:addPrototypeFiles',async(event,raw)=>{
+    const files=z.array(z.string().min(1).max(4096)).min(1).parse(raw)
+    for(const file of files){if(!/\.(html?|zip)$/i.test(file)||!(await fs.promises.stat(file)).isFile())throw new Error('Add HTML or ZIP files only.')}
+    selectedLocations.set(event.sender.id,{kind:'prototype',path:files[0],files:[...new Set([...(selectedLocations.get(event.sender.id)?.files??[]),...files])]})
+    return files
   })
   ipcMain.handle('project:createStarterProject',(event,raw)=>{
     const {name,kind,parentPath}=z.object({name:z.string().trim().min(1).max(120).refine(value=>!/[\\/]/.test(value)&&!Array.from(value).some(character=>character.charCodeAt(0)<32),'Choose a name without slashes or control characters.'),kind:z.enum(['repository','application','prototype','blank']),parentPath:z.string().max(4096).optional()}).parse(raw)
@@ -186,7 +192,7 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:cancelPrototypeImport',(event,raw)=>({ok:cancelImport(event.sender.id,z.string().uuid().parse(raw))}))
   ipcMain.handle('project:finishPrototypeImport',(event,raw)=>{finishImport(event.sender.id,z.string().uuid().parse(raw))})
   ipcMain.handle('project:importPrototype',async(event,raw)=>{
-    const input=z.union([z.string().uuid(),z.object({id:z.string().uuid(),projectId:z.string().uuid(),file:z.union([z.string().max(4096),z.array(z.string().max(4096)).min(1).max(100)]).optional()})]).parse(raw)
+    const input=z.union([z.string().uuid(),z.object({id:z.string().uuid(),projectId:z.string().uuid(),file:z.union([z.string().max(4096),z.array(z.string().max(4096)).min(1)]).optional()})]).parse(raw)
     const id=typeof input==='string'?input:input.id,prepared=typeof input==='string'?undefined:getRegisteredProject(app.getPath('userData'),input.projectId)
     if(prepared&&!prepared.path.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep))throw new Error('Choose a prototype project folder.')
     const signal=beginImport(event.sender.id,id)
@@ -203,17 +209,17 @@ export function registerProjectHandlers(): void {
     const files=[...new Set(selected.filePaths)],originalName=path.basename(files[0],path.extname(files[0])),name=prepared?.name??(originalName.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim()||'Imported prototype')
     const folder=prepared?.path??path.join(app.getPath('userData'),'artifact-projects',randomUUID())
     try {
-      await unpackPrototypes(files,path.join(folder,'prototype'),signal,(completed,total,detail,file)=>{if(!event.sender.isDestroyed())event.sender.send('project:prototypeImportProgress',{id,stage:'extract',file:path.basename(file),completed,total,detail})})
+      const extracted=await unpackPrototypes(files,path.join(folder,'prototype'),signal,(completed,total,detail,file)=>{if(!event.sender.isDestroyed())event.sender.send('project:prototypeImportProgress',{id,stage:'extract',file:path.basename(file),completed,total,detail})})
       importSignal(event.sender.id,id)
       const routes=await managedPrototypeRoutes(folder)
-      if(!routes.length||routes.length>100)throw new Error('Choose a runnable prototype with 1–100 HTML pages. Source-only projects need a running app.')
+      if(!routes.length)throw new Error('No runnable HTML was found. Source-only projects need a running app.')
       fs.writeFileSync(path.join(folder,'frameui-artifact.json'),JSON.stringify({version:1,name,originalName,sourceFile:path.basename(files[0]),sourceFiles:files.map(file=>path.basename(file))}))
       const url=await servePrototype(folder)
       signal.throwIfAborted()
       const project=recordProjectOpened(app.getPath('userData'),folder,name)
       setImportProject(event.sender.id,id,{projectId:project.id,rootPath:folder})
       configureRuntime(app.getPath('userData'),project.id,url,'local')
-      return {project,url,routes}
+      return {project,url,routes,warnings:extracted.warnings}
     }catch(error){await fs.promises.rm(prepared?path.join(folder,'prototype'):folder,{recursive:true,force:true});throw error}
   })
   ipcMain.handle('project:connectApplication',(_event,raw)=>{

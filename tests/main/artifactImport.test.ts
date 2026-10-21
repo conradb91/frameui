@@ -91,3 +91,38 @@ test('missing captured destinations are reported as failed connections instead o
  const result=artifactFlow(pages,[{source:'/a',destination:'/b',selector:'button',label:'View'}],'Demo',coverage)
  expect(result.interactions).toHaveLength(0);expect(result.coverage?.complete).toBe(false);expect(result.coverage?.captured).toBe(0);expect(result.coverage?.failed).toBe(1)
 })
+
+test('prototype import accepts more than 2,000 archive entries and more than 100 selected HTML files',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'frameui-unbounded-files-'))
+ try{
+ const archive=path.join(root,'many.zip');await fs.writeFile(archive,createStoredZip([{path:'index.html',data:Buffer.from('<h1>Many entries</h1>')},...Array.from({length:2005},(_,i)=>({path:`assets/${i}.txt`,data:Buffer.from('asset')}))]));await unpackPrototype(archive,path.join(root,'archive'))
+ expect((await fs.readdir(path.join(root,'archive/assets'))).length).toBe(2005)
+ const files:string[]=[];for(let i=0;i<105;i++){const file=path.join(root,`page-${i}.html`);await fs.writeFile(file,'<h1>Page '+i+'</h1>');files.push(file)}
+ const project=path.join(root,'project');await unpackPrototypes(files,path.join(project,'prototype'));expect((await managedPrototypeRoutes(project)).length).toBe(105)
+ }finally{await fs.rm(root,{recursive:true,force:true})}
+},30000)
+
+test('files larger than 128 MB are copied and served as a stream',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'frameui-large-file-'))
+ try{
+ const file=path.join(root,'large.html'),handle=await fs.open(file,'w');await handle.write('<h1>Large prototype</h1>');await handle.truncate(129*1024*1024);await handle.close()
+ const project=path.join(root,'project');await unpackPrototype(file,path.join(project,'prototype'));expect((await fs.stat(path.join(project,'prototype/large.html'))).size).toBe(129*1024*1024)
+ const url=await servePrototype(project),head=await fetch(url,{method:'HEAD'});expect(Number(head.headers.get('content-length'))).toBe(129*1024*1024)
+ const response=await fetch(url),reader=response.body!.getReader(),first=await reader.read();expect(new TextDecoder().decode(first.value)).toContain('Large prototype');await reader.cancel();stopPrototype(project)
+ }finally{await fs.rm(root,{recursive:true,force:true})}
+},30000)
+
+test('a failed archive is reported while later valid files still import',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'frameui-partial-batch-'))
+ try{
+ const bad=path.join(root,'broken.zip'),good=path.join(root,'valid.html');await fs.writeFile(bad,'Not a zip');await fs.writeFile(good,'<h1>Valid page</h1>')
+ const project=path.join(root,'project'),result=await unpackPrototypes([bad,good],path.join(project,'prototype'))
+ expect(result.warnings).toHaveLength(1);expect(result.warnings[0]).toContain('broken.zip');expect(await managedPrototypeRoutes(project)).toEqual(['/source-2/valid.html'])
+ }finally{await fs.rm(root,{recursive:true,force:true})}
+})
+
+test('large imported canvases persist more than 200 flows, 500 flow screens and 10,000 connections',()=>{
+ const now=new Date().toISOString(),ids=Array.from({length:600},(_,i)=>'screen-'+i),flow={id:'flow',name:'Large flow',artboardIds:ids,positions:{},createdAt:now,updatedAt:now}
+ const result=prototypeSchema.safeParse({version:1,flows:Array.from({length:205},(_,i)=>({...flow,id:'flow-'+i})),interactions:Array.from({length:10005},(_,i)=>({id:'edge-'+i,sourceArtboardId:'screen-0',destinationId:'screen-1',trigger:'click',action:'navigate'})),variables:{},scenarios:[],imports:[]})
+ expect(result.success).toBe(true)
+})

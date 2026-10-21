@@ -1,3 +1,4 @@
+import {PrototypeFilePicker} from './PrototypeFilePicker'
 import {isolateImportedFlows} from '@core/prototype/flowComposition'
 import {capturePages} from '../../lib/capturePages'
 import { upgradeFlowGuides } from '../../../core/prototype/flowIntroductions'
@@ -977,13 +978,21 @@ export function DesignIde() {
   }
   const [starterKind,setStarterKind]=useState<'repository'|'application'|'prototype'|'blank'|null>(null)
   const [starterName,setStarterName]=useState(''),[starterBusy,setStarterBusy]=useState(false),[starterError,setStarterError]=useState('')
-  const [starterFiles,setStarterFiles]=useState<string[]>([])
+  const [starterFiles,setStarterFiles]=useState<string[]>([]),[starterFilesBusy,setStarterFilesBusy]=useState(false)
   const [starterLocation,setStarterLocation]=useState(''),[starterDesignName,setStarterDesignName]=useState('')
-  async function selectStarterLocation(){if(!starterKind)return;try{const selected=await window.frameui.project.selectStarterLocation(starterKind);if(selected){if(Array.isArray(selected)){setStarterFiles(selected);setStarterLocation(selected[0]??'')}else setStarterLocation(selected)}}catch(error){setStarterError(userFacingError(error))}}
+  async function selectStarterLocation(){if(!starterKind||starterFilesBusy)return;setStarterFilesBusy(true);try{const selected=await window.frameui.project.selectStarterLocation(starterKind);if(selected){if(Array.isArray(selected)){setStarterFiles(previous=>[...new Set([...previous,...selected])]);setStarterLocation(selected[0]??'')}else setStarterLocation(selected)}}catch(error){setStarterError(userFacingError(error))}finally{setStarterFilesBusy(false)}}
+  async function addDroppedPrototypes(files:File[]){
+    if(!files.length||starterFilesBusy)return
+    setStarterFilesBusy(true)
+    const supported=files.filter(file=>/\.(html?|zip)$/i.test(file.name)),rejected=files.filter(file=>!supported.includes(file))
+    try{if(supported.length){const paths=await window.frameui.project.addPrototypeFiles(supported);setStarterFiles(previous=>[...new Set([...previous,...paths])]);setStarterLocation(paths[0]??'')}setStarterError(rejected.length?'Only HTML and ZIP files can be added. Skipped: '+rejected.map(file=>file.name).join(', '):'')}catch(error){setStarterError(userFacingError(error))}finally{setStarterFilesBusy(false)}
+  }
+
+  function removeStarterFile(file:string){const next=starterFiles.filter(path=>path!==file);setStarterFiles(next);setStarterLocation(next[0]??'')}
   const [starterProject,setStarterProject]=useState<RecentProject|null>(null)
   function startProject(kind:'repository'|'application'|'prototype'|'blank'){setStarterName('');setStarterDesignName('');setStarterLocation('');setStarterFiles([]);setStarterError('');setStarterKind(kind);setStarterProject(null)}
   async function createStarterProject(){
-    if(!starterKind||!starterName.trim()||starterBusy||starterKind==='prototype'&&(!starterLocation||!starterDesignName.trim()))return
+    if(!starterKind||!starterName.trim()||starterBusy||starterFilesBusy||starterKind==='prototype'&&(!starterLocation||!starterDesignName.trim()))return
     setStarterBusy(true);setStarterError('')
     try{
       const project=await window.frameui.project.createStarterProject(starterName.trim(),starterKind,starterKind==='prototype'?undefined:starterLocation||undefined)
@@ -1055,7 +1064,7 @@ export function DesignIde() {
         plan.coverage.complete=false
       }
       design.pages=pages;design.prototype=artifactFlow(pages,plan.transitions,result.project.name,plan.coverage)
-      const warnings=[...new Set([...plan.warnings,...pages.flatMap(page=>page.captureWarnings??[]),...(capturedScreens<plan.routes.length?['Some screens could not be captured. Open Capture page to retry them.']:[])])]
+      const warnings=[...new Set([...plan.warnings,...(result.warnings??[]),...pages.flatMap(page=>page.captureWarnings??[]),...(capturedScreens<plan.routes.length?['Some screens could not be captured. Open Capture page to retry them.']:[])])]
       if(warnings.length)design.pages[0].captureWarnings=[...(design.pages[0].captureWarnings??[]),...warnings]
       save({...library,pages:structuredClone(design.pages),updatedAt:new Date().toISOString()})
       save(design)
@@ -1063,7 +1072,8 @@ export function DesignIde() {
       setArtifactProgress(previous=>({...previous,value:undefined,detail:'Saving editable screens and flow guides…'}))
       await saveQueue.current
       if(saveError.current){open(design);throw new Error('The imported design is still open but has not been saved. Use Save to retry.')}
-      const summary=`${plan.coverage.complete?'Import complete':'Discovery needs review'} · ${capturedScreens} of ${plan.routes.length} discovered screens captured · ${design.prototype.interactions.length} connections · Desktop (${width} px)`
+      const summary=`${plan.coverage.complete&&!result.warnings?.length?'Import complete':'Import needs review'} · ${capturedScreens} of ${plan.routes.length} discovered screens captured · ${design.prototype.interactions.length} connections · Desktop (${width} px)`
+      if(result.warnings?.length)setError(result.warnings.join('\n'))
       setStatus(`Imported ${capturedScreens} ${capturedScreens===1?'screen':'screens'}${warnings.length?' · Review notes':''}`)
       if(artifactHiddenRef.current)setArtifactReady({id:design.id,name:design.name,summary,notes:warnings})
       else{open(design);fitAllAfterCapture.current=true;setArtifactSummary({title:summary,notes:warnings})}
@@ -2561,6 +2571,7 @@ export function DesignIde() {
       commandActions.find((a) => a.id === id && !a.disabled)?.run()
     }),
   )
+  const errorToast=error?<div className="ide-error-toast" role="alert"><span>{userFacingError(error)}</span><button aria-label="Dismiss error" onClick={()=>setError('')}>×</button></div>:null
   if (!doc)
     return (
       <>
@@ -2594,20 +2605,22 @@ export function DesignIde() {
           onDeleteProject={async(id,name,deleteFolder)=>{if(deleteFolder)await window.frameui.project.deleteFromDisk(id,name);else await window.frameui.project.removeFromFrameUi(id);setRecents(previous=>previous.filter(d=>d.projectId!==id));setProjectLibrary(await window.frameui.project.listLibrary())}}
           onReveal={(id) => void window.frameui.project.reveal(id)}
           status={status}
-          error={error}
+          error=""
           onGettingStarted={openFirstRunOnboarding}
         />
-        {starterKind&&<ModalShell size="compact" className="starter-project-modal" ariaLabel="Create project" critical={starterBusy} onClose={()=>setStarterKind(null)}>
-          <ModalHeader title="Create your project" description={starterKind==='prototype'?'Name your project and design, select your HTML or ZIP files, and choose the screen width.':'Name your project and choose where to save it.'} onClose={()=>setStarterKind(null)}/>
+        {starterKind&&<ModalShell size="compact" className="starter-project-modal" ariaLabel="Create project" critical={starterBusy||starterFilesBusy} onClose={()=>{if(!starterBusy&&!starterFilesBusy)setStarterKind(null)}}>
+          <ModalHeader title="Create your project" description={starterKind==='prototype'?'Name your project and design, select your HTML or ZIP files, and choose the screen width.':'Name your project and choose where to save it.'} onClose={()=>{if(!starterBusy&&!starterFilesBusy)setStarterKind(null)}}/>
           <ModalBody>
             <ModalField label="Project name"><input autoFocus aria-label="Project name" maxLength={120} value={starterName} disabled={starterBusy} placeholder="e.g. One Glance Audit" onChange={e=>setStarterName(e.target.value)}/></ModalField>
             {starterKind==='prototype'&&<ModalField label="Design name"><input aria-label="Design name" maxLength={120} value={starterDesignName} disabled={starterBusy} placeholder="e.g. Crew readiness dashboard" onChange={e=>setStarterDesignName(e.target.value)}/></ModalField>}
-            <div className="starter-location"><strong>{starterKind==='prototype'?'Select your files to import · ZIP or HTML':'Project location'}</strong><div><span title={starterLocation}>{(starterKind==='prototype'?starterFiles.map(file=>file.split(/[\\/]/).pop()).join(', '):starterLocation)||(starterKind==='prototype'?'No files selected':'FrameUI project folder')}</span><button disabled={starterBusy} onClick={()=>void selectStarterLocation()}>{starterKind==='prototype'?(starterLocation?'Change files':'Select files'):'Select folder'}</button></div></div>
+            {starterKind==='prototype'?<PrototypeFilePicker files={starterFiles} disabled={starterBusy||starterFilesBusy} onBrowse={()=>void selectStarterLocation()} onDrop={files=>void addDroppedPrototypes(files)} onRemove={removeStarterFile}/>:<div className="starter-location"><strong>Project location</strong><div><span title={starterLocation}>{starterLocation||'FrameUI project folder'}</span><button disabled={starterBusy} onClick={()=>void selectStarterLocation()}>Select folder</button></div></div>}
+
+            {starterFilesBusy&&<p role="status">Adding files…</p>}
             {starterKind==='prototype'&&<fieldset className="artifact-import-width"><legend>Artboard width</legend>{([1440,1920] as const).map(value=><label key={value}><input type="radio" name="prototype-width" value={value} checked={artifactWidth===value} disabled={starterBusy} onChange={()=>setArtifactWidth(value)}/><span><strong>{value} px</strong><small>{value===1440?'Standard desktop':'Wide desktop'}</small></span></label>)}</fieldset>}
             <p className="muted">{starterKind==='prototype'?'Select multiple HTML or ZIP files to add their screens to one canvas. Your source files stay in place.':'A new project folder will be created inside the selected location.'}</p>
-            {starterError&&<p role="alert">{starterError}</p>}
+            {starterError&&<div className="ide-error-toast is-inline" role="alert"><span>{userFacingError(starterError)}</span><button type="button" aria-label="Dismiss error" onClick={()=>setStarterError('')}>×</button></div>}
           </ModalBody>
-          <ModalFooter><button disabled={starterBusy} onClick={()=>setStarterKind(null)}>Cancel</button><button className="primary" disabled={starterBusy||!starterName.trim()||starterKind==='prototype'&&(!starterLocation||!starterDesignName.trim())} onClick={()=>void createStarterProject()}>{starterBusy?'Creating project…':starterKind==='prototype'?'Create project and import':'Create project'}</button></ModalFooter>
+          <ModalFooter><button disabled={starterBusy||starterFilesBusy} onClick={()=>setStarterKind(null)}>Cancel</button><button className="primary" disabled={starterBusy||starterFilesBusy||!starterName.trim()||starterKind==='prototype'&&(!starterLocation||!starterDesignName.trim())} onClick={()=>void createStarterProject()}>{starterBusy?'Creating project…':starterKind==='prototype'?'Create project and import':'Create project'}</button></ModalFooter>
         </ModalShell>}
         {artifactImportStage&&!artifactHidden&&<ArtifactImportModal width={artifactWidth} stage={artifactImportStage} progress={artifactProgress} startedAt={artifactStartedAt} onStop={stopArtifactImport} onBackground={hideArtifactProgress}/>}
         {artifactImportStage&&artifactHidden&&<ArtifactImportBackground stage={artifactImportStage} progress={artifactProgress} onOpen={showArtifactProgress} onStop={stopArtifactImport}/>}
@@ -2627,6 +2640,7 @@ export function DesignIde() {
             onOpen={confirmProjectSetup}
           />
         )}
+        {errorToast}
         <TooltipLayer />
       </>
     )
@@ -2707,7 +2721,7 @@ export function DesignIde() {
           }}
         />
         <ProgressModal open={sourceBusy} title="Preparing editable page" description="FrameUI is reading the page structure and matching it to local styles and reusable components." operation="Analysing the page and project styles" detail="This operation does not expose measurable progress. Your source files remain unchanged." />
-        {error && <p role="alert">{error}</p>}
+        {errorToast}
         <TooltipLayer />
       </div>
     )
@@ -4833,12 +4847,7 @@ export function DesignIde() {
           </ModalFooter>
         </ModalShell>
       )}
-      {error && (
-        <div className="ide-error-toast" role="alert">
-          <span>{userFacingError(error)}</span>
-          <button aria-label="Dismiss error" onClick={() => setError('')}>×</button>
-        </div>
-      )}
+      {errorToast}
     </div>
   )
 }

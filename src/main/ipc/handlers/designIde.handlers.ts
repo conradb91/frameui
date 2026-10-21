@@ -1079,7 +1079,7 @@ export function registerDesignIdeHandlers() {
     }
     try {
       await Promise.all(
-        Array.from({ length: Math.min(3, jobs.length) }, async () => {
+        Array.from({ length: Math.min(input.artifactImportId?1:3, jobs.length) }, async () => {
           while (next < jobs.length && !signal.aborted) {
             const { r, width } = jobs[next++]
             let win: Electron.BrowserWindow | undefined

@@ -1,0 +1,61 @@
+{
+  "verifiedAt": "2026-10-21T08:05:23.169Z",
+  "tests": {
+    "passed": 558,
+    "failed": 0
+  },
+  "typecheckAndProductionBuild": "passed",
+  "checks": {
+    "largerThan128MB": "passed: 129 MB HTML copied and streamed",
+    "moreThan2000ZipEntries": "passed: 2,006 entries",
+    "moreThan100SelectedFiles": "passed: 105 HTML files",
+    "largeCanvasPersistenceSchema": "passed: 205 flows, 600 flow screens and 10,005 connections",
+    "nativeFileDragAndDrop": "passed",
+    "appendRemoveAndListAllFiles": "passed",
+    "dismissibleErrors": "passed",
+    "badFileDoesNotAbortOtherImports": "passed",
+    "confirmationOnlyProjectAndFolderDeletion": "passed",
+    "rendererErrorsInCheckedWorkflows": 0,
+    "dmgChecksum": "valid"
+  },
+  "packagedImport": {
+    "files": [
+      "intro.html",
+      "Safety.zip",
+      "Training.zip",
+      "broken.zip"
+    ],
+    "nativeDragAndDrop": true,
+    "appendAndRemoveFiles": true,
+    "dismissibleErrors": true,
+    "failedArchiveDoesNotStopBatch": true,
+    "screens": [
+      {
+        "name": "Standalone introduction",
+        "route": "/source-1/intro.html"
+      },
+      {
+        "name": "Training overview",
+        "route": "/source-2/index.html"
+      },
+      {
+        "name": "Safety overview",
+        "route": "/source-3/index.html"
+      },
+      {
+        "name": "Training expanded",
+        "route": "/__prototype_state_3"
+      },
+      {
+        "name": "Safety expanded",
+        "route": "/__prototype_state_4"
+      }
+    ],
+    "flows": 3,
+    "interactions": 2,
+    "coverage": true
+  },
+  "reviewProfile": "review-1792569772934-68796900-3dd8-43a0-afa8-f10a32adadbf",
+  "freshReviewProfile": true,
+  "sha256": "5ff3aca171e4210b4e3b34b0b38156a87bbc918b35b5559a78dca6d43291c8ae"
+}

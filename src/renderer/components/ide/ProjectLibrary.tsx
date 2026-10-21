@@ -158,7 +158,7 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
           {files.filter(f=>archived.includes(f.id)).map(f=><div className="ide-row" key={f.id}><strong>{f.name}</strong><button onClick={()=>archive(f.id)}>Restore</button></div>)}
           {archivedPages.map(pattern=>{const entry=(document.pageRegistry??[]).find(r=>r.pattern===pattern);return <div className="ide-row" key={pattern}><strong>{entry?humanizeName(entry.name,entry.area):pattern}</strong><small>{formatRoute(pattern)}</small><button onClick={()=>archivePage(pattern)}>Restore</button></div>})}
         </>}
-        {error&&<p role="alert">{error}</p>}
+        {error&&<div className="ide-error-toast is-inline" role="alert"><span>{userFacingError(error)}</span><button type="button" aria-label="Dismiss error" onClick={()=>setError('')}>×</button></div>}
       </main>
     </div>
     {menu && fileActions.length>0 && <ActionMenu actions={fileActions} x={menu.x} y={menu.y} onClose={()=>setMenu(null)}/>}

@@ -152,6 +152,7 @@ const api: FrameUiApi = {
     setObservationApproved: (projectId, observationId, approved) => ipcRenderer.invoke('workspace:setObservationApproved', { projectId, observationId, approved }),
   },
   project: {
+    addPrototypeFiles: files=>ipcRenderer.invoke('project:addPrototypeFiles',files.map(file=>electron.webUtils.getPathForFile(file as File))),
     selectStarterLocation: kind=>ipcRenderer.invoke('project:selectStarterLocation',kind),
     createStarterProject: (name,kind,parentPath)=>ipcRenderer.invoke('project:createStarterProject',{name,kind,parentPath}),
     resumePrototypeImport:(id,projectId)=>ipcRenderer.invoke('project:resumePrototypeImport',{id,projectId}),
