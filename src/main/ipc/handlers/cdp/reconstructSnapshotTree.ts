@@ -62,7 +62,7 @@ const ATTRIBUTE_ALLOWLIST = new Set([
   'points',
   'data-frameui-source',
 ])
-const SELECTOR_TAGS = new Set(['span','strong','b','em','i','h1','h2','h3','h4','p','label','a','svg', 'button', 'input', 'select', 'textarea', 'summary', 'iframe', 'frame'])
+const SELECTOR_TAGS = new Set(['span','strong','b','em','i','h1','h2','h3','h4','p','label','a','svg', 'button', 'input', 'select', 'textarea', 'summary', 'dialog', 'iframe', 'frame'])
 
 type Rect = { x: number; y: number; width: number; height: number }
 
@@ -346,6 +346,7 @@ export function reconstructSnapshotTree(
     return (
       SELECTOR_TAGS.has(tag) ||
       attrs.role === 'button' || attrs.role === 'tab' ||
+      ['onclick','data-tab','data-go','data-cat','data-bs-toggle','data-toggle','aria-controls','aria-expanded'].some(key=>attrs[key]!==undefined) ||
       attrs['data-component'] !== undefined ||
       attrs['data-frameui-component'] !== undefined
     )
@@ -387,6 +388,7 @@ export function reconstructSnapshotTree(
       if (ATTRIBUTE_ALLOWLIST.has(name)) attributes[name] = value
 
     if (needsCaptureSelector(tag, attrsAll)) attributes.captureSelector = captureSelectorFor(domIndex)
+    if(['onclick','data-tab','data-go','data-cat','data-bs-toggle','data-toggle','aria-controls','aria-expanded'].some(key=>attrsAll[key]!==undefined))attributes['data-frameui-interactive']='true'
 
     const baseURL = str(doc.baseURL) || str(doc.documentURL)
     if (tag === 'a' && attrsAll.href !== undefined) {

@@ -1,3 +1,4 @@
+import {TOP_LAYER_SCRIPT,attachTopLayer} from './captureTopLayer'
 import {recoverPseudoBounds} from './recoverPseudoBounds'
 import {CSS_SVG_MASK_ICONS_SCRIPT,attachCssSvgMaskIcons} from './cssSvgMaskIcons'
 import { raceAbort } from '../capture/raceAbort'
@@ -115,6 +116,7 @@ export async function captureDomSnapshot(
   const ratio = snapshotBodyWidth && liveBodyWidth > 0 ? snapshotBodyWidth / liveBodyWidth : 1
   const coordinateScale = Number.isFinite(ratio) && ratio > 0 ? ratio : 1
   const root = reconstructSnapshotTree(snapshot, CAPTURED_STYLE_PROPERTIES, viewport, coordinateScale)
+  attachTopLayer(root,await execute(TOP_LAYER_SCRIPT) as Parameters<typeof attachTopLayer>[1])
   await recoverPseudoBounds(root,execute)
   attachCssSvgMaskIcons(root,await execute(CSS_SVG_MASK_ICONS_SCRIPT) as Parameters<typeof attachCssSvgMaskIcons>[1])
   const placeholderStyles = await execute(`(() => {

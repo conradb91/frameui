@@ -3,7 +3,7 @@ import type { VisualPage } from '../../shared/types/visualDesign'
 import type { StructuredNode } from '../../shared/types/structuredDesign'
 import type { PrototypeData } from '../../shared/types/prototype'
 
-export interface DetectedTransition {source:string;destination:string;selector:string;label:string}
+export interface DetectedTransition {source:string;destination:string;selector:string;label:string;kind?:'tab'}
 /** Wire only transitions observed in the actual prototype, using captured DOM identities. */
 export function artifactFlow(pages:VisualPage[],transitions:DetectedTransition[],name:string):PrototypeData {
   const now=new Date().toISOString()
@@ -22,9 +22,10 @@ export function artifactFlow(pages:VisualPage[],transitions:DetectedTransition[]
     const label=(boldLabel(node)||edge.label).replace(/[\uE000-\uF8FF]|[\u{F0000}-\u{FFFFD}]|[\u{100000}-\u{10FFFD}]/gu,'').replace(/\s+/g,' ').trim()
     interactions.push({id:crypto.randomUUID(),sourceArtboardId:source.id,sourceElementId:node.id,trigger:'click',action:'navigate',destinationId:destination.id,transition:'instant',label:label.slice(0,200)})
   }
+  const tabSources=new Set(transitions.filter(e=>e.kind==='tab').flatMap(e=>pages.filter(p=>p.route===e.source).map(p=>p.id)))
   const flows:PrototypeData['flows']=[],covered=new Set<string>()
   const make=(root:string,label:string,destination?:string)=>{
-    const barriers=new Set(interactions.filter(e=>e.sourceArtboardId===root).map(e=>e.destinationId).filter((id):id is string=>!!id&&id!==destination))
+    const barriers=new Set(interactions.filter(e=>!tabSources.has(root)&&e.sourceArtboardId===root).map(e=>e.destinationId).filter((id):id is string=>!!id&&id!==destination))
     const members=new Set<string>([root]),queue=destination?[destination]:[root]
     if(destination)members.add(destination)
     const visited=new Set<string>()
@@ -38,6 +39,7 @@ export function artifactFlow(pages:VisualPage[],transitions:DetectedTransition[]
     if(covered.has(page.id))continue
     const outgoing=interactions.filter(edge=>edge.sourceArtboardId===page.id&&edge.destinationId&&edge.destinationId!==page.id)
     const destinations=new Set<string>()
+    if(tabSources.has(page.id)){make(page.id,'Tabs · '+page.name);continue}
     if(outgoing.length){for(const edge of outgoing){if(destinations.has(edge.destinationId!))continue;destinations.add(edge.destinationId!);make(page.id,edge.label||pages.find(p=>p.id===edge.destinationId)?.name||'Continue',edge.destinationId)}}
     else make(page.id,page.name||name)
   }

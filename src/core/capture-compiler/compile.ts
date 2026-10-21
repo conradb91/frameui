@@ -454,7 +454,8 @@ export function compileStructuredNodes(
     // A paint-less flex/grid wrapper is KEPT, because dropping it would
     // destroy the very layout relationship this schema exists to preserve
     // (docs/CAPTURE_ENGINE_REBUILD_SPEC.md §7).
-    const isPlainWrapper = (type === 'Container' || type === 'Group') && !paint && !label && !text && appearance.zIndex === undefined && !appearance.clip && appearance.opacity === 1
+    const interactive = ['summary','button','a','input','select','textarea'].includes(tag)||['tab','button'].includes(el.aria?.role??'')||a['data-frameui-interactive']==='true'||el.aria?.['aria-expanded']!==undefined
+    const isPlainWrapper = !interactive && (type === 'Container' || type === 'Group') && !paint && !label && !text && appearance.zIndex === undefined && !appearance.clip && appearance.opacity === 1
     const borderInset = appearance.border?.width ?? 0
     const children = sourceOf(el,tag,ctx).control?[]:inlineTextGroups(el).flatMap((child) => convert(child, el.rect.x + borderInset, el.rect.y + borderInset, null))
     if (isPlainWrapper && layout.mode === 'free' && !Object.values(layout.padding??{}).some(value=>value!==0)) {

@@ -1,0 +1,28 @@
+{
+  "source": "tests/fixtures/tabbed-crew.html",
+  "output": "docs/verification/tab-flows-2026-10-21/crew-flows.xd",
+  "screens": 12,
+  "guides": 1,
+  "observedConnections": 30,
+  "discoveryWarnings": [],
+  "export": {
+    "format": "xd",
+    "structuralValidation": "passed",
+    "applicationValidation": "unverified",
+    "artboards": 13,
+    "layers": 1278,
+    "editableText": 648,
+    "editableVectors": 0,
+    "images": 0,
+    "components": 0,
+    "linkedInstances": 0,
+    "clippingMasks": 18,
+    "nativeEffects": 516,
+    "warnings": [
+      "Adobe XD open, edit, save and reopen validation has not been performed. Fonts must be installed on the receiving computer.",
+      "Imported HTML interactions represent captured states and observed click connections. JavaScript execution, data filtering, file generation and other HTML runtime behaviour are not embedded in Adobe XD.",
+      "Unsupported colour was omitted: rgba(0, 0, 0, 0) rgb(0, 0, 0) rgb(0, 0, 0)"
+    ]
+  },
+  "temporaryDesign": "/var/folders/90/gc1n68853tjdwz7gdsdnbvlm0000gn/T/frameui-html-xd-Wk2WRT/design.json"
+}

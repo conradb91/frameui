@@ -40,8 +40,8 @@ export function flowIntroduction(pages:VisualPage[],flow:PrototypeFlow,index:num
  }
  text('Flow number',`FLOW ${index+1}`,14,'700','#64748b')
  text('Flow title',flow.name,32,'700')
- text('Flow description',`Start on “${start?.name||'the entry screen'}”. Screens shared with another flow appear once on the canvas.`,20)
- const steps=flowSteps(pages,flow,data)
+ text('Flow description',`Start on “${start?.name||'the entry screen'}”. Follow the labelled actions below.`,20)
+ const steps=[...new Set(flowSteps(pages,flow,data).map(step=>step.replace(/^On “[^”]*”: /,'')))]
  if(steps.length) steps.forEach((step,i)=>text(`Step ${i+1}`,`${i+1}. ${step}`,20))
  else text('Flow notes',flow.description||'No linked actions were captured for this screen. Explore it in the prototype to capture further states.',20)
  return {id:crypto.randomUUID(),flowIntroductionFor:flow.id,name:`Flow ${index+1} · ${flow.name}`,folder:'Flow guides',pinned:false,state:'Flow guide',width:1440,height:Math.max(400,y+32),objects}
@@ -79,7 +79,7 @@ export function layoutFlowGroups(pages:VisualPage[],data:PrototypeData,originX=0
   const members=new Set(flow.artboardIds),depth=new Map<string,number>(),queue=[flow.startArtboardId??available[0]];depth.set(queue[0],0)
   while(queue.length){const id=queue.shift()!;for(const edge of data.interactions){if(edge.sourceArtboardId!==id)continue;for(const dest of [edge.destinationId,edge.elseDestinationId])if(dest&&members.has(dest)&&!depth.has(dest)){depth.set(dest,(depth.get(id)??0)+(['open-modal','open-drawer','open-overlay'].includes(edge.action)?0:1));queue.push(dest)}}}
   const firstDepth=Math.min(...available.map(id=>depth.get(id)??0)),bottoms=new Map<number,number>();let bottom=band+guide.height
-  for(const id of available){const p=byId.get(id)!,level=Math.max(0,(depth.get(id)??0)-firstDepth),y=bottoms.get(level)??band;p.canvasX=originX+(level+1)*column;p.canvasY=y;bottoms.set(level,y+(p.height||1024)+180);bottom=Math.max(bottom,y+(p.height||1024));placed.add(id)}
+  for(const id of available){const p=byId.get(id)!,level=flow.name.startsWith('Tabs · ')?available.indexOf(id):Math.max(0,(depth.get(id)??0)-firstDepth),y=bottoms.get(level)??band;p.canvasX=originX+(level+1)*column;p.canvasY=y;bottoms.set(level,y+(p.height||1024)+180);bottom=Math.max(bottom,y+(p.height||1024));placed.add(id)}
   const graphRows=new Map<number,number>()
   for(const id of flow.artboardIds){const p=byId.get(id),level=depth.get(id)??0,row=graphRows.get(level)??0;graphRows.set(level,row+1);if(p&&(!only||only.has(id)))flow.positions[id]={x:level*340,y:row*300}}
   band=bottom+400

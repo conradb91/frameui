@@ -44,7 +44,7 @@ test('flow documentation explains observed controls and results without includin
  expect(steps).toContain('On “search”: Select “View course details” → show “details”.')
  expect(steps).not.toContain('View cart')
  const guide=pages.find(p=>p.flowIntroductionFor===data.flows[0].id)!
- expect(guide.objects.map(o=>o.text).join(' ')).toContain('2. On “search”')
+ expect(guide.objects.map(o=>o.text).join(' ')).toContain('2. Select “View course details”')
  for(let i=1;i<guide.objects.length;i++)expect(guide.objects[i].y).toBeGreaterThanOrEqual(guide.objects[i-1].y+guide.objects[i-1].height)
  expect(guide.height).toBeGreaterThan(guide.objects.at(-1)!.y+guide.objects.at(-1)!.height)
 })

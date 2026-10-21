@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-21",
+  "tests": {
+    "passed": 539,
+    "failed": 0
+  },
+  "productionBuild": "passed",
+  "packagedHtmlZipImport": "passed",
+  "packagedXdExportAndCancellation": "passed",
+  "dmgIntegrity": "valid",
+  "reviewProfile": "review-1792558369453-977ea911-53c0-4eab-9f24-b92f5a98c789",
+  "reviewProfileEmpty": true,
+  "fixture": {
+    "screens": 12,
+    "flows": 1,
+    "connections": 30,
+    "maximumVisualDifferencePercent": 0.274,
+    "allOffscreenTableRowsRetained": true
+  },
+  "xdApplicationValidation": "unverified",
+  "release": "release/FrameUI-0.1.0-x64.dmg"
+}

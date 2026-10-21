@@ -4,7 +4,7 @@ import type { BrowserWindow, WebContents } from 'electron'
 import { createHash } from 'node:crypto'
 
 export interface ArtifactState {pattern:string;url:string;name:string;steps:string[]}
-export interface ArtifactTransition {source:string;destination:string;selector:string;label:string}
+export interface ArtifactTransition {source:string;destination:string;selector:string;label:string;kind?:'tab'}
 export function prototypeRouteIdentity(address:string) {
   const url=new URL(address)
   url.searchParams.sort()
@@ -19,21 +19,27 @@ export const inspectScript = `(() => {
   function selector(el) { if(selectorCache.has(el))return selectorCache.get(el);const original=el,parts=[]; while(el.parentElement && el!==document.documentElement) {parts.unshift(el.tagName.toLowerCase()+':nth-child('+positionOf(el)+')');el=el.parentElement} const result='html>'+parts.join('>');selectorCache.set(original,result);return result }
   const modal=Array.from(document.querySelectorAll('dialog:modal,[aria-modal="true"]')).find(m=>m.getClientRects().length&&styleOf(m).visibility!=='hidden'&&styleOf(m).display!=='none');
   const visible=el=>{if(modal&&!modal.contains(el))return false;const r=rectOf(el),s=styleOf(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};
-  const candidates=Array.from(document.querySelectorAll('a[href],button,[role="button"],[role="tab"],summary')).filter(visible);
-  const safe=el=>{const name=(el.getAttribute('aria-label')||el.textContent||el.getAttribute('title')||'').trim();if(el.disabled||el.getAttribute('aria-disabled')==='true'||el.form||el.closest('form')||['submit','reset'].includes(el.getAttribute('type')))return false;if(/delete|remove|purchase|pay|logout|log out|sign out|save|send|submit|confirm|create|upload|download|install/i.test(name))return false;return el.tagName==='A'||el.tagName==='SUMMARY'||el.getAttribute('role')==='tab'||el.hasAttribute('aria-controls')||el.hasAttribute('aria-expanded')||el.getAttribute('aria-haspopup')==='dialog'||el.hasAttribute('aria-pressed')||el.hasAttribute('data-go')||el.hasAttribute('data-tab')||el.hasAttribute('data-cat')||/^(open|view|show|close|back|next|previous|toggle|menu|filter|settings|cancel)\\b/i.test(name)};
+  const isTab=el=>(el.getAttribute('role')==='tab'||el.hasAttribute('data-tab')||el.getAttribute('data-bs-toggle')==='tab'||el.getAttribute('data-toggle')==='tab')||!!el.closest('[role="tablist"],.tabs,.tab-buttons,.tab-nav,.nav-tabs')||/tab/i.test(el.getAttribute('onclick')||'');
+  const candidates=Array.from(document.querySelectorAll('a[href],button,[role="button"],[role="tab"],[data-tab],[data-bs-toggle="tab"],[data-toggle="tab"],[onclick],summary')).filter(visible);
+  const safe=el=>{const name=(el.getAttribute('aria-label')||el.textContent||el.getAttribute('title')||'').trim();if(el.disabled||el.getAttribute('aria-disabled')==='true'||el.form||el.closest('form')||['submit','reset'].includes(el.getAttribute('type')))return false;if(/delete|remove|purchase|pay|logout|log out|sign out|save|send|submit|confirm|create|upload|download|install/i.test(name))return false;return /expand|collapse|toggle|drawer|modal/i.test(el.getAttribute('onclick')||'')||isTab(el)||el.tagName==='A'||el.tagName==='SUMMARY'||el.getAttribute('role')==='tab'||el.hasAttribute('aria-controls')||el.hasAttribute('aria-expanded')||el.getAttribute('aria-haspopup')==='dialog'||el.hasAttribute('aria-pressed')||el.hasAttribute('data-go')||el.hasAttribute('data-tab')||el.hasAttribute('data-cat')||/^(open|view|show|close|back|next|previous|toggle|menu|filter|settings|cancel)\\b/i.test(name)};
   const visualElements=[];for(const el of document.querySelectorAll('body *')){if(visible(el))visualElements.push(el);if(visualElements.length===500)break}
-  const eligible=candidates.filter(safe).sort((a,b)=>Number(b.tagName==='A')-Number(a.tagName==='A'));
-  return {totalControls:candidates.length,skippedControls:candidates.length-eligible.length,eligibleControls:eligible.length,checkedControls:Math.min(eligible.length,32),visible:!!(document.body.innerText.trim()||document.querySelector('img,svg,canvas')),title:document.querySelector('[role="dialog"] h1,dialog[open] h1,main h1,h1')?.innerText?.replace(/\\s+/g,' ').trim()||document.title||'Prototype',
+  const eligible=candidates.filter(safe).sort((a,b)=>Number(isTab(b))-Number(isTab(a))||Number(b.hasAttribute('aria-expanded'))-Number(a.hasAttribute('aria-expanded')));
+  return {totalControls:candidates.length,skippedControls:candidates.length-eligible.length,eligibleControls:eligible.length,checkedControls:Math.min(eligible.length,32),visible:!!(document.body.innerText.trim()||document.querySelector('img,svg,canvas')),title:modal?.querySelector('h1,h2,h3')?.textContent?.trim()||document.querySelector('[role="dialog"] h1,dialog[open] h1,main h1,h1')?.innerText?.replace(/\\s+/g,' ').trim()||document.title||'Prototype',
     signature:document.body.innerText.replace(/\\s+/g,' ').trim()+'|'+Array.from(document.querySelectorAll('dialog[open],[aria-expanded="true"],[aria-selected="true"],details[open]')).map(selector).join('|'),
     visual:visualElements.map(el=>{const r=rectOf(el),s=styleOf(el);return [selector(el),el.getAttribute('src'),el.getAttribute('viewBox'),el.getAttribute('class'),el.getAttribute('aria-selected'),el.getAttribute('aria-expanded'),Math.round(r.width),Math.round(r.height),s.display,s.visibility,s.backgroundColor,s.backgroundImage,s.color,s.opacity,s.transform,el.getAttribute('d')?.slice(0,256)].join(':')}).join('|'),
-    controls:eligible.slice(0,32).map(el=>({selector:selector(el),label:(el.getAttribute('aria-label')||el.textContent||'Open state').trim().slice(0,100),href:el.tagName==='A'?el.href:undefined}))};
+    controls:eligible.slice(0,32).map(el=>({selector:selector(el),kind:isTab(el)?'tab':undefined,label:(el.getAttribute('aria-label')||el.textContent||'Open state').trim().slice(0,100),href:el.tagName==='A'?el.href:undefined}))};
 })()`
 export async function replayPrototype(web:WebContents,steps:string[],signal?:AbortSignal) {
   for(const selector of steps){
     signal?.throwIfAborted()
     const clicked=await abortable(web.executeJavaScript(`(() => {const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;el.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});const r=el.getBoundingClientRect();const hit=document.elementFromPoint(Math.max(0,Math.min(innerWidth-1,r.x+r.width/2)),Math.max(0,Math.min(innerHeight-1,r.y+r.height/2)));if(!hit||!el.contains(hit))return false;el.click();return true})()`),signal)
     if(!clicked)throw new Error('A prototype control changed. Recapture this state from the live prototype.')
-    await abortable(new Promise(resolve=>setTimeout(resolve,180)),signal)
+    await abortable(web.executeJavaScript(`(async()=>{
+      let changed=Date.now();const observer=new MutationObserver(()=>changed=Date.now());
+      observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true});
+      const deadline=Date.now()+1200;
+      try{do{await new Promise(resolve=>setTimeout(resolve,50))}while(Date.now()<deadline&&(Date.now()-changed<150||document.fonts.status==='loading'||Array.from(document.images).some(img=>{const r=img.getBoundingClientRect();return r.width&&r.height&&r.top<innerHeight&&r.bottom>0&&!img.complete})))}finally{observer.disconnect()}
+    })()`),signal)
   }
 }
 /** Bounded exploration of a user-selected, locally served prototype. Never submits forms. */
@@ -41,6 +47,7 @@ export async function explorePrototype(url:string,paths:string[],open:(url:strin
   const states:ArtifactState[]=[],transitions:ArtifactTransition[]=[],warnings:string[]=[],deduplication:{source:string;control:string;route:string;fingerprint:string;decision:string;destination?:string}[]=[]
   const fingerprints=new Map<string,string>(),unrendered=new Set<string>()
   const origin=new URL(url).origin
+  const exploredTabs=new Map<string,string>(),tabSelectors=new Set<string>()
   let attempts=0
   async function openOwned(address:string){
     const pending=open(address).then(win=>{if(signal?.aborted){if(!win.isDestroyed())win.destroy();signal.throwIfAborted()}return win})
@@ -48,7 +55,7 @@ export async function explorePrototype(url:string,paths:string[],open:(url:strin
   }
   async function inspect(state:ArtifactState){
     const win=await openOwned(state.url)
-    try{await replayPrototype(win.webContents,state.steps,signal);return {...await abortable(win.webContents.executeJavaScript(inspectScript),signal),route:prototypeRouteIdentity(win.webContents.getURL())} as {route:string;totalControls:number;skippedControls:number;eligibleControls:number;checkedControls:number;visible:boolean;title:string;signature:string;visual:string;controls:{selector:string;label:string;href?:string}[]}}
+    try{await replayPrototype(win.webContents,state.steps,signal);return {...await abortable(win.webContents.executeJavaScript(inspectScript),signal),route:prototypeRouteIdentity(win.webContents.getURL())} as {route:string;totalControls:number;skippedControls:number;eligibleControls:number;checkedControls:number;visible:boolean;title:string;signature:string;visual:string;controls:{selector:string;label:string;href?:string;kind?:'tab'}[]}}
     finally{if(!win.isDestroyed())win.destroy()}
   }
   const inspected=new Map<string,Awaited<ReturnType<typeof inspect>>>()
@@ -70,16 +77,19 @@ export async function explorePrototype(url:string,paths:string[],open:(url:strin
     if(!info.visible){unrendered.add(state.pattern);warnings.push(`${state.name} did not render visible content. Export runnable HTML rather than a source-only project.`);continue}
     if(!state.steps.length)state.name=info.title.slice(0,180)
     fingerprints.set(fingerprint(info.route+'|'+info.signature+'|'+info.visual),state.pattern)
+    for(const control of info.controls)if(control.kind==='tab')tabSelectors.add(control.selector)
     for(const control of info.controls){
       signal?.throwIfAborted()
       if(attempts>=60||states.length>=40||state.steps.length>=4){warnings.push('Partial discovery: automatic exploration reached its 40-screen, 60-attempt or four-step limit. Open the prototype in Capture to add remaining screens or states.');break}
+      const tabKey=state.url+'|'+state.steps.filter(step=>!tabSelectors.has(step)).join('|')+'|'+control.selector
+      if(control.kind==='tab'&&exploredTabs.has(tabKey)){const destination=exploredTabs.get(tabKey)!;if(destination!==state.pattern)transitions.push({source:state.pattern,destination,selector:control.selector,label:control.label,kind:'tab'});continue}
       if(control.href){
         const target=new URL(control.href)
         if(target.origin!==origin||!/^https?:$/.test(target.protocol))continue
         // Ordinary anchors scroll within a screen; hash routers change screens.
         if(target.pathname===new URL(state.url).pathname&&target.search===new URL(state.url).search&&target.hash&&!/^#!?\//.test(target.hash))continue
         const existing=states.find(s=>s.url===target.href&&!s.steps.length)
-        if(existing){transitions.push({source:state.pattern,destination:existing.pattern,selector:control.selector,label:control.label});continue}
+        if(existing){transitions.push({source:state.pattern,destination:existing.pattern,selector:control.selector,label:control.label,kind:control.kind});continue}
       }
       progress?.({completed:attempts,screens:states.length,connections:transitions.length,detail:`Checking ${control.label || 'interaction'} on ${state.name}`})
       attempts++
@@ -90,16 +100,17 @@ export async function explorePrototype(url:string,paths:string[],open:(url:strin
         const next=await abortable(win.webContents.executeJavaScript(inspectScript),signal) as typeof info
         const key=fingerprint(prototypeRouteIdentity(win.webContents.getURL())+'|'+next.signature+'|'+next.visual)
         const same=fingerprint(info.route+'|'+info.signature+'|'+info.visual)===key
-        if(same){deduplication.push({source:state.pattern,control:control.label,route:prototypeRouteIdentity(win.webContents.getURL()),fingerprint:key,decision:'unchanged'});continue}
+        if(same){if(control.kind==='tab')exploredTabs.set(tabKey,state.pattern);deduplication.push({source:state.pattern,control:control.label,route:prototypeRouteIdentity(win.webContents.getURL()),fingerprint:key,decision:'unchanged'});continue}
         let destination=fingerprints.get(key)
         if(!destination){
           destination='/__prototype_state_'+states.length
           fingerprints.set(key,destination)
-          states.push({pattern:destination,url:state.url,name:control.label||next.title,steps:[...state.steps,control.selector]})
+          states.push({pattern:destination,url:state.url,name:(next.title!==info.title?next.title:control.label)||next.title,steps:[...state.steps,control.selector]})
           inspected.set(destination,{...next,route:prototypeRouteIdentity(win.webContents.getURL())})
         }
+        if(control.kind==='tab')exploredTabs.set(tabKey,destination)
         deduplication.push({source:state.pattern,control:control.label,route:prototypeRouteIdentity(win.webContents.getURL()),fingerprint:key,decision:'transition',destination})
-        transitions.push({source:state.pattern,destination,selector:control.selector,label:control.label})
+        transitions.push({source:state.pattern,destination,selector:control.selector,label:control.label,kind:control.kind})
       }catch{signal?.throwIfAborted();warnings.push(`“${control.label}” could not be replayed automatically.`)}finally{if(!win.isDestroyed())win.destroy()}
     }
   }

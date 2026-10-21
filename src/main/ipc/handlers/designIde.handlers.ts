@@ -4,7 +4,7 @@ import {captureCompletenessWarnings} from '../../../core/capture-compiler/comple
 import {packDocument} from '../../../shared/documentResources'
 import {referenceImage} from './capture/referenceImages'
 import {documentRequest} from '../../design/documentStore'
-import { EXPAND_ARTIFACT_PANELS_SCRIPT } from './capture/contentHeight'
+import { PREPARE_ARTIFACT_CONTENT_SCRIPT } from './capture/contentHeight'
 import { importSignal, importProject, abortable } from '../../artifacts/importJob'
 import { explorePrototype, replayPrototype } from '../../artifacts/explorePrototype'
 import { managedPrototypeRoutes, servePrototype } from '../../artifacts/prototypeImport'
@@ -1094,7 +1094,7 @@ export function registerDesignIdeHandlers() {
                   `This route redirects to ${finalPath}. Capture that destination instead; the redirected screen was not saved as ${r.name}.`,
                 )
               if(plan.artifactSteps?.[r.pattern])await replayPrototype(win.webContents,plan.artifactSteps[r.pattern],signal)
-              if(plan.artifactSteps)await abortable(win.webContents.executeJavaScript(EXPAND_ARTIFACT_PANELS_SCRIPT),signal)
+              if(plan.artifactSteps)await abortable(win.webContents.executeJavaScript(PREPARE_ARTIFACT_CONTENT_SCRIPT),signal)
               await scrollToSettle(win, signal)
               await abortable(win.webContents.executeJavaScript(SETTLE_REVEALS_SCRIPT),signal)
               const fullPageScreenshot = await captureFullPageScreenshot(win, signal)
