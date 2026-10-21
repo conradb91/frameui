@@ -1,3 +1,4 @@
+import {documentRequest} from '../../design/documentStore'
 import { beginImport, importSignal, setImportProject, cancelImport, finishImport, disposeImport } from '../../artifacts/importJob'
 import { unpackPrototype, servePrototype, managedPrototypeRoutes } from '../../artifacts/prototypeImport'
 import { randomUUID } from 'node:crypto'
@@ -23,6 +24,7 @@ import { broadcast } from '../rendererEvents'
 const { app, ipcMain, dialog, BrowserWindow, shell } = electron
 
 export function registerProjectHandlers(): void {
+  const selectedLocations=new Map<number,{kind:string;path:string}>()
   const importOwners=new WeakSet<Electron.WebContents>()
   let activationSequence=0
   const runtimeProject = () => {
@@ -72,17 +74,19 @@ export function registerProjectHandlers(): void {
     return { ok: true }
   })
 
-  ipcMain.handle('project:removeFromFrameUi', (_event, rawProjectId): { ok: true } => {
+  ipcMain.handle('project:removeFromFrameUi', async (_event, rawProjectId): Promise<{ ok: true }> => {
     const projectId = projectIdInputSchema.parse(rawProjectId)
     if (getActiveProject()?.projectId === projectId) { closeActiveProject() }
+    await documentRequest('removeProject',path.join(app.getPath('userData'),'design-files','index.json'),projectId)
     removeProjectFromFrameUi(app.getPath('userData'), projectId)
     return { ok: true }
   })
 
-  ipcMain.handle('project:deleteFromDisk', (_event, raw): { ok: true } => {
+  ipcMain.handle('project:deleteFromDisk', async (_event, raw): Promise<{ ok: true }> => {
     const { projectId, confirmationName } = deleteProjectFromDiskInputSchema.parse(raw)
     if (getActiveProject()?.projectId === projectId) { closeActiveProject() }
     deleteProjectFromDisk(app.getPath('userData'), projectId, confirmationName)
+    await documentRequest('removeProject',path.join(app.getPath('userData'),'design-files','index.json'),projectId)
     return { ok: true }
   })
 
@@ -148,11 +152,20 @@ export function registerProjectHandlers(): void {
     return { cancelled: false, project }
   })
 
-  ipcMain.handle('project:createStarterProject',(_event,raw)=>{
-    const {name,kind}=z.object({name:z.string().trim().min(1).max(120).refine(value=>!/[\\/]/.test(value)&&!Array.from(value).some(character=>character.charCodeAt(0)<32),'Choose a name without slashes or control characters.'),kind:z.enum(['repository','application','prototype','blank'])}).parse(raw)
+  ipcMain.handle('project:selectStarterLocation',async(event,raw)=>{
+    const kind=z.enum(['repository','application','prototype','blank']).parse(raw),owner=BrowserWindow.fromWebContents(event.sender)
+    const options:Electron.OpenDialogOptions=kind==='prototype'?{title:'Select your file to import · ZIP or HTML',properties:['openFile'],filters:[{name:'ZIP or HTML prototype',extensions:['zip','html','htm']}]}:{title:'Select project folder',properties:['openDirectory','createDirectory']}
+    const selected=owner?await dialog.showOpenDialog(owner,options):await dialog.showOpenDialog(options)
+    if(selected.canceled||!selected.filePaths[0])return null
+    selectedLocations.set(event.sender.id,{kind,path:selected.filePaths[0]})
+    return selected.filePaths[0]
+  })
+  ipcMain.handle('project:createStarterProject',(event,raw)=>{
+    const {name,kind,parentPath}=z.object({name:z.string().trim().min(1).max(120).refine(value=>!/[\\/]/.test(value)&&!Array.from(value).some(character=>character.charCodeAt(0)<32),'Choose a name without slashes or control characters.'),kind:z.enum(['repository','application','prototype','blank']),parentPath:z.string().max(4096).optional()}).parse(raw)
     const group=kind==='prototype'?'artifact-projects':kind==='application'?'application-projects':kind==='blank'?'blank-projects':'workspace-projects'
     const slug=name.normalize('NFKD').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,'-').slice(0,80)||'project'
-    const folder=path.join(app.getPath('userData'),group,slug+'-'+randomUUID().slice(0,8))
+    if(parentPath&&(selectedLocations.get(event.sender.id)?.path!==parentPath||selectedLocations.get(event.sender.id)?.kind!==kind||kind==='prototype'))throw new Error('Select a project folder first.')
+    const folder=path.join(parentPath??path.join(app.getPath('userData'),group),slug+'-'+randomUUID().slice(0,8))
     fs.mkdirSync(folder,{recursive:true})
     fs.writeFileSync(path.join(folder,'frameui-project.json'),JSON.stringify({version:1,name,kind}))
     const project=recordProjectOpened(app.getPath('userData'),folder,name)
@@ -162,14 +175,16 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:cancelPrototypeImport',(event,raw)=>({ok:cancelImport(event.sender.id,z.string().uuid().parse(raw))}))
   ipcMain.handle('project:finishPrototypeImport',(event,raw)=>{finishImport(event.sender.id,z.string().uuid().parse(raw))})
   ipcMain.handle('project:importPrototype',async(event,raw)=>{
-    const input=z.union([z.string().uuid(),z.object({id:z.string().uuid(),projectId:z.string().uuid()})]).parse(raw)
+    const input=z.union([z.string().uuid(),z.object({id:z.string().uuid(),projectId:z.string().uuid(),file:z.string().max(4096).optional()})]).parse(raw)
     const id=typeof input==='string'?input:input.id,prepared=typeof input==='string'?undefined:getRegisteredProject(app.getPath('userData'),input.projectId)
     if(prepared&&!prepared.path.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep))throw new Error('Choose a prototype project folder.')
     const signal=beginImport(event.sender.id,id)
     if(!importOwners.has(event.sender)){const ownerId=event.sender.id;importOwners.add(event.sender);event.sender.once('destroyed',()=>disposeImport(ownerId))}
     const owner=BrowserWindow.fromWebContents(event.sender)
     const options: Electron.OpenDialogOptions={title:'Import HTML prototype',properties:['openFile'],filters:[{name:'HTML artifact or ZIP prototype',extensions:['html','htm','zip']}]}
-    const selected=owner?await dialog.showOpenDialog(owner,options):await dialog.showOpenDialog(options)
+    const chosenFile=typeof input==='string'?undefined:input.file
+    if(chosenFile&&(selectedLocations.get(event.sender.id)?.kind!=='prototype'||selectedLocations.get(event.sender.id)?.path!==chosenFile))throw new Error('Select your ZIP or HTML file first.')
+    const selected=chosenFile?{canceled:false,filePaths:[chosenFile]}:owner?await dialog.showOpenDialog(owner,options):await dialog.showOpenDialog(options)
     signal.throwIfAborted()
     if(selected.canceled||!selected.filePaths[0])return null
     const file=selected.filePaths[0],originalName=path.basename(file,path.extname(file)),name=prepared?.name??(originalName.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim()||'Imported prototype')
@@ -191,7 +206,7 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:connectApplication',(_event,raw)=>{
     const input=z.union([z.string().max(4096),z.object({url:z.string().max(4096),projectId:z.string().uuid()})]).parse(raw)
     const prepared=typeof input==='string'?undefined:getRegisteredProject(app.getPath('userData'),input.projectId)
-    if(prepared&&!prepared.path.startsWith(path.join(app.getPath('userData'),'application-projects')+path.sep))throw new Error('Choose an application project folder.')
+    if(prepared&&JSON.parse(fs.readFileSync(path.join(prepared.path,'frameui-project.json'),'utf8')).kind!=='application')throw new Error('Choose an application project folder.')
     const url=runtimeAddress(typeof input==='string'?input:input.url)
     const key=createHash('sha256').update(url.origin).digest('hex').slice(0,16)
     const folder=prepared?.path??path.join(app.getPath('userData'),'application-projects',key)

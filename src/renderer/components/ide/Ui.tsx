@@ -31,7 +31,7 @@ import {
   applyAppearance,
   usePreferencesStore,
 } from '../../state/preferencesStore'
-import { ModalShell } from '../ui/Modal'
+import { ModalShell,ModalHeader,ModalBody,ModalFooter } from '../ui/Modal'
 
 export type IdeAction = {
   id: string
@@ -557,7 +557,7 @@ export function ColorField({
     </div>
   )
 }
-export function Welcome({ recents, projects, onOpen, onConnectApplication, onImportPrototype, onOpenProject, onBlank, onRecent, onDuplicate, onRemove, onReveal, status, error, onGettingStarted }: {
+export function Welcome({ recents, projects, onOpen, onConnectApplication, onImportPrototype, onOpenProject, onBlank, onRecent, onDuplicate, onRemove, onReveal, onDeleteProject, status, error, onGettingStarted }: {
   recents: (Pick<VisualDocument, 'id' | 'name' | 'projectId' | 'updatedAt'> & { designCount?: number })[]
   projects: ProjectLibraryEntry[]
   onOpen: () => void
@@ -568,11 +568,14 @@ export function Welcome({ recents, projects, onOpen, onConnectApplication, onImp
   onRecent: (id: string) => void
   onDuplicate: (id: string) => void
   onRemove: (id: string) => void
+  onDeleteProject: (id:string,confirmationName:string,deleteFolder:boolean)=>Promise<void>
   onReveal: (id: string) => void
   status: string
   error: string
   onGettingStarted: () => void
 }) {
+  const [deleting,setDeleting]=useState<ProjectLibraryEntry|null>(null),[deleteName,setDeleteName]=useState(''),[deleteFolder,setDeleteFolder]=useState(false),[deleteBusy,setDeleteBusy]=useState(false),[deleteError,setDeleteError]=useState('')
+  async function confirmDelete(){if(!deleting||deleteName!==deleting.name||deleteBusy)return;setDeleteBusy(true);setDeleteError('');try{await onDeleteProject(deleting.id,deleteName,deleteFolder);setDeleting(null)}catch(error){setDeleteError(error instanceof Error?error.message:String(error))}finally{setDeleteBusy(false)}}
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'codebases' | 'designs' | 'prototypes'>('all')
   const [archivedProjects, setArchivedProjects] = useStoredValue<string[]>('frameui:archived-projects', [])
@@ -593,11 +596,12 @@ export function Welcome({ recents, projects, onOpen, onConnectApplication, onImp
       key: `design:${document.id}`, project: undefined, document, name: document.name, date: document.updatedAt,
     })),
   ]
-  const shown = rows.filter(row => archivedProjects.includes(row.key) === showArchived && (filter === 'all' || (filter === 'prototypes' ? !!row.project?.path.includes('/artifact-projects/') : filter === 'codebases' ? !row.project?.path.includes('/artifact-projects/') && !row.project?.path.includes('/blank-projects/') && (!!row.project || !!row.document?.projectId) : !!row.project?.path.includes('/blank-projects/') || !row.project && !row.document?.projectId)) &&
+  const isKind=(project:ProjectLibraryEntry|undefined,kind:NonNullable<ProjectLibraryEntry['kind']>)=>project?.kind?project.kind===kind:!!project?.path.includes('/'+({prototype:'artifact',application:'application',blank:'blank',repository:'workspace'}[kind])+'-projects/')
+  const shown = rows.filter(row => archivedProjects.includes(row.key) === showArchived && (filter === 'all' || (filter === 'prototypes' ? !!isKind(row.project,'prototype') : filter === 'codebases' ? !isKind(row.project,'prototype') && !isKind(row.project,'blank') && (!!row.project || !!row.document?.projectId) : !!isKind(row.project,'blank') || !row.project && !row.document?.projectId)) &&
     `${row.name} ${row.project?.path ?? ''} ${row.project?.framework ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()))
     .sort((a,b) => sort === 'name' ? a.name.localeCompare(b.name) : b.date.localeCompare(a.date))
-  const prototypeCount = rows.filter(row => row.project?.path.includes('/artifact-projects/')).length
-  const codebaseCount = rows.filter(row => !row.project?.path.includes('/artifact-projects/') && !row.project?.path.includes('/blank-projects/') && (row.project || row.document?.projectId)).length
+  const prototypeCount = rows.filter(row => isKind(row.project,'prototype')).length
+  const codebaseCount = rows.filter(row => !isKind(row.project,'prototype') && !isKind(row.project,'blank') && (row.project || row.document?.projectId)).length
   const openRow = (row: typeof rows[number]) => {
     if (busy) return
     if (row.project) { setOpening(row.key); onOpenProject(row.project.path) }
@@ -631,13 +635,14 @@ export function Welcome({ recents, projects, onOpen, onConnectApplication, onImp
           {!!rows.length&&<div className="project-collection-controls"><label className="project-search"><Search size={16}/><input aria-label="Search projects" placeholder="Search projects…" value={query} onChange={e=>setQuery(e.target.value)}/>{query && <button aria-label="Clear project search" onClick={()=>setQuery('')}><X size={14}/></button>}</label><select aria-label="Sort projects" value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently opened</option><option value="name">Name A–Z</option></select><button aria-label="View archived projects" aria-pressed={showArchived} onClick={()=>setShowArchived(!showArchived)}><Archive size={15}/>{showArchived?'Back to projects':'Archive'}</button><div className="project-view-switch"><button aria-label="Grid view" aria-pressed={view==='grid'} onClick={()=>setView('grid')}><LayoutGrid size={16}/></button><button aria-label="List view" aria-pressed={view==='list'} onClick={()=>setView('list')}><List size={16}/></button></div></div>}
           {shown.length ? <div className={`project-cards project-cards--${view}`}>{shown.map((row,index)=><article className="project-card" key={row.key}>
             <button className="project-card-open" aria-label={`Open ${row.name}`} disabled={busy} onClick={()=>openRow(row)}>
-              <div className={`project-card-art project-card-art--${index%4}`} aria-hidden="true"><div className="project-card-orbit"/><span>{row.project || row.document?.projectId ? <Code2 size={32} strokeWidth={1.3}/> : <PanelsTopLeft size={32} strokeWidth={1.3}/>}</span><small>{(row.project?.path?.includes('/artifact-projects/')?'HTML prototype':row.project?.framework) || (row.project || row.document?.projectId ? 'Codebase' : 'Design file')}</small><ArrowRight size={16}/></div>
-              <div className="project-card-copy"><div><h3>{row.name}</h3></div><p title={row.project?.path}>{row.project?.path?.includes('/artifact-projects/')?'HTML prototype · No repository needed':row.project?.path?.includes('/application-projects/')?'Running app · No repository connected':row.project?.path?.includes('/blank-projects/')?'Blank design · Local project':row.project?.path || 'Independent design workspace'}</p><footer><span className={`project-card-status ${row.project?.missing?'is-missing':''}`}>{row.project?.missing?'Folder unavailable':row.project?.path.includes('/artifact-projects/')?'Prototype':row.project?.path.includes('/blank-projects/')?'Design project':row.project?.repositoryStatus==='not-indexed'?'Ready to set up':row.document ? `${row.document.designCount ?? 0} ${row.document.designCount === 1 ? 'design' : 'designs'}` : 'Codebase'}</span><span><Clock3 size={12}/>{new Date(row.date).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</span><span>{opening===row.key?'Opening…':row.project?.pageCount != null ? `${row.project.pageCount} ${row.project.pageCount === 1 ? 'page' : 'pages'}` : 'Local'}</span></footer></div>
+              <div className={`project-card-art project-card-art--${index%4}`} aria-hidden="true"><div className="project-card-orbit"/><span>{row.project || row.document?.projectId ? <Code2 size={32} strokeWidth={1.3}/> : <PanelsTopLeft size={32} strokeWidth={1.3}/>}</span><small>{(isKind(row.project,'prototype')?'HTML prototype':row.project?.framework) || (row.project || row.document?.projectId ? 'Codebase' : 'Design file')}</small><ArrowRight size={16}/></div>
+              <div className="project-card-copy"><div><h3>{row.name}</h3></div><p title={row.project?.path}>{isKind(row.project,'prototype')?'HTML prototype · No repository needed':isKind(row.project,'application')?'Running app · No repository connected':isKind(row.project,'blank')?'Blank design · Local project':row.project?.path || 'Independent design workspace'}</p><footer><span className={`project-card-status ${row.project?.missing?'is-missing':''}`}>{row.project?.missing?'Folder unavailable':isKind(row.project,'prototype')?'Prototype':isKind(row.project,'blank')?'Design project':row.project?.repositoryStatus==='not-indexed'?'Ready to set up':row.document ? `${row.document.designCount ?? 0} ${row.document.designCount === 1 ? 'design' : 'designs'}` : 'Codebase'}</span><span><Clock3 size={12}/>{new Date(row.date).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</span><span>{opening===row.key?'Opening…':row.project?.pageCount != null ? `${row.project.pageCount} ${row.project.pageCount === 1 ? 'page' : 'pages'}` : 'Local'}</span></footer></div>
             </button>
-            <div className="project-card-actions"><button title={showArchived?'Restore project':'Archive project'} aria-label={`${showArchived?'Restore':'Archive'} ${row.name}`} onClick={()=>toggleArchived(row.key)}><Archive size={14}/></button>{row.project && <button title="Reveal project folder" aria-label={`Reveal ${row.name} folder`} onClick={()=>onReveal(row.project!.id)}><FolderOpen size={14}/></button>}{row.document && <><button title="Duplicate design file" aria-label={`Duplicate ${row.name}`} onClick={()=>onDuplicate(row.document!.id)}><Copy size={14}/></button>{!row.project && <button title="Remove from Recent · Keeps the design file" aria-label={`Remove ${row.name} from recent`} onClick={()=>onRemove(row.document!.id)}><Trash2 size={14}/></button>}</>}</div>
+            <div className="project-card-actions"><button title={showArchived?'Restore project':'Archive project'} aria-label={`${showArchived?'Restore':'Archive'} ${row.name}`} onClick={()=>toggleArchived(row.key)}><Archive size={14}/></button>{row.project && <button title="Delete project" aria-label={`Delete ${row.name}`} onClick={()=>{setDeleting(row.project!);setDeleteName('');setDeleteFolder(false);setDeleteError('')}}><Trash2 size={14}/></button>}{row.project && <button title="Reveal project folder" aria-label={`Reveal ${row.name} folder`} onClick={()=>onReveal(row.project!.id)}><FolderOpen size={14}/></button>}{row.document && <><button title="Duplicate design file" aria-label={`Duplicate ${row.name}`} onClick={()=>onDuplicate(row.document!.id)}><Copy size={14}/></button>{!row.project && <button title="Remove from Recent · Keeps the design file" aria-label={`Remove ${row.name} from recent`} onClick={()=>onRemove(row.document!.id)}><Trash2 size={14}/></button>}</>}</div>
           </article>)}</div> : <div className="project-empty"><span><FolderOpen size={27} strokeWidth={1.4}/></span><h3>{rows.length?'No projects found.':'Your projects will appear here'}</h3><p>{rows.length?'Try a different search or choose another collection.':'Import a prototype, connect your app, or open a repository to get started.'}</p>{rows.length ? <button onClick={()=>{setQuery('');setFilter('all')}}>Show all projects <ArrowRight size={14}/></button> : null}</div>}
         </section>
         <div className="project-home-footer"><span>Capture → Design → Prototype</span><span>FrameUI · Local by design</span></div>
+        {deleting&&<ModalShell size="compact" className="project-delete-modal" ariaLabel="Delete project" critical={deleteBusy} onClose={()=>setDeleting(null)}><ModalHeader title={`Delete ${deleting.name}?`} description="This removes the project, its saved designs and captures from FrameUI." onClose={()=>setDeleting(null)}/><ModalBody><p>Type <strong>{deleting.name}</strong> to confirm.</p><input autoFocus aria-label="Confirm project name" value={deleteName} disabled={deleteBusy} onChange={e=>setDeleteName(e.target.value)}/><label className="delete-folder-choice"><input type="checkbox" checked={deleteFolder} disabled={deleteBusy} onChange={e=>setDeleteFolder(e.target.checked)}/> Also delete the project folder from disk</label><p className="muted">{deleteFolder?`The folder and all its contents will be permanently deleted: ${deleting.path}`:'The project folder and original source files will stay on disk.'}</p>{deleteError&&<p role="alert">{deleteError}</p>}</ModalBody><ModalFooter><button disabled={deleteBusy} onClick={()=>setDeleting(null)}>Cancel</button><button className="danger" disabled={deleteBusy||deleteName!==deleting.name} onClick={()=>void confirmDelete()}>{deleteBusy?'Deleting…':'Delete project'}</button></ModalFooter></ModalShell>}
         {busy && status && <p role="status" className="project-home-status">{status}</p>}{error && <p className="ide-error" role="alert">{error}</p>}
       </main>
     </div>

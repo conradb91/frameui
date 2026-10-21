@@ -11,7 +11,12 @@ function summary(d:VisualDocument){return {id:d.id,name:d.name,projectId:d.proje
 parentPort!.on('message',({id,method,file,value})=>{
  try{
   let result:unknown
-  if(method==='save'||method==='patch'){
+  if(method==='removeProject'){
+   const dir=path.dirname(file),documents=(fs.existsSync(dir)?fs.readdirSync(dir):[]).filter(name=>name.endsWith('.json')).map(name=>({file:path.join(dir,name),doc:readJsonFile<VisualDocument|null>(path.join(dir,name),null)}))
+   const libraries=new Set(documents.filter(item=>item.doc?.projectId===value).map(item=>item.doc!.id))
+   for(const item of documents)if(item.doc&&(item.doc.projectId===value||item.doc.libraryId&&libraries.has(item.doc.libraryId))){fs.rmSync(item.file,{force:true});summaries.delete(item.file)}
+   result={ok:true}
+  }else if(method==='save'||method==='patch'){
    let input=unpackDocument(value)
    if(method==='patch'){const base=readJsonFile<VisualDocument|null>(file,null);if(!base)throw new Error('Design not found. Reopen it before saving.');input=applyDesignPatch(base,input as DesignPatch)}
    const doc=visualDocumentSchema.parse(input);if(path.basename(file)!==doc.id+'.json')throw new Error('Document ID mismatch');writeJsonFileAtomic(file,doc);summaries.delete(file);result={ok:true}

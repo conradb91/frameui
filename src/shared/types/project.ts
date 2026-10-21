@@ -1,4 +1,5 @@
 export interface RecentProject {
+  kind?: 'repository'|'application'|'prototype'|'blank'
   id: string
   name: string
   path: string

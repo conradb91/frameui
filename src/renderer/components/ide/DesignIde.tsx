@@ -1,6 +1,6 @@
 import {capturePages} from '../../lib/capturePages'
 import { upgradeFlowGuides } from '../../../core/prototype/flowIntroductions'
-import {ArtifactImportModal,ArtifactImportBackground,ArtifactImportSetup,type ArtifactImportStatus} from './ArtifactImportModal'
+import {ArtifactImportModal,ArtifactImportBackground,type ArtifactImportStatus} from './ArtifactImportModal'
 import {userFacingError} from '../../lib/userFacingError'
 import {ImportReviewNotice} from './ImportReviewNotice'
 import {readableImportNote} from '../../lib/importNotes'
@@ -975,22 +975,23 @@ export function DesignIde() {
   }
   const [starterKind,setStarterKind]=useState<'repository'|'application'|'prototype'|'blank'|null>(null)
   const [starterName,setStarterName]=useState(''),[starterBusy,setStarterBusy]=useState(false),[starterError,setStarterError]=useState('')
+  const [starterLocation,setStarterLocation]=useState(''),[starterDesignName,setStarterDesignName]=useState('')
+  async function selectStarterLocation(){if(!starterKind)return;try{const selected=await window.frameui.project.selectStarterLocation(starterKind);if(selected)setStarterLocation(selected)}catch(error){setStarterError(userFacingError(error))}}
   const [starterProject,setStarterProject]=useState<RecentProject|null>(null)
-  function startProject(kind:'repository'|'application'|'prototype'|'blank'){setStarterName('');setStarterError('');setStarterKind(kind);setStarterProject(null)}
+  function startProject(kind:'repository'|'application'|'prototype'|'blank'){setStarterName('');setStarterDesignName('');setStarterLocation('');setStarterError('');setStarterKind(kind);setStarterProject(null)}
   async function createStarterProject(){
-    if(!starterKind||!starterName.trim()||starterBusy)return
+    if(!starterKind||!starterName.trim()||starterBusy||starterKind==='prototype'&&(!starterLocation||!starterDesignName.trim()))return
     setStarterBusy(true);setStarterError('')
     try{
-      const project=await window.frameui.project.createStarterProject(starterName.trim(),starterKind)
+      const project=await window.frameui.project.createStarterProject(starterName.trim(),starterKind,starterKind==='prototype'?undefined:starterLocation||undefined)
       setStarterProject(project);setStarterKind(null)
-      if(starterKind==='prototype')setArtifactSetup(true)
+      if(starterKind==='prototype')void importClaudePrototype(artifactWidth,project,starterLocation,starterDesignName.trim())
       else if(starterKind==='application'){setConnectAppError('');setConnectAppOpen(true)}
       else if(starterKind==='repository')await openProject(undefined,project.id)
       else {const library=buildProjectDocument(project,null,project.name,'');save(library);const next=newDocument(project.name);next.projectId=project.id;next.libraryId=library.id;open(next);save(next)}
       void window.frameui.project.listLibrary().then(setProjectLibrary)
     }catch(error){setStarterError(userFacingError(error))}finally{setStarterBusy(false)}
   }
-  const [artifactSetup,setArtifactSetup]=useState(false)
   const [artifactWidth,setArtifactWidth]=useState<1440|1920>(1440)
   const [artifactImportStage,setArtifactImportStage]=useState('')
   const [artifactProgress,setArtifactProgress]=useState<ArtifactImportStatus>({detail:''})
@@ -1007,8 +1008,8 @@ export function DesignIde() {
     void window.frameui.project.cancelPrototypeImport(job.id).catch(()=>{})
     job.stop()
   }
-  async function importClaudePrototype(width:1440|1920){
-    setArtifactSetup(false);setArtifactWidth(width)
+  async function importClaudePrototype(width:1440|1920,project:RecentProject,file:string,designName:string){
+    setArtifactWidth(width)
     if(artifactJob.current)return
     const id=crypto.randomUUID(),startedAt=Date.now()
     const job={id,cancelled:false,stop:()=>{}}
@@ -1017,7 +1018,7 @@ export function DesignIde() {
     artifactJob.current=job
     const wait=<T,>(work:Promise<T>)=>Promise.race([work,stopped])
     showArtifactProgress();setArtifactReady(null)
-    setError('');setArtifactStartedAt(startedAt);setArtifactProgress({detail:'Choose an HTML artifact or ZIP. Linked fonts, images and scripts may load from the internet.'});setArtifactImportStage('Choose your prototype')
+    setError('');setArtifactStartedAt(startedAt);setArtifactProgress({file:file.split(/[\\/]/).pop(),detail:'Reading your selected prototype…'});setArtifactImportStage('Stage 1 of 4 · Reading prototype files')
     const unsubscribeImport=window.frameui.project.onPrototypeImportProgress(progress=>{
       if(progress.id!==id||job.cancelled)return
       setArtifactImportStage(progress.stage==='extract'?'Stage 1 of 4 · Reading prototype files':'Stage 2 of 4 · Discovering screens and connections')
@@ -1029,7 +1030,7 @@ export function DesignIde() {
       setArtifactProgress(previous=>({...previous,value:progress.total?progress.completed/progress.total*100:undefined,completed:progress.completed,total:progress.total,...(progress.thumbnail?{preview:progress.thumbnail,previewName:progress.name}:{}),detail:`${progress.completed} of ${progress.total} screens · ${progress.status==='Failed'?'Could not capture':progress.status==='Complete'?'Captured':'Capturing'} ${progress.name}`}))
     })
     try{
-      const result=await wait(window.frameui.project.importPrototype(id,starterProject?.id))
+      const result=await wait(window.frameui.project.importPrototype(id,project.id,file))
       if(!result)return
       const library=buildProjectDocument(result.project,null,result.project.name,result.url)
       save(library)
@@ -1042,7 +1043,7 @@ export function DesignIde() {
       if(job.cancelled)return
       pages.sort((a,b)=>plan.routes.findIndex(r=>r.pattern===a.route)-plan.routes.findIndex(r=>r.pattern===b.route))
       if(!pages.length)throw new Error('No screens could be captured. Open the prototype as a running app to check its rendering.')
-      const design=newDocument(result.project.name)
+      const design=newDocument(designName)
       design.projectId=result.project.id;design.libraryId=library.id;design.appUrl=result.url
       const capturedScreens=pages.length
       design.pages=pages;design.prototype=artifactFlow(pages,plan.transitions,result.project.name)
@@ -2578,13 +2579,24 @@ export function DesignIde() {
             })
           }
           onRemove={(id) => setHiddenRecent([...hiddenRecent, id])}
+          onDeleteProject={async(id,name,deleteFolder)=>{if(deleteFolder)await window.frameui.project.deleteFromDisk(id,name);else await window.frameui.project.removeFromFrameUi(id);setRecents(previous=>previous.filter(d=>d.projectId!==id));setProjectLibrary(await window.frameui.project.listLibrary())}}
           onReveal={(id) => void window.frameui.project.reveal(id)}
           status={status}
           error={error}
           onGettingStarted={openFirstRunOnboarding}
         />
-        {starterKind&&<ModalShell size="compact" ariaLabel="Create project" critical={starterBusy} onClose={()=>setStarterKind(null)}><ModalHeader title="Create your project" description="Name your project folder first. Then add your repository, application or prototype." onClose={()=>setStarterKind(null)}/><ModalBody><label>Project name<input autoFocus aria-label="Project name" maxLength={120} value={starterName} disabled={starterBusy} placeholder="My project" onChange={e=>setStarterName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void createStarterProject()}}/></label><p className="muted">FrameUI creates a local folder for this project. Your original files stay in place.</p>{starterError&&<p role="alert">{starterError}</p>}</ModalBody><ModalFooter><button disabled={starterBusy} onClick={()=>setStarterKind(null)}>Cancel</button><button className="primary" disabled={starterBusy||!starterName.trim()} onClick={()=>void createStarterProject()}>{starterBusy?'Creating project…':'Create project'}</button></ModalFooter></ModalShell>}
-        {artifactSetup&&<ArtifactImportSetup width={artifactWidth} onClose={()=>setArtifactSetup(false)} onImport={width=>void importClaudePrototype(width)}/>}
+        {starterKind&&<ModalShell size="compact" className="starter-project-modal" ariaLabel="Create project" critical={starterBusy} onClose={()=>setStarterKind(null)}>
+          <ModalHeader title="Create your project" description={starterKind==='prototype'?'Name your project and design, select your HTML or ZIP, and choose the screen width.':'Name your project and choose where to save it.'} onClose={()=>setStarterKind(null)}/>
+          <ModalBody>
+            <ModalField label="Project name"><input autoFocus aria-label="Project name" maxLength={120} value={starterName} disabled={starterBusy} placeholder="e.g. One Glance Audit" onChange={e=>setStarterName(e.target.value)}/></ModalField>
+            {starterKind==='prototype'&&<ModalField label="Design name"><input aria-label="Design name" maxLength={120} value={starterDesignName} disabled={starterBusy} placeholder="e.g. Crew readiness dashboard" onChange={e=>setStarterDesignName(e.target.value)}/></ModalField>}
+            <div className="starter-location"><strong>{starterKind==='prototype'?'Select your file to import · ZIP or HTML':'Project location'}</strong><div><span title={starterLocation}>{(starterKind==='prototype'?starterLocation.split(/[\\/]/).pop():starterLocation)||(starterKind==='prototype'?'No file selected':'FrameUI project folder')}</span><button disabled={starterBusy} onClick={()=>void selectStarterLocation()}>{starterKind==='prototype'?(starterLocation?'Change file':'Select file'):'Select folder'}</button></div></div>
+            {starterKind==='prototype'&&<fieldset className="artifact-import-width"><legend>Artboard width</legend>{([1440,1920] as const).map(value=><label key={value}><input type="radio" name="prototype-width" value={value} checked={artifactWidth===value} disabled={starterBusy} onChange={()=>setArtifactWidth(value)}/><span><strong>{value} px</strong><small>{value===1440?'Standard desktop':'Wide desktop'}</small></span></label>)}</fieldset>}
+            <p className="muted">{starterKind==='prototype'?'Your source file stays in place. Editable screens are saved in your project.':'A new project folder will be created inside the selected location.'}</p>
+            {starterError&&<p role="alert">{starterError}</p>}
+          </ModalBody>
+          <ModalFooter><button disabled={starterBusy} onClick={()=>setStarterKind(null)}>Cancel</button><button className="primary" disabled={starterBusy||!starterName.trim()||starterKind==='prototype'&&(!starterLocation||!starterDesignName.trim())} onClick={()=>void createStarterProject()}>{starterBusy?'Creating project…':starterKind==='prototype'?'Create project and import':'Create project'}</button></ModalFooter>
+        </ModalShell>}
         {artifactImportStage&&!artifactHidden&&<ArtifactImportModal width={artifactWidth} stage={artifactImportStage} progress={artifactProgress} startedAt={artifactStartedAt} onStop={stopArtifactImport} onBackground={hideArtifactProgress}/>}
         {artifactImportStage&&artifactHidden&&<ArtifactImportBackground stage={artifactImportStage} progress={artifactProgress} onOpen={showArtifactProgress} onStop={stopArtifactImport}/>}
         {artifactReady&&!artifactImportStage&&<aside className="artifact-import-background" aria-label="Prototype import ready"><div><strong>Prototype ready</strong><span>{artifactReady.name}</span></div><button onClick={()=>void openImportedPrototype()}>Open design</button><button onClick={()=>setArtifactReady(null)}>Dismiss</button></aside>}

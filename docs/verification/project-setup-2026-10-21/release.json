@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-21",
+  "tests": {
+    "passed": 541,
+    "failed": 0
+  },
+  "productionBuild": "passed",
+  "htmlAndZipImport": "passed",
+  "allProjectStartOptions": "passed",
+  "packagedSetupAndDeletion": "passed",
+  "verified": [
+    "Single import setup modal with project name, design name, file picker and width",
+    "File selection cancellation creates no project and starts no timer",
+    "Elapsed time formatted as seconds or minutes | seconds",
+    "Project name heading and separate design name persist",
+    "Single search border and removed starter card illustrations",
+    "Delete removes associated designs while preserving unrelated designs",
+    "Source folder preserved by default; optional confirmed disk deletion",
+    "Custom project folder and saved project category"
+  ],
+  "dmgIntegrity": "valid",
+  "reviewProfile": "review-1792562099231-f675e423-2a26-4c9a-bc6c-9da1ad451081",
+  "reviewProfileEmpty": true,
+  "release": "release/FrameUI-0.1.0-x64.dmg"
+}

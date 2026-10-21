@@ -152,8 +152,9 @@ const api: FrameUiApi = {
     setObservationApproved: (projectId, observationId, approved) => ipcRenderer.invoke('workspace:setObservationApproved', { projectId, observationId, approved }),
   },
   project: {
-    createStarterProject: (name,kind)=>ipcRenderer.invoke('project:createStarterProject',{name,kind}),
-    importPrototype: (id,projectId) => ipcRenderer.invoke('project:importPrototype',projectId?{id,projectId}:id),
+    selectStarterLocation: kind=>ipcRenderer.invoke('project:selectStarterLocation',kind),
+    createStarterProject: (name,kind,parentPath)=>ipcRenderer.invoke('project:createStarterProject',{name,kind,parentPath}),
+    importPrototype: (id,projectId,file) => ipcRenderer.invoke('project:importPrototype',projectId?{id,projectId,file}:id),
     cancelPrototypeImport: id=>ipcRenderer.invoke('project:cancelPrototypeImport',id),
     finishPrototypeImport: id=>ipcRenderer.invoke('project:finishPrototypeImport',id),
     onPrototypeImportProgress: callback=>{const listener=(_event:Electron.IpcRendererEvent,progress:import('@shared/types/artifactImport').ArtifactImportProgress)=>callback(progress);ipcRenderer.on('project:prototypeImportProgress',listener);return()=>ipcRenderer.removeListener('project:prototypeImportProgress',listener)},

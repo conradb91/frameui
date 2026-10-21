@@ -86,7 +86,10 @@ export function recordProjectOpened(userDataPath: string, folderPath: string, na
   const matched = matchById ?? matchByPath
   const id = matched?.id ?? crypto.randomUUID()
   const now = new Date().toISOString()
-  const record: RecentProject = { id, name: matched?.name ?? name, path: canonicalPath, addedAt: matched?.addedAt ?? now, lastOpenedAt: now }
+  let metadata:{kind?:RecentProject['kind']}={}
+  try{metadata=JSON.parse(fs.readFileSync(path.join(canonicalPath,'frameui-project.json'),'utf8'))??{}}catch{/* Existing repositories need no FrameUI metadata. */}
+  const kind=['repository','application','prototype','blank'].includes(metadata.kind??'')?metadata.kind:matched?.kind
+  const record: RecentProject = { id, ...(kind?{kind}:{}), name: matched?.name ?? name, path: canonicalPath, addedAt: matched?.addedAt ?? now, lastOpenedAt: now }
 
   const updatedProjects = [record, ...existing.filter((project) => project.id !== id && project.id !== matchByPath?.id)]
   writeJsonFileAtomic(getProjectLibraryFile(userDataPath), updatedProjects)

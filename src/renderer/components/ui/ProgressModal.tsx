@@ -1,3 +1,4 @@
+import {formatElapsed} from '../../lib/formatElapsed'
 import { useEffect, useState } from 'react'
 import { Check, CircleAlert, LoaderCircle } from 'lucide-react'
 import { ModalBody, ModalFooter, ModalHeader, ModalProgress, ModalShell } from './Modal'
@@ -93,7 +94,7 @@ export function ProgressModal({
           value={progress}
           paused={failed}
           label={state === 'complete' ? 'Complete' : failed ? 'Stopped' : steps.length ? `Step ${Math.min(current + 1, steps.length)} of ${steps.length}` : 'Processing locally'}
-          detail={seconds >= 15 ? `${seconds}s elapsed` : undefined}
+          detail={seconds >= 15 ? `${formatElapsed(seconds)} elapsed` : undefined}
         />
         <p className="progress-context">{state === 'working' ? 'Continue once FrameUI verifies the application. Larger projects can take a few minutes.' : state === 'complete' ? 'The project is ready to continue.' : 'Your workspace is saved. Review the next step below.'}</p>
         {(logs.length > 0 || activity) && <button type="button" className="ide-text-button" aria-expanded={activity} onClick={() => setActivity(!activity)}>{activity ? 'Hide activity' : 'Show activity'}</button>}

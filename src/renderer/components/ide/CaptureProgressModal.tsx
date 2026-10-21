@@ -1,3 +1,4 @@
+import {formatElapsed} from '../../lib/formatElapsed'
 import { useEffect, useState } from 'react'
 import { Check, Clock3, Monitor } from 'lucide-react'
 import type { CaptureStage } from '@shared/types/visualDesign'
@@ -33,7 +34,7 @@ export function CaptureProgressModal({ stage, width, name, address, onStop }: {
       </ol>
       <section className="artifact-import-panel" aria-label="Capture progress">
         <ModalProgress label={`Stage ${active + 1} of ${stages.length} · ${stages[active].detail}`} detail="Your screen will appear on the canvas when capture finishes." />
-        <div className="capture-progress-summary"><Monitor size={18} /><div><strong>{name}</strong><span>{width} px wide · Height follows page content</span></div><Clock3 size={16} /><span>{elapsed}s</span></div>
+        <div className="capture-progress-summary"><Monitor size={18} /><div><strong>{name}</strong><span>{width} px wide · Height follows page content</span></div><Clock3 size={16} /><span>{formatElapsed(elapsed)}</span></div>
       </section>
     </ModalBody>
     <ModalFooter note="Keep this page open while FrameUI captures its design."><button disabled={stopping} onClick={() => { setStopping(true); onStop() }}>{stopping ? 'Stopping…' : 'Stop capture'}</button></ModalFooter>

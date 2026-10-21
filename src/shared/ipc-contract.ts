@@ -242,8 +242,9 @@ export interface FrameUiApi {
     cancelPrototypeImport(id:string):Promise<{ok:boolean}>
     finishPrototypeImport(id:string):Promise<void>
     onPrototypeImportProgress(callback:(progress:import('./types/artifactImport').ArtifactImportProgress)=>void):()=>void
-    createStarterProject(name:string,kind:'repository'|'application'|'prototype'|'blank'): Promise<RecentProject>
-    importPrototype(id:string,projectId?:string): Promise<{project:RecentProject;url:string;routes:string[]} | null>
+    selectStarterLocation(kind:'repository'|'application'|'prototype'|'blank'): Promise<string|null>
+    createStarterProject(name:string,kind:'repository'|'application'|'prototype'|'blank',parentPath?:string): Promise<RecentProject>
+    importPrototype(id:string,projectId?:string,file?:string): Promise<{project:RecentProject;url:string;routes:string[]} | null>
     connectApplication(url:string,projectId?:string): Promise<RecentProject>
     getRuntime(): Promise<import('./types/project').RuntimeConnection | null>
     configureRuntime(url: string, source: import('./types/project').RuntimeSource): Promise<import('./types/project').RuntimeConnection>

@@ -70,8 +70,9 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
   const application = index?.applications?.[0]
   const savedAppUrl = document.appUrl && !/^about:blank\/?$/i.test(document.appUrl.trim()) ? document.appUrl : undefined
   const resolvedAppUrl = savedAppUrl || application?.url || undefined
+  const prototypeOnly=document.pages.some(page=>!!page.artifactSource)
   const appOnly=!!index?.rootPath.replace(/\\/g,'/').includes('/application-projects/')
-  const heading = section==='Styles' ? 'Design Tokens & Styles' : section
+  const heading = section==='Designs'?document.name:section==='Styles' ? 'Design Tokens & Styles' : section
   const namedCollections = ['Colours','Typography','Spacing','Radius','Shadows']
   const styleCategories = [...namedCollections,'Variables'].map(label=>({label,items:document.variables.filter(v=>(label==='Variables'?!namedCollections.includes(v.collection):v.collection===label) && `${v.collection} ${v.name}`.toLowerCase().includes(query.toLowerCase()))})).filter(c=>c.items.length)
   const sectionDescriptions: Record<ProjectSection, string> = {
@@ -91,7 +92,7 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
   ] : []
   return <>
     <header className="ide-top app-drag-region">
-      <span className="ide-breadcrumb app-no-drag"><strong>{document.name}</strong><ChevronRight size={12}/><span>{heading}</span></span>
+      <span className="ide-breadcrumb app-no-drag"><strong>{document.name}</strong><ChevronRight size={12}/><span>{section==='Designs'?'Designs':heading}</span></span>
       {notice && <span className="ide-status-pill" role="status">{notice}</span>}
       <div className="app-no-drag ide-topbar-actions">
         <button title="Refresh from Code" aria-label="Refresh from Code" disabled={captureBusy} onClick={onRefresh}><RefreshCcw size={15}/></button>
@@ -104,15 +105,15 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
       <main className={`ide-library-main ${section==='Pages'?'pages-library-main':section==='Designs'?'designs-library-main':''}`}>
         <header className="ide-section-heading"><div><h1>{heading}</h1><p>{sectionDescriptions[section]}</p></div>{(section==='Designs'||section==='Pages') && <div className="ide-library-heading-actions"><button aria-label="View archive" disabled={captureBusy} onClick={()=>setSection('Archive')}><Archive size={15}/>Archive</button>{section === 'Designs' && <button className="primary" onClick={() => setNewDesign({})}><FilePlus2 size={16}/> New Design</button>}</div>}</header>
         {(section==='Designs'||section==='Pages')&&<nav className="studio-journey" aria-label="Project workflow">
-          <div data-complete="true"><span>✓</span><div><strong>{appOnly?'Running app':'Repository'}</strong><small>{appOnly?'No source mapping':'Indexed & ready'}</small></div></div>
+          <div data-complete="true"><span>✓</span><div><strong>{prototypeOnly?'HTML prototype':appOnly?'Running app':'Repository'}</strong><small>{prototypeOnly?'Imported locally':appOnly?'No source mapping':'Indexed & ready'}</small></div></div>
           <button disabled={captureBusy} onClick={()=>{setSection('Pages');requestAnimationFrame(()=>window.dispatchEvent(new Event('frameui:show-connection')))}} data-complete={!!(runtime?.connectedAt||runtime?.verifiedAt)}><span>{(runtime?.connectedAt||runtime?.verifiedAt)?'✓':'2'}</span><div><strong>Connect app</strong><small>{(runtime?.connectedAt||runtime?.verifiedAt)?'Connected':'Localhost or hosted domain'}</small></div></button>
           <button disabled={captureBusy} onClick={()=>setSection('Pages')} data-complete={document.pages.length>0}><span>{document.pages.length?'✓':'3'}</span><div><strong>Capture pages</strong><small>{document.pages.length?`${document.pages.length} screen${document.pages.length===1?'':'s'} ready`:'Choose your starting screens'}</small></div></button>
           <button disabled={captureBusy} onClick={()=>setNewDesign({})}><span>4</span><div><strong>Design &amp; prototype</strong><small>Flows, AI drafts &amp; approval</small></div></button>
         </nav>}
         {section==='Designs' && <>
           <div className="design-start-cards">
-            <article className="design-start-card design-start-card--capture"><div><h2>Start from your app</h2><p>Capture pages from your running application to quickly create designs.</p><button className="primary" onClick={()=>onImport()}><Monitor size={16}/>Capture pages</button></div><div className="design-capture-art" aria-hidden="true"><span/><span/><span>{document.pages[0]?.thumbnail?<img src={document.pages[0].thumbnail} alt=""/>:<><i/><i/><i/></>}</span></div></article>
-            <article className="design-start-card design-start-card--components"><Box size={25}/><div><h2>Use components</h2><p>Browse reusable components from your project.</p><button onClick={()=>setSection('Components')}>Explore components<ChevronRight size={16}/></button></div><div className="design-components-art" aria-hidden="true"><span>Button</span><span><i/></span><span>Input</span><span><i/><i/><i/></span></div></article>
+            <article className="design-start-card design-start-card--capture"><div><h2>Start from your app</h2><p>Capture pages from your running application to quickly create designs.</p><button className="primary" onClick={()=>onImport()}><Monitor size={16}/>Capture pages</button></div></article>
+            <article className="design-start-card design-start-card--components"><Box size={25}/><div><h2>Use components</h2><p>Browse reusable components from your project.</p><button onClick={()=>setSection('Components')}>Explore components<ChevronRight size={16}/></button></div></article>
           </div>
           <div className="ide-designs-toolbar design-library-toolbar"><label><Search size={16}/><input aria-label="Search designs" placeholder="Search designs…" value={query} onChange={e=>setQuery(e.target.value)}/></label><select aria-label="Sort designs" value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently edited</option><option value="name">Name A–Z</option></select><select aria-label="Filter design type" value={designType} onChange={e=>setDesignType(e.target.value)}><option value="all">All designs</option><option value="screens">With screens</option><option value="empty">Empty designs</option></select><div className="design-view-switch"><button aria-label="List designs" aria-pressed={designView==='list'} onClick={()=>setDesignView('list')}><List size={17}/></button><button aria-label="Grid designs" aria-pressed={designView==='grid'} onClick={()=>setDesignView('grid')}><LayoutGrid size={17}/></button></div></div>
           {!active.length ? <div className="ide-overview-empty design-library-empty">

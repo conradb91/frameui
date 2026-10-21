@@ -2,7 +2,7 @@ import {Worker} from 'node:worker_threads'
 import path from 'node:path'
 let worker:Worker|undefined,nextId=0
 const pending=new Map<number,{resolve:(value:unknown)=>void;reject:(error:Error)=>void}>()
-export function documentRequest(method:'load'|'list'|'save'|'patch',file:string,value?:unknown):Promise<unknown>{
+export function documentRequest(method:'load'|'list'|'save'|'patch'|'removeProject',file:string,value?:unknown):Promise<unknown>{
  if(!worker){
   const created=new Worker(path.join(__dirname,'documentWorker.cjs'));worker=created
   const fail=(error:Error)=>{if(worker!==created)return;for(const task of pending.values())task.reject(error);pending.clear();worker=undefined}

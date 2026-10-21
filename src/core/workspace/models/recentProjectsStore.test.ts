@@ -81,3 +81,15 @@ describe('registered projects and recent history', () => {
   expect(() => renameProject(data, project.id, '  ')).toThrow()
   expect(() => renameProject(data, 'unknown', 'Name')).toThrow()
  })
+
+test('custom project locations retain their saved project kind',()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'frameui-project-kind-'))
+ try{
+  const folder=path.join(root,'custom-location'),data=path.join(root,'profile');fs.mkdirSync(folder)
+  fs.writeFileSync(path.join(folder,'frameui-project.json'),JSON.stringify({kind:'blank'}))
+  const project=recordProjectOpened(data,folder,'Custom design')
+  expect(project.kind).toBe('blank')
+  expect(listAllProjects(data)[0].kind).toBe('blank')
+  expect(recordProjectOpened(data,folder,'Custom design').kind).toBe('blank')
+ }finally{fs.rmSync(root,{recursive:true,force:true})}
+})

@@ -56,3 +56,7 @@
 .artifact-import-width input{accent-color:var(--color-accent);width:16px;height:16px;flex-shrink:0}
 .artifact-import-width strong,.artifact-import-width small{display:block}
 .artifact-import-width small{color:var(--color-text-3);margin-top:4px}
+
+.starter-location{display:grid;gap:10px;font-size:13px}.starter-location>div{display:flex;align-items:center;gap:12px;border:1px solid var(--ide-border);border-radius:8px;padding:10px 12px;background:var(--ide-surface)}.starter-location span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ide-muted)}.starter-location button{flex-shrink:0}
+
+.starter-project-modal .starter-location{min-width:0;grid-template-columns:minmax(0,1fr)}.starter-project-modal .starter-location>div{min-width:0;max-width:100%;box-sizing:border-box;background:var(--color-bg-raised);border-color:var(--color-border)}.starter-project-modal .starter-location span{width:0;color:var(--color-text-2)}.starter-project-modal .starter-location button{padding:8px 12px;border:1px solid var(--color-border-strong);border-radius:6px;background:var(--color-panel)}
