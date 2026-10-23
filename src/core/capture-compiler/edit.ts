@@ -1,3 +1,4 @@
+import {capturedControlTextField} from './controlText'
 import type { StructuredFrame, StructuredLayoutMode, StructuredNode } from '@shared/types/structuredDesign'
 import type { TextStyleRun } from '@shared/types/richText'
 
@@ -130,8 +131,8 @@ export function updateStructuredNodeText(frame: StructuredFrame, id: string, tex
   if (node?.source.control) {
     if(node.locked)return frame
     const control=node.source.control
-    if(control.type==='select'){const options=control.options?.map(option=>option.value===control.value?{...option,label:text}:option);if(JSON.stringify(options)===JSON.stringify(control.options))return frame;return patchStructuredNode(frame,id,{source:{...node.source,control:{...control,options}}})}
-    const field=control.placeholder!==undefined?'placeholder':'value'
+    if(control.type==='select'){const options=control.options?.map(option=>option.value===(control.value??control.options?.[0]?.value)?{...option,label:text}:option);if(JSON.stringify(options)===JSON.stringify(control.options))return frame;return patchStructuredNode(frame,id,{source:{...node.source,control:{...control,options}}})}
+    const field=capturedControlTextField(control)
     if(control[field]===text)return frame
     return patchStructuredNode(frame,id,{source:{...node.source,control:{...control,[field]:text}}})
   }

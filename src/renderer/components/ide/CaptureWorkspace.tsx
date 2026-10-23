@@ -125,6 +125,9 @@ export function CaptureWorkspace({
   const stateNameEdited = useRef(false)
   const [address, setAddress] = useState(initialAddress)
   const [addressDraft, setAddressDraft] = useState(initialAddress)
+  // Navigation events update the address bar, not the webview's src. Updating
+  // src after history.pushState can reload an SPA and discard its live login.
+  const [browserSource, setBrowserSource] = useState(initialAddress || 'about:blank')
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
   const [viewport, setViewport] = useState<{ preset: ViewportPreset; width: number; height: number }>({
@@ -279,13 +282,20 @@ export function CaptureWorkspace({
 
   async function captureCurrentState() {
     const guest = stateBrowser.current
-    if (!guest || !stateName.trim()) return
+    if (busy) return
+    if (!guest) {setError('The capture browser is not ready. Open your app and try again.');return}
+    if (!stateName.trim()) {setError('Enter a state name before capturing this screen.');return}
     captureCancelled.current = false
     setBusy('Capturing current state…')
     setError('')
     setCaptureStage('layout')
     const offStage = window.frameui.design.onCaptureStage(setCaptureStage)
     try {
+      const liveAddress = guest.getURL()
+      if (!/^https?:\/\//i.test(liveAddress)) throw new Error('Open your app in the capture browser first.')
+      // Sign-in can land on a different app origin. The explicit capture
+      // request connects that live address before the main-process check.
+      await connectApplication(liveAddress)
       const {root,metadata,thumbnail,fullPageScreenshot,canvasPreview,fonts,warnings,url: capturedUrl,structured} = await window.frameui.design.captureCurrentState(guest.getWebContentsId())
       setCaptureStage('building')
       const url = new URL(capturedUrl)
@@ -318,7 +328,7 @@ export function CaptureWorkspace({
       const isStillPlaceholder = document.pages.length === 1 && document.pages.every((p) => !p.capturedAt && p.objects.length === 0)
       onCapture({
         ...document,
-        appUrl: normalizeCaptureAddress(address) || initialAddress || undefined,
+        appUrl: capturedUrl,
         updatedAt: new Date().toISOString(),
         name: isStillPlaceholder ? capturedName : document.name,
         pages: isStillPlaceholder ? [newPage] : [...document.pages, newPage],
@@ -401,7 +411,7 @@ export function CaptureWorkspace({
         >
           <webview
             ref={stateBrowser}
-            src={address || initialAddress || 'about:blank'}
+            src={browserSource}
             key={profile}
             partition={`persist:project-${document.projectId}${profile === 'standard' ? '' : `-${profile}`}`}
             className="ide-capture-webview"
@@ -441,7 +451,6 @@ export function CaptureWorkspace({
           {busy}
         </p>
       )}
-      {error && <p className="ide-connect-hint" role="status">{error}</p>}
     </div>
     <aside className="ide-capture-sidebar" aria-label="Capture controls and history">
       <RuntimeSettings url={addressDraft} onChange={setAddressDraft} />
@@ -449,7 +458,7 @@ export function CaptureWorkspace({
         <h3>Capture screen</h3><p className="studio-capture-hint">Save this page as editable layers, using your project’s fonts and assets.</p>
         <label>
           Session
-          <select value={profile} disabled={!!busy} onChange={(e) => setProfile(e.target.value as typeof profile)}>
+          <select value={profile} disabled={!!busy} onChange={(e) => {setBrowserSource(requestedAddress.current || 'about:blank');setProfile(e.target.value as typeof profile)}}>
             <option value="standard">Standard User</option>
             <option value="admin">Admin</option>
             <option value="super-admin">Super Admin</option>
@@ -463,10 +472,11 @@ export function CaptureWorkspace({
             placeholder="Notifications open"
           />
         </label>
-        <button className="primary" disabled={!!busy || !stateName.trim()} onClick={() => void captureCurrentState()}>
+        <button type="button" className="primary" disabled={!!busy || !stateName.trim()} onClick={() => void captureCurrentState()}>
           {busy === 'Capturing current state…' ? <Loader2 size={14} className="ide-spin" /> : <Monitor size={14} />}
           Capture screen
         </button>
+        {error && <div className="ide-error-toast is-inline" role={error.startsWith('State captured.')?'status':'alert'}><span>{error}</span><button type="button" aria-label="Dismiss capture message" onClick={()=>setError('')}>×</button></div>}
       </div>
       <div className="ide-capture-session-list">
         <div className="ide-capture-session-header">

@@ -18,7 +18,7 @@ const START_OPTIONS = [
 /**
  * The one place a Design gets created, from wherever it's triggered — the
  * Designs section's "+ New Design" button, a page's "Add" action, or an
- * asset's "Add" action. Project creation (Open Codebase) and Design
+ * asset's "Add" action. Project creation and Design
  * creation are deliberately separate flows; this modal is only ever the
  * latter.
  */

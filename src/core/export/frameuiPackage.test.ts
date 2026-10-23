@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { object } from '../visual/model'
-import { buildFrameUiPackage } from './frameuiPackage'
+import { buildFrameUiModel, buildFrameUiPackage } from './frameuiPackage'
 import type { VisualDocument } from '@shared/types/visualDesign'
 import type { FrameUiExportOptions } from '@shared/types/frameuiExport'
 
@@ -110,3 +110,9 @@ test('HTML captured absolute children retain border-edge offsets without adding 
   expect(children[0].children[0].children[0]).toMatchObject({ x: 12, y: 14 })
   expect(children[1].children[0]).toMatchObject({ x: 10, y: 12 })
 })
+
+ test('native export model preserves the same hierarchy, assets and metadata as interchange files',()=>{
+ const input={documents:[fixture()],activeDocumentId:'design-one',activePageId:'page-one',selectionIds:[],structuredSelectionIds:[],target:'adobe-xd' as const,options,frameuiVersion:'0.1.0',exportedAt:'2026-09-15T00:00:00.000Z'}
+ const model=buildFrameUiModel(input),pack=buildFrameUiPackage(input),read=(name:string)=>JSON.parse(pack.files.find(f=>f.path===name)!.content)
+ expect(model.pages).toEqual(read('document.json').pages);expect(model.components).toEqual(read('components.json').components);expect(model.assets).toEqual(read('assets.json').assets);expect(model.tokens).toEqual(read('tokens.json').tokens);expect(model.assetFiles).toEqual(pack.files.filter(f=>!f.path.endsWith('.json')));expect(model.manifest).toEqual(pack.manifest);expect(model.warnings).toEqual(pack.warnings)
+ })

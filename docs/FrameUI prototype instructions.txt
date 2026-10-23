@@ -1,0 +1,87 @@
+FRAMEUI PROTOTYPE INSTRUCTIONS
+
+Follow these rules when delivering an HTML prototype for import into FrameUI.
+
+PRIMARY REQUIREMENT: PRESERVE THE EXISTING DESIGN SYSTEM
+Keep the approved prototype's appearance and behavior. Preserve its design tokens, CSS variables, fonts, colors, spacing, typography, borders, radii, shadows, icons, component styling, table layouts and responsive intent. Do not redesign, simplify or replace components to meet these instructions. Improve packaging, semantics and implementation without changing the visual result. Use the existing component system and styles.
+
+1. DELIVER A RUNNABLE PROTOTYPE
+Preferred: a ZIP with ready-to-open HTML pages and local assets. For a small prototype, a standalone HTML file with embedded assets is also suitable. No installation, build command, API key, development server or internet connection should be required to see the supplied prototype.
+
+Suggested ZIP structure:
+  index.html
+  pages/appraisals.html
+  pages/equipment.html
+  assets/styles.css
+  assets/app.js
+  assets/fonts/...
+  assets/images/...
+  assets/icons/...
+
+Use relative links that resolve from each page's actual location. Supply every linked prototype page. Reference shared assets once instead of copying large font files, libraries and images into every page. Keep existing asset licenses. If using a framework, include its built output and required runtime assets; do not deliver only its source project.
+
+Render the interface directly in the page body where practical. Avoid wrapping the entire prototype in another canvas, device frame or giant iframe just for presentation. If an embedded document is genuinely part of the design, supply its content and dependencies too. Do not substitute screenshots for editable interface elements.
+
+2. MAKE PAGE NAVIGATION EXPLICIT
+Use normal links for page navigation, for example <a href="pages/equipment.html">Equipment</a>. Retain the existing visual button/link styling. Real multi-page HTML is the simplest structure for page-only import.
+
+When the prototype needs client-side routing, use stable actual URLs or hash routes such as #/equipment. Keep back navigation working. Avoid javascript: links, missing file destinations and links to development-only paths. Do not depend on button wording or function names to identify an interaction.
+
+3. IMPLEMENT REAL COMPONENT BEHAVIOR
+Every visible control must perform the behavior shown by the design. Do not use decorative controls that look interactive but have no implementation.
+
+- Actions: use buttons. Navigation: use links with real destinations.
+- Modals: use <dialog> with showModal()/close() where compatible with the existing design. Otherwise retain the existing modal implementation and expose role="dialog", aria-modal="true" and an accessible title.
+- Drawers: retain the actual styled drawer, accessible controls and clear open/close state.
+- Tabs: use role="tablist", role="tab", aria-selected, aria-controls and associated role="tabpanel" elements. Selecting a tab must reveal its actual panel.
+- Accordions: use details/summary when it preserves the existing component, or real buttons with aria-expanded and aria-controls.
+- Dropdowns: retain the approved component. Native selects should contain their options. Custom dropdowns should expose the appropriate combobox/listbox/menu/option roles and working selection state.
+- Inputs: use actual input/textarea/select elements with labels, types and placeholders. Keep their existing visual styling.
+- Row actions, filters, search, pagination, view-more controls and confirmation dialogs must work with local sample data.
+
+Use stable, descriptive IDs for controls and their targets. Each component's state must be represented in the DOM when active. Do not invent special FrameUI metadata and assume it is supported. Semantic HTML and observed behavior are what the importer uses.
+
+4. KEEP CONTENT EDITABLE AND COMPLETE
+Use real DOM text, SVG icons and ordinary layout containers. Do not flatten tables, cards, forms or modals into images, canvas drawings or PDF embeds when they can remain normal HTML.
+
+For finite design tables/lists, keep all supplied sample rows in the DOM when practical. Preserve the original container's width, height, overflow and scroll behavior. Do not stretch the container to expose all rows or change the layout. DOM content outside the scroll viewport can be retained as editable layers while the container remains clipped.
+
+If virtualization or infinite loading is essential, provide a deterministic finite sample and document the additional states/content it requires. Do not remove content merely to make import faster.
+
+5. SUPPORT THE APPROVED DEVICE LAYOUT
+Preserve the existing desktop and mobile layouts and breakpoints. Use the viewport meta tag. Do not create a different visual system for mobile.
+
+FrameUI import widths currently offered:
+- Desktop: 1440 or 1920 CSS pixels.
+- Mobile: 375, 390 or 430 CSS pixels.
+
+Check the intended width before delivery. If the approved prototype has only a desktop layout, disclose that rather than inventing an unapproved mobile redesign.
+
+6. MAKE LOADING AND STATES PREDICTABLE
+Use local deterministic sample data. Avoid random IDs, changing timestamps and background updates that make identical screens appear different on every load. Use stable route names and DOM structure.
+
+Load required styles, fonts and scripts before presenting the completed view. If content is asynchronously prepared, mark the content container aria-busy="true" and clear that state when ready. Avoid indefinite loaders and unnecessary startup delays.
+
+Preserve animations in the normal prototype. Support prefers-reduced-motion with a fully visible, settled layout; disabling motion must not leave content transparent, offscreen or stuck in a loading state.
+
+Do not require real submissions, payments, destructive server actions, native print dialogs or file pickers to demonstrate a design state. Implement safe local prototype outcomes where those outcomes are part of the approved design. Document any native/external behavior that needs manual review.
+
+7. DELIVER FOR THE CHOSEN IMPORT MODE
+Simple import: initial supplied HTML pages plus reachable navigation pages and their connections. Do not rely on opening a modal to make an essential page link available.
+
+Detailed import: pages plus observable modal, drawer, tab, dropdown, accordion, filter and other interaction states. Keep component state transitions deterministic and use reusable local sample data. Detailed discovery is bounded; do not promise that every possible combination of inputs or repeated records will be automatically explored.
+
+8. CHECK BEFORE HANDOFF
+Open the delivered files from the packaged output, not the development project. Check that every page and local asset resolves, fonts/icons render, console errors are resolved, and the main user journeys work. Check the supplied desktop/mobile widths against the approved design. Verify modal close buttons, tab content, dropdown selection, accordion expansion, scroll containers and page links.
+
+Include a short delivery note listing:
+- Entry HTML file(s).
+- Intended device(s) and width(s).
+- Available pages and main interaction journeys.
+- Any intentionally unavailable external/native actions.
+- Any states requiring manual capture.
+
+Do not claim FrameUI compatibility was verified unless the delivered artifact was actually imported and reviewed in FrameUI.
+
+REQUEST TO USE WITH THIS FILE
+"Follow the attached FrameUI prototype instructions for implementation and packaging. Preserve the existing approved design system and prototype appearance exactly. Deliver runnable HTML/local assets, working semantic components and complete linked pages. Do not redesign the interface or change component styling. State the entry file, intended viewport widths, supported journeys and any manual-review limitations."

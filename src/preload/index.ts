@@ -50,7 +50,7 @@ const api: FrameUiApi = {
     login: input => ipcRenderer.invoke('design:login',input),
     scan: () => ipcRenderer.invoke('design:scan'),
     testConnection: (url, profile) => ipcRenderer.invoke('design:testConnection', {url, profile}),
-    discoverArtifact: (id,width=1440,resume=false) => ipcRenderer.invoke('design:discoverArtifact',{id,width,resume}),
+    discoverArtifact: (id,width=1440,resume=false,mode='detailed') => ipcRenderer.invoke('design:discoverArtifact',{id,width,resume,mode}),
     prepareCapture: input => ipcRenderer.invoke('design:prepareCapture', input),
     discover: (url, profile) => ipcRenderer.invoke('design:discover', {url, profile}),
     addRoute: (token, address) => ipcRenderer.invoke('design:addRoute', {token,address}),
@@ -164,6 +164,7 @@ const api: FrameUiApi = {
     getRuntime: () => ipcRenderer.invoke('project:getRuntime'),
     configureRuntime: (url, source) => ipcRenderer.invoke('project:configureRuntime', { url, source }),
     verifyRuntime: () => ipcRenderer.invoke('project:verifyRuntime'),
+    downloadPrototypeInstructions: () => ipcRenderer.invoke('project:downloadPrototypeInstructions'),
     downloadVerification: () => ipcRenderer.invoke('project:downloadVerification'),
 
     rename: (projectId, name) => ipcRenderer.invoke('project:rename', projectId, name),

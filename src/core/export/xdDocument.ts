@@ -14,7 +14,7 @@ import svgpath from 'svgpath'
 import { imageSize } from 'image-size'
 import type { ExportFontFace } from './sketchFonts'
 import { resolveXdCssFont, xdFontKey, xdFontStyle, type XdRenderedFontFace } from './xdFonts'
-import { buildFrameUiPackage } from './frameuiPackage'
+import { buildFrameUiModel } from './frameuiPackage'
 import { geometryPath } from './sketchGeometry'
 import { xdClipGeometry } from './xdClipping'
 import { xdArtboardProjection, xdCanvasPlacement } from './xdArtboards'
@@ -25,7 +25,6 @@ import type { SvgDefinition } from '../capture-compiler/svgDefinitions'
 import type {
   FrameUiExportNode,
   FrameUiExportPage,
-  FrameUiExportAsset,
   FrameUiPaint,
 } from '@shared/types/frameuiExport'
 import type { XdExportRequest, XdExportReport } from '@shared/types/xdExport'
@@ -53,6 +52,15 @@ const jsonEntry = (path: string, value: unknown): StoredZipEntry => ({
   path,
   data: Buffer.from(JSON.stringify(value)),
 })
+/** Keep large per-page source metadata out of a single V8 string. */
+function sourceDesignEntry(pages:FrameUiExportPage[],components:FrameUiExportNode[]):StoredZipEntry{
+ const chunks=[Buffer.from('{"pages":[')]
+ pages.forEach((page,index)=>{if(index)chunks.push(Buffer.from(','));chunks.push(Buffer.from(JSON.stringify(page)))})
+ chunks.push(Buffer.from('],"components":{"version":1,"components":['))
+ components.forEach((item,index)=>{if(index)chunks.push(Buffer.from(','));chunks.push(Buffer.from(JSON.stringify(item)))})
+ chunks.push(Buffer.from(']}}'))
+ return {path:'frameui/design.json',data:Buffer.concat(chunks)}
+}
 const component = (path: string, type: string) => ({
   rel: 'primary',
   type,
@@ -114,7 +122,7 @@ export function buildXdDocument(
   const iconFontCache:IconFontCache=new Map()
   const iconResolvers = new Map(selected.map(p=>[p.id,iconFontResolver(p.structured?.fonts??p.fonts??[],iconFontCache)]))
   if (!selected.length) throw new Error('Select at least one artboard to export.')
-  const built = buildFrameUiPackage({
+  const built = buildFrameUiModel({
     documents: [{ ...request.document, pages: selected }],
     activeDocumentId: request.document.id,
     activePageId: selected[0].id,
@@ -135,8 +143,7 @@ export function buildXdDocument(
   })
   const errors = built.warnings.filter((w) => w.severity === 'error')
   if (errors.length) throw new Error(errors.map((w) => w.message).join('\n'))
-  const read = <T>(path: string): T => JSON.parse(built.files.find((f) => f.path === path)!.content)
-  const pages = read<{ pages: FrameUiExportPage[] }>('document.json').pages
+  const pages = built.pages
   const report: XdExportReport = {
     format: 'xd',
     structuralValidation: 'passed',
@@ -197,11 +204,11 @@ export function buildXdDocument(
     return source ? imageEffects.get(n.captureAppearance.filter)?.get(source) : undefined
   }
   const entries: StoredZipEntry[] = [{ path: 'mimetype', data: Buffer.from(MIME) }]
-  const assets = read<{ assets: FrameUiExportAsset[] }>('assets.json').assets
+  const assets = built.assets
   const imageRefs = new Map<string, { uid: string; width: number; height: number }>()
   const resourceComponents: Agc[] = []
   for (const asset of assets) {
-    const file = built.files.find((f) => f.path === asset.path)
+    const file = built.assetFiles.find((f) => f.path === asset.path)
     if (!file) throw new Error(`Missing XD image resource: ${asset.name}`)
     if (asset.kind !== 'IMAGE') continue
     if (!['image/png', 'image/jpeg', 'image/gif'].includes(asset.mimeType)) {
@@ -449,7 +456,7 @@ export function buildXdDocument(
       },
     }
   }
-  const masterSources = read<{ components: FrameUiExportNode[] }>('components.json').components
+  const masterSources = built.components
   const symbols: Agc[] = []
   const masterCache = new Map<string, { node: Agc; source: FrameUiExportNode; symbolId: string }>()
   const activeMasters = new Set<string>()
@@ -1388,10 +1395,7 @@ export function buildXdDocument(
     }),
   )
   entries.push(
-    jsonEntry('frameui/design.json', {
-      pages,
-      components: read('components.json'),
-    }),
+    sourceDesignEntry(pages,built.components),
   )
   entries.push(
     jsonEntry('frameui/compatibility.json', {

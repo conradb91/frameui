@@ -22,3 +22,11 @@ test('XD refuses an oversized journey instead of silently rearranging its screen
  const pages=[{id:'a',width:1440,height:900,canvasX:0,canvasY:0},{id:'b',width:1440,height:900,canvasX:60000,canvasY:0}]
  expect(()=>xdCanvasPlacement(pages,[{id:'flow',artboardIds:['a','b']}])).toThrow('screen arrangement was not changed')
 })
+
+test('tall flows and many short flows fit together without losing their arrangement',()=>{
+ const units=Array.from({length:50},(_,i)=>({id:'p'+i,width:i===0||i===25?4720:3080,height:i===0?35984:i===25?30860:2678,canvasX:0,canvasY:i*40000}))
+ const flows=units.map(p=>({id:'flow'+p.id,artboardIds:[p.id]}))
+ const {bounds,rearranged}=xdCanvasPlacement(units,flows)
+ expect(rearranged).toBe(true);valid(bounds)
+ for(const p of units){expect(bounds.get(p.id)!.width).toBe(p.width);expect(bounds.get(p.id)!.height).toBe(p.height)}
+})

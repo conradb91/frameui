@@ -58,7 +58,7 @@ export interface FrameUiApi {
      * check reusing the same guest-browser mechanism as `discover`, but never
      * crawls links or touches the route model. */
     testConnection(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ ok: true; address: string; title: string; route: string; assetsLoaded: number; assetsTotal: number }>
-    discoverArtifact(importId:string,width?:number,resume?:boolean): Promise<{token:string;routes:CaptureRoute[];transitions:import('../core/prototype/artifactFlow').DetectedTransition[];warnings:string[];coverage:import('./artifactDiscovery').DiscoveryCoverage}>
+    discoverArtifact(importId:string,width?:number,resume?:boolean,mode?:import('./artifactDiscovery').ArtifactImportMode): Promise<{token:string;routes:CaptureRoute[];transitions:import('../core/prototype/artifactFlow').DetectedTransition[];warnings:string[];coverage:import('./artifactDiscovery').DiscoveryCoverage}>
     prepareCapture(input: { url: string; profile?: 'standard' | 'admin' | 'super-admin'; routes: { pattern: string; path: string; name: string }[] }): Promise<{ token: string }>
     discover(url: string, profile?: 'standard' | 'admin' | 'super-admin'): Promise<{ token: string; routes: CaptureRoute[]; components: number; layouts: number; warnings: string[] }>
     addRoute(token: string, address: string): Promise<CaptureRoute[]>
@@ -251,6 +251,7 @@ export interface FrameUiApi {
     getRuntime(): Promise<import('./types/project').RuntimeConnection | null>
     configureRuntime(url: string, source: import('./types/project').RuntimeSource): Promise<import('./types/project').RuntimeConnection>
     verifyRuntime(): Promise<import('./types/project').RuntimeConnection>
+    downloadPrototypeInstructions(): Promise<{ saved: boolean }>
     downloadVerification(): Promise<{ saved: boolean }>
 
     rename(projectId: string, name: string): Promise<{ ok: true }>

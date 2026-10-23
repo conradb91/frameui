@@ -1,3 +1,4 @@
+import {prototypeSchema} from '../../src/core/prototype/schema'
 import {test,expect} from 'bun:test'
 import {chromium} from 'playwright-core'
 import {inspectScript} from '../../src/main/artifacts/explorePrototype'
@@ -84,8 +85,19 @@ test('virtualized rows are harvested without changing the visible scroll viewpor
 
 test('independent flows clone shared screens and keep every connection inside its own flow',()=>{
  const pages:any[]=['home','details','settings'].map(id=>({id,name:id,route:'/'+id,width:800,height:600,objects:[],structured:{children:['view','settings','back'].map(k=>({id:id+k,source:{selector:k},children:[]}))}}))
- const data=artifactFlow(pages,[{source:'/home',destination:'/details',selector:'view',label:'View details'},{source:'/home',destination:'/settings',selector:'settings',label:'Open settings'},{source:'/details',destination:'/home',selector:'back',label:'Close details'},{source:'/settings',destination:'/home',selector:'back',label:'Close settings'}],'Project')
+ const data=artifactFlow(pages,[{source:'/home',destination:'/details',selector:'view',label:'View details',kind:'modal',componentType:'button'},{source:'/home',destination:'/settings',selector:'settings',label:'Open settings'},{source:'/details',destination:'/home',selector:'back',label:'Close details'},{source:'/settings',destination:'/home',selector:'back',label:'Close settings'}],'Project')
+ expect(prototypeSchema.parse(data).interactions.find(edge=>edge.label==='View details')).toMatchObject({kind:'modal',componentType:'button'})
  expect(data.flows).toHaveLength(2)
  expect(data.flows[0].artboardIds.every(id=>!data.flows[1].artboardIds.includes(id))).toBe(true)
  for(const edge of data.interactions){const owner=data.flows.find(flow=>flow.artboardIds.includes(edge.sourceArtboardId))!;expect(owner.artboardIds).toContain(edge.destinationId!)}
+})
+
+test('tab overviews keep modal journeys separate while preserving their connections',()=>{
+ const pages:any[]=['home','tab','modal'].map(id=>({id,name:id,route:'/'+id,width:800,height:600,objects:[],structured:{children:['tab','open','close'].map(k=>({id:id+k,source:{selector:k},children:[]}))}}))
+ const data=artifactFlow(pages,[{source:'/home',destination:'/tab',selector:'tab',label:'Second',kind:'tab'},{source:'/home',destination:'/modal',selector:'open',label:'Details',kind:'modal',action:'open-modal'},{source:'/modal',destination:'/home',selector:'close',label:'Close',kind:'modal',action:'close-modal'}],'Project')
+ expect(data.flows).toHaveLength(2)
+ const tabs=data.flows.find(f=>f.kind==='tabs')!,journey=data.flows.find(f=>f.kind==='journey')!
+ expect(tabs.artboardIds).toHaveLength(2);expect(journey.artboardIds).toHaveLength(2)
+ expect(data.interactions.filter(e=>tabs.artboardIds.includes(e.sourceArtboardId)).every(e=>e.kind==='tab')).toBe(true)
+ expect(data.interactions.filter(e=>journey.artboardIds.includes(e.sourceArtboardId)).map(e=>e.action).sort()).toEqual(['close-modal','open-modal'])
 })

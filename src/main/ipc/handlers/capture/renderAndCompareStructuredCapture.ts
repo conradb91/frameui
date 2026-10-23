@@ -1,3 +1,4 @@
+import {withDebugger} from '../cdp/withDebugger'
 import fs from 'node:fs'
 import path from 'node:path'
 import electron from 'electron'
@@ -144,9 +145,10 @@ async function renderFrameToScreenshotPng(
     // can otherwise return only the first painted background (a false mismatch).
     const painted=win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{document.body.getBoundingClientRect();resolve()})))')
     await (signal ? raceAbort(painted, signal) : painted)
-    const capture = win.webContents.capturePage()
-    const renderImage = await (signal ? raceAbort(capture, signal) : capture)
-    return renderImage.toPNG()
+    // Force a compositor frame through CDP. capturePage() can return only
+    // previously painted backgrounds in hidden macOS windows, even after RAF.
+    const screenshot=await withDebugger(win.webContents,'1.3',send=>send<{data:string}>('Page.captureScreenshot',{format:'png',fromSurface:true,captureBeyondViewport:false}),signal)
+    return Buffer.from(screenshot.data,'base64')
   } catch {
     return undefined
   } finally {

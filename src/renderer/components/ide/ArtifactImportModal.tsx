@@ -18,7 +18,7 @@ export function ArtifactImportModal({width=1440,stage,progress,startedAt,onStop,
     <div className="artifact-import-content">
      <div className="artifact-import-details">
       <div className="artifact-import-stats"><div><Monitor size={18}/><strong>{progress.screens??'—'}</strong><span>Screens found</span></div><div><Link2 size={18}/><strong>{progress.connections??'—'}</strong><span>Connections</span></div><div><Clock3 size={18}/><strong>{formatElapsed(elapsed)}</strong><span>Elapsed</span></div></div>
-      <div className="artifact-import-note"><Info size={18}/><div><strong>Desktop capture · {width} px</strong><p>Editable layers and observed flows. Some controls may need a manual capture. Linked resources may load from the internet.</p></div></div>
+      <div className="artifact-import-note"><Info size={18}/><div><strong>{width<600?'Mobile':'Desktop'} capture · {width} px</strong><p>Editable layers and observed flows. Some controls may need a manual capture. Linked resources may load from the internet.</p></div></div>
      </div>
      <figure className="artifact-import-preview">{progress.preview?<><img src={progress.preview} alt={`Latest captured screen: ${progress.previewName??'Prototype'}`}/><figcaption>Latest capture · {progress.previewName}</figcaption></>:<div className="artifact-import-preview-empty"><Layers size={28}/><strong>Your screens, ready to edit</strong><span>A preview appears as screens are captured.</span></div>}</figure>
     </div>

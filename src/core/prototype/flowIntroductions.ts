@@ -1,3 +1,4 @@
+import {boundedFlowPlacement} from './flowCanvasPacking'
 import {object} from '../visual/model'
 import type {VisualPage} from '../../shared/types/visualDesign'
 import type {PrototypeData,PrototypeFlow} from '../../shared/types/prototype'
@@ -90,4 +91,6 @@ export function layoutFlowGroups(pages:VisualPage[],data:PrototypeData,originX=0
  }
  let index=0,rowHeight=0,y=band
  for(const p of real){if(placed.has(p.id))continue;if(index&&index%4===0){y+=rowHeight+140;rowHeight=0}p.canvasX=originX+index%4*column;p.canvasY=y;rowHeight=Math.max(rowHeight,p.height||1024);placed.add(p.id);index++}
+ try{const packed=boundedFlowPlacement(pages,data.flows);for(const p of pages){const b=packed.bounds.get(p.id);if(b){p.canvasX=b.x;p.canvasY=b.y}}}catch(error){const p=real[0];if(p){const warning=error instanceof Error?error.message:String(error);p.captureWarnings=[...new Set([...(p.captureWarnings??[]),warning])]}}
+
 }

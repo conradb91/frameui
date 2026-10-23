@@ -2,12 +2,20 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import http from 'node:http'
 import { createRequire } from 'node:module'
-import { createReadStream, createWriteStream } from 'node:fs'
+import { createReadStream, createWriteStream, existsSync } from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 import { Transform, type Readable } from 'node:stream'
 import type { ZipFile, Entry } from 'yauzl'
 
 const servers = new Map<string, { url: string; server: http.Server }>()
+/** Only app-created project folders can receive managed prototype files. */
+export function isManagedProjectFolder(folder:string,userData:string):boolean {
+  const resolved=path.resolve(folder)
+  return ['artifact-projects','blank-projects','application-projects','workspace-projects'].some(group=>resolved.startsWith(path.resolve(userData,group)+path.sep))
+}
+export function isImportedPrototype(folder:string,userData:string):boolean {
+  return isManagedProjectFolder(folder,userData)&&existsSync(path.join(folder,'frameui-artifact.json'))
+}
 const mime: Record<string,string> = {'.html':'text/html; charset=utf-8','.htm':'text/html; charset=utf-8','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif','.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf','.ico':'image/x-icon'}
 
 /** Data-only extraction. Never installs packages or executes archive commands. */
@@ -133,7 +141,9 @@ export async function servePrototype(folder:string) {
     res.setHeader('Content-Type',mime[path.extname(target).toLowerCase()]||'application/octet-stream')
     res.setHeader('Content-Length',stat.size)
     res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','no-store')
-    res.setHeader('Content-Security-Policy',"object-src 'none'; frame-src 'self'; base-uri 'self'")
+    // Self-contained HTML bundles mint blob documents for their embedded pages.
+    // Chromium does not include blob: in frame-src 'self'.
+    res.setHeader('Content-Security-Policy',"object-src 'none'; frame-src 'self' blob:; base-uri 'self'")
     if(req.method==='HEAD')res.end();else await pipeline(createReadStream(real),res)
   })().catch(()=>{if(res.headersSent)res.destroy();else{res.writeHead(404);res.end('Prototype file unavailable')}})})
   await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve)})

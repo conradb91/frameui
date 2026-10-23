@@ -19,17 +19,24 @@ export function artifactFlow(pages:VisualPage[],transitions:DetectedTransition[]
   if(!node&&edge.trigger!=='key'&&edge.kind!=='scroll'){failed(edge,'The captured control could not be matched to an editable layer.');continue}
   const bold=(n:StructuredNode):string|undefined=>{if(['b','strong'].includes(n.source.tag??'')&&n.typography?.text)return n.typography.text;for(const c of n.children){const found=bold(c);if(found)return found}}
   const label=((node&&bold(node))||edge.label).replace(/[\uE000-\uF8FF]|[\u{F0000}-\u{FFFFD}]|[\u{100000}-\u{10FFFD}]/gu,'').replace(/\s+/g,' ').trim()
-  observed.push({id:crypto.randomUUID(),sourceArtboardId:source.id,sourceElementId:node?.id,destinationId:destination.id,trigger:edge.trigger??'click',action:edge.action??'navigate',capturedView:true,kind:edge.kind,key:edge.key,inputValue:edge.value,transition:'instant',label:label.slice(0,200)})
+  observed.push({id:crypto.randomUUID(),sourceArtboardId:source.id,sourceElementId:node?.id,destinationId:destination.id,trigger:edge.trigger??'click',action:edge.action??'navigate',capturedView:true,kind:edge.kind,componentType:edge.componentType,key:edge.key,inputValue:edge.value,transition:'instant',label:label.slice(0,200)})
  }
  const definitions:{root:string;label:string;members:string[];tabs:boolean}[]=[],covered=new Set<string>()
  const tabs=new Set(observed.filter(e=>e.kind==='tab').map(e=>e.sourceArtboardId))
- const make=(root:string,label:string,destination?:string)=>{
-  const barriers=new Set(observed.filter(e=>!tabs.has(root)&&e.sourceArtboardId===root&&e.destinationId!==destination).map(e=>e.destinationId))
+ const tabMembers=new Set(observed.filter(e=>e.kind==='tab').flatMap(e=>[e.sourceArtboardId,...(e.destinationId?[e.destinationId]:[])])),tabCovered=new Set<string>()
+ const make=(root:string,label:string,destination?:string,tabsOnly=false)=>{
+  const barriers=new Set(observed.filter(e=>!tabsOnly&&e.sourceArtboardId===root&&e.destinationId!==destination).map(e=>e.destinationId))
   const members=new Set([root]),queue=destination?[destination]:[root];if(destination)members.add(destination)
-  const visited=new Set<string>();while(queue.length){const id=queue.shift()!;if(visited.has(id))continue;visited.add(id);for(const edge of observed){if(edge.sourceArtboardId!==id||!edge.destinationId||edge.destinationId===root||barriers.has(edge.destinationId))continue;members.add(edge.destinationId);queue.push(edge.destinationId)}}
-  definitions.push({root,label:label.slice(0,200)||name,members:[...members],tabs:tabs.has(root)});members.forEach(id=>covered.add(id))
+  const visited=new Set<string>();while(queue.length){const id=queue.shift()!;if(visited.has(id))continue;visited.add(id);for(const edge of observed){if((tabsOnly?edge.kind!=='tab':edge.kind==='tab')||edge.sourceArtboardId!==id||!edge.destinationId||edge.destinationId===root||barriers.has(edge.destinationId))continue;members.add(edge.destinationId);queue.push(edge.destinationId)}}
+  definitions.push({root,label:label.slice(0,200)||name,members:[...members],tabs:tabsOnly});members.forEach(id=>{covered.add(id);if(tabsOnly)tabCovered.add(id)})
  }
- for(const page of canonical){if(covered.has(page.id))continue;const outgoing=observed.filter(e=>e.sourceArtboardId===page.id&&e.destinationId!==page.id).sort((a,b)=>Number(b.trigger==='click')-Number(a.trigger==='click'));if(tabs.has(page.id)){make(page.id,page.name);continue}if(outgoing.length){const destinations=new Set<string>();for(const edge of outgoing){if(!edge.destinationId||destinations.has(edge.destinationId))continue;destinations.add(edge.destinationId);make(page.id,edge.label||'Continue',edge.destinationId)}}else make(page.id,page.name||name)}
+ for(const page of canonical){
+  if(covered.has(page.id)&&!tabMembers.has(page.id))continue
+  if(tabs.has(page.id)&&!tabCovered.has(page.id))make(page.id,page.name,undefined,true)
+  const outgoing=observed.filter(e=>e.sourceArtboardId===page.id&&e.destinationId!==page.id&&e.kind!=='tab').sort((a,b)=>Number(b.trigger==='click')-Number(a.trigger==='click'))
+  if(outgoing.length){const destinations=new Set<string>();for(const edge of outgoing){if(!edge.destinationId||destinations.has(edge.destinationId))continue;destinations.add(edge.destinationId);make(page.id,edge.label||'Continue',edge.destinationId)}}else if(!covered.has(page.id))make(page.id,page.name||name)
+ }
+
  const flows:PrototypeData['flows']=[],interactions:PrototypeData['interactions']=[],used=new Set<string>(),byId=new Map(canonical.map(p=>[p.id,p]))
  for(const definition of definitions){
   const id=crypto.randomUUID(),occurrences=new Map<string,string>(),elementMaps=new Map<string,Map<string,string>>()
@@ -45,7 +52,7 @@ export function artifactFlow(pages:VisualPage[],transitions:DetectedTransition[]
    occurrences.set(canonicalId,occurrence.id);elementMaps.set(canonicalId,ids)
   }
   flows.push({id,name:definition.label,kind:definition.tabs?'tabs':'journey',description:`${definition.label} · ${definition.members.length} captured views`,startArtboardId:occurrences.get(definition.root),artboardIds:[...occurrences.values()],positions:{},createdAt:now,updatedAt:now})
-  for(const edge of observed){if(!occurrences.has(edge.sourceArtboardId)||!edge.destinationId||!occurrences.has(edge.destinationId))continue;interactions.push({...edge,id:crypto.randomUUID(),sourceArtboardId:occurrences.get(edge.sourceArtboardId)!,destinationId:occurrences.get(edge.destinationId),sourceElementId:edge.sourceElementId?(elementMaps.get(edge.sourceArtboardId)?.get(edge.sourceElementId)??edge.sourceElementId):undefined})}
+  for(const edge of observed){if((definition.tabs?edge.kind!=='tab':edge.kind==='tab')||!occurrences.has(edge.sourceArtboardId)||!edge.destinationId||!occurrences.has(edge.destinationId))continue;interactions.push({...edge,id:crypto.randomUUID(),sourceArtboardId:occurrences.get(edge.sourceArtboardId)!,destinationId:occurrences.get(edge.destinationId),sourceElementId:edge.sourceElementId?(elementMaps.get(edge.sourceArtboardId)?.get(edge.sourceElementId)??edge.sourceElementId):undefined})}
  }
  if(coverage){coverage.captured=coverage.entries.filter(e=>e.status==='captured').length;coverage.failed=coverage.entries.filter(e=>e.status==='failed').length;if(coverage.failed)coverage.complete=false}
  const result:PrototypeData={version:1,flows,interactions,variables:{},scenarios:[],imports:[],coverage}

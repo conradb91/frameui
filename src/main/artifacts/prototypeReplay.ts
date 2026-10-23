@@ -16,7 +16,7 @@ function actionScript(step:ArtifactStep){return `(() => {
   const rect=el.getBoundingClientRect(),menu=owner.createElement('div');menu.setAttribute('role','listbox');menu.setAttribute('aria-label',(el.getAttribute('aria-label')||el.name||'Select')+' options');menu.setAttribute('data-frameui-native-menu','true');
   Object.assign(menu.style,{position:'fixed',left:rect.left+'px',top:Math.min(rect.bottom,innerHeight-240)+'px',width:Math.max(rect.width,160)+'px',maxHeight:'240px',overflowY:'auto',background:'#fff',color:'#172b40',border:'1px solid #b8c0cc',boxShadow:'0 6px 18px #0003',zIndex:'2147483647',font:getComputedStyle(el).font});
   for(const option of el.options){const row=owner.createElement('button');row.type='button';row.setAttribute('role','option');row.setAttribute('aria-selected',String(option.selected));row.setAttribute('data-frameui-select-target',step.selector);row.setAttribute('data-frameui-option-value',option.value);row.disabled=option.disabled;row.textContent=option.label;Object.assign(row.style,{display:'block',width:'100%',border:'0',padding:'8px 12px',textAlign:'left',font:'inherit',color:'inherit',background:option.selected?'#e7efff':'#fff'});menu.append(row)}
-  owner.body.append(menu);return true;
+  const top=el.closest('dialog:modal,[popover]:popover-open');if(top&&getComputedStyle(top).transform!=='none'){const bounds=top.getBoundingClientRect();menu.style.left=(rect.left-bounds.left)+'px';menu.style.top=(Math.min(rect.bottom,innerHeight-240)-bounds.top)+'px'};(top||owner.body).append(menu);return true;
  }
  if(step.event==='select'){
   owner.querySelectorAll('[data-frameui-native-menu]').forEach(n=>n.remove());
@@ -29,6 +29,13 @@ function actionScript(step:ArtifactStep){return `(() => {
  el.click();return true;
 })()`}
 export async function replayPrototype(web:WebContents,steps:ReplayStep[],signal?:AbortSignal){
+ const interrupted=(error:unknown)=>/Execution context was destroyed|Cannot find context with specified id|Render frame was disposed|ERR_ABORTED/i.test(error instanceof Error?error.message:String(error))
+ // A real page link replaces the JavaScript context. Never replay its click;
+ // retry only the observations that follow it in the destination document.
+ const observe=async(script:string)=>{
+  const deadline=Date.now()+10000
+  while(true){try{return await abortable(web.executeJavaScript(script),signal)}catch(error){signal?.throwIfAborted();if(!interrupted(error)||Date.now()>=deadline)throw error;await abortable(new Promise(resolve=>setTimeout(resolve,50)),signal)}}
+ }
  for(const raw of steps){
   signal?.throwIfAborted();const step=stepOf(raw)
   const hasPointer=typeof web.sendInputEvent==='function';let performed=false
@@ -43,9 +50,9 @@ export async function replayPrototype(web:WebContents,steps:ReplayStep[],signal?
    await abortable(web.executeJavaScript(`(() => {${resolvePrototypeElement};find(${JSON.stringify(step.selector)})?.focus();${step.key==='ESC'?`document.querySelectorAll('[data-frameui-native-menu]').forEach(n=>n.remove())`:''}})()`),signal)
    web.sendInputEvent({type:'keyDown',keyCode});web.sendInputEvent({type:'keyUp',keyCode});performed=true
   }
-  if(!performed&&!await abortable(web.executeJavaScript(actionScript(step)),signal))throw new Error('A prototype control changed. Recapture this state from the live prototype.')
-  if(typeof web.loadURL==='function'){const popup=await abortable(web.executeJavaScript('window.__frameuiDiscovery?.popup'),signal) as string|undefined;if(popup&&new URL(popup).origin===new URL(web.getURL()).origin)await abortable(web.loadURL(popup),signal)}
-  if(step.event!=='scroll')await abortable(web.executeJavaScript('window.scrollTo({left:0,top:0,behavior:"instant"})'),signal)
-  await abortable(web.executeJavaScript(SETTLE_PROTOTYPE_SCRIPT),signal)
+  if(!performed){try{if(!await abortable(web.executeJavaScript(actionScript(step)),signal))throw new Error('A prototype control changed. Recapture this state from the live prototype.')}catch(error){if(!interrupted(error))throw error}}
+  if(typeof web.loadURL==='function'){const popup=await observe('window.__frameuiDiscovery?.popup') as string|undefined;if(popup&&new URL(popup).origin===new URL(web.getURL()).origin)await abortable(web.loadURL(popup),signal)}
+  if(step.event!=='scroll')await observe('window.scrollTo({left:0,top:0,behavior:"instant"})')
+  await observe(SETTLE_PROTOTYPE_SCRIPT)
  }
 }

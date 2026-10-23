@@ -1,6 +1,7 @@
+import {PROTOTYPE_INSTRUCTIONS,PROTOTYPE_INSTRUCTIONS_FILENAME} from '../../../shared/prototypeInstructions'
 import {documentRequest} from '../../design/documentStore'
 import { beginImport, importSignal, setImportProject, cancelImport, finishImport, disposeImport } from '../../artifacts/importJob'
-import { unpackPrototypes, servePrototype, stopPrototype, managedPrototypeRoutes } from '../../artifacts/prototypeImport'
+import { isImportedPrototype, isManagedProjectFolder, unpackPrototypes, servePrototype, stopPrototype, managedPrototypeRoutes } from '../../artifacts/prototypeImport'
 import { randomUUID } from 'node:crypto'
 import {createHash} from 'node:crypto'
 import { z } from 'zod'
@@ -38,6 +39,18 @@ export function registerProjectHandlers(): void {
     return configureRuntime(app.getPath('userData'), runtimeProject(), input.url, input.source)
   })
   ipcMain.handle('project:verifyRuntime', () => verifyRuntime(app.getPath('userData'), runtimeProject()))
+  ipcMain.handle('project:downloadPrototypeInstructions', async event => {
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    if (!owner) throw new Error('Open the instructions from your FrameUI project.')
+    const result = await dialog.showSaveDialog(owner, {
+      title: 'Download Claude prototype instructions',
+      defaultPath: path.join(app.getPath('downloads'), PROTOTYPE_INSTRUCTIONS_FILENAME),
+      filters: [{name: 'Text file', extensions: ['txt']}],
+    })
+    if (result.canceled || !result.filePath) return {saved: false}
+    await fs.promises.writeFile(result.filePath, PROTOTYPE_INSTRUCTIONS, 'utf8')
+    return {saved: true}
+  })
   ipcMain.handle('project:downloadVerification', async event => {
     const projectId = runtimeProject()
     const connection = readRuntime(app.getPath('userData'), projectId)
@@ -126,7 +139,7 @@ export function registerProjectHandlers(): void {
     const sequence=++activationSequence
     const project=getRegisteredProject(app.getPath('userData'),projectIdInputSchema.parse(raw))
     if(!project||!fs.existsSync(project.path))throw new Error('The project folder is unavailable. Reconnect its repository.')
-    const artifact=project.path.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep)
+    const artifact=isImportedPrototype(project.path,app.getPath('userData'))
     const url=artifact?await servePrototype(project.path):readRuntime(app.getPath('userData'),project.id)?.url
     if(sequence!==activationSequence)return {url}
     if(artifact&&url)configureRuntime(app.getPath('userData'),project.id,url,'local')
@@ -183,7 +196,7 @@ export function registerProjectHandlers(): void {
   })
   ipcMain.handle('project:resumePrototypeImport',async(event,raw)=>{
     const {id,projectId}=z.object({id:z.string().uuid(),projectId:z.string().uuid()}).parse(raw),project=getRegisteredProject(app.getPath('userData'),projectId)
-    if(!project||!project.path.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep)||!fs.existsSync(path.join(project.path,'frameui-artifact.json')))throw new Error('Open an imported HTML or ZIP project first.')
+    if(!project||!isImportedPrototype(project.path,app.getPath('userData'))||!fs.existsSync(path.join(project.path,'frameui-artifact.json')))throw new Error('Open an imported HTML or ZIP project first.')
     beginImport(event.sender.id,id);setImportProject(event.sender.id,id,{projectId,rootPath:project.path})
     if(!importOwners.has(event.sender)){const ownerId=event.sender.id;importOwners.add(event.sender);event.sender.once('destroyed',()=>disposeImport(ownerId))}
     const url=await servePrototype(project.path);configureRuntime(app.getPath('userData'),projectId,url,'local')
@@ -194,7 +207,7 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('project:importPrototype',async(event,raw)=>{
     const input=z.union([z.string().uuid(),z.object({id:z.string().uuid(),projectId:z.string().uuid(),file:z.union([z.string().max(4096),z.array(z.string().max(4096)).min(1)]).optional()})]).parse(raw)
     const id=typeof input==='string'?input:input.id,prepared=typeof input==='string'?undefined:getRegisteredProject(app.getPath('userData'),input.projectId)
-    if(prepared&&!prepared.path.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep))throw new Error('Choose a prototype project folder.')
+    if(prepared&&!isManagedProjectFolder(prepared.path,app.getPath('userData')))throw new Error('Choose a prototype project folder.')
     const signal=beginImport(event.sender.id,id)
     if(!importOwners.has(event.sender)){const ownerId=event.sender.id;importOwners.add(event.sender);event.sender.once('destroyed',()=>disposeImport(ownerId))}
     const owner=BrowserWindow.fromWebContents(event.sender)
@@ -243,7 +256,7 @@ export function registerProjectHandlers(): void {
       return { ok: false, reason: 'missing' }
     }
 
-    const artifact=folderPath.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep)&&fs.existsSync(path.join(folderPath,'frameui-artifact.json'))
+    const artifact=isImportedPrototype(folderPath,app.getPath('userData'))
     const name = artifact ? JSON.parse(fs.readFileSync(path.join(folderPath,'frameui-artifact.json'),'utf8')).name : path.basename(folderPath)
     const project = recordProjectOpened(app.getPath('userData'), folderPath, name)
     activationSequence++

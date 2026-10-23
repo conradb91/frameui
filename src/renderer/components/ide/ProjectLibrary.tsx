@@ -1,9 +1,10 @@
+import {PrototypeInstructionsModal} from './PrototypeInstructionsModal'
 import './design-library.css'
 import { userFacingError } from '../../lib/userFacingError'
 import type { RuntimeConnection } from '@shared/types/project'
 import { PagesWorkspace } from './PagesWorkspace'
 import { useEffect, useMemo, useState } from 'react'
-import { FolderOpen, FilePlus2, ChevronRight, RefreshCcw, MoreHorizontal, Search, Archive, ArrowRight, Monitor, Box, Plus, Layers, CheckCircle2, Workflow, LayoutGrid, List } from 'lucide-react'
+import { FolderOpen, FileDown, FilePlus2, ChevronRight, RefreshCcw, MoreHorizontal, Search, Archive, ArrowRight, Monitor, Box, Plus, Layers, CheckCircle2, Workflow, LayoutGrid, List } from 'lucide-react'
 import type { VisualDocument } from '@shared/types/visualDesign'
 import type { ProjectIndex } from '@shared/types/projectIndex'
 import type { FrameUiApi } from '@shared/ipc-contract'
@@ -16,15 +17,17 @@ import { detectedAssets } from './pageLibrary'
 import { formatRoute, humanizeName } from './displayFormat'
 import { useStoredValue } from './preferences'
 
-export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen, onCreate, onRender, initialSection = 'Designs', onSectionChange, notice }: {
+export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen, onCreate, onRender, onImportPrototype, initialSection = 'Designs', onSectionChange, notice }: {
   document: VisualDocument; onBack: () => void; onRefresh: () => void; onOpen: (id: string) => void;
   /** Write-back for an on-demand capture session (`CaptureWorkspace`) —
    * same document-replacement contract `DesignIde`'s own `change()` uses. */
   onCapture: (document: VisualDocument) => void
   onCreate: (name: string, asset?: LibraryAsset, fileId?: string, viaCapture?: boolean, autoNamed?: boolean, captureUrl?: string) => void; initialSection?: ProjectSection
   onSectionChange?: (section: ProjectSection) => void; notice?: string
+  onImportPrototype: () => void
   onRender: (route: string) => void
 }) {
+  const [instructionsOpen,setInstructionsOpen]=useState(false)
   const [runtime,setRuntime]=useState<RuntimeConnection|null>(null)
   useEffect(()=>{let alive=true;void window.frameui.project.getRuntime().then(r=>{if(alive)setRuntime(r)}).catch(()=>{});const update=(event:Event)=>setRuntime((event as CustomEvent<RuntimeConnection>).detail);window.addEventListener('frameui:runtime-updated',update);return()=>{alive=false;window.removeEventListener('frameui:runtime-updated',update)}},[document.projectId])
   const [captureBusy, setCaptureBusy] = useState(false)
@@ -96,6 +99,7 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
       {notice && <span className="ide-status-pill" role="status">{notice}</span>}
       <div className="app-no-drag ide-topbar-actions">
         <button title="Refresh from Code" aria-label="Refresh from Code" disabled={captureBusy} onClick={onRefresh}><RefreshCcw size={15}/></button>
+        <button disabled={captureBusy} onClick={()=>setInstructionsOpen(true)}><FileDown size={15}/> Claude instructions</button>
         <ThemeControl/>
       </div>
     </header>
@@ -103,9 +107,9 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
       <ProjectNav disabled={captureBusy} name={document.name} section={section} onSelect={setSection} onBack={()=>{if(!captureBusy)onBack()}} counts={{Designs:active.length,Pages:pagesCount,Components:componentsCount,Styles:stylesCount,Assets:assets.length,Archive:archived.length+archivedPages.length}}/>
 
       <main className={`ide-library-main ${section==='Pages'?'pages-library-main':section==='Designs'?'designs-library-main':''}`}>
-        <header className="ide-section-heading"><div><h1>{heading}</h1><p>{sectionDescriptions[section]}</p></div>{(section==='Designs'||section==='Pages') && <div className="ide-library-heading-actions"><button aria-label="View archive" disabled={captureBusy} onClick={()=>setSection('Archive')}><Archive size={15}/>Archive</button>{section === 'Designs' && <button className="primary" onClick={() => setNewDesign({})}><FilePlus2 size={16}/> New Design</button>}</div>}</header>
+        <header className="ide-section-heading"><div><h1>{heading}</h1><p>{sectionDescriptions[section]}</p></div>{(section==='Designs'||section==='Pages') && <div className="ide-library-heading-actions"><button disabled={captureBusy} onClick={onImportPrototype}><FolderOpen size={16}/> Import files</button><button aria-label="View archive" disabled={captureBusy} onClick={()=>setSection('Archive')}><Archive size={15}/>Archive</button>{section === 'Designs' && <button className="primary" onClick={() => setNewDesign({})}><FilePlus2 size={16}/> New Design</button>}</div>}</header>
         {(section==='Designs'||section==='Pages')&&<nav className="studio-journey" aria-label="Project workflow">
-          <div data-complete="true"><span>✓</span><div><strong>{prototypeOnly?'HTML prototype':appOnly?'Running app':'Repository'}</strong><small>{prototypeOnly?'Imported locally':appOnly?'No source mapping':'Indexed & ready'}</small></div></div>
+          <div data-complete="true"><span>✓</span><div><strong>{prototypeOnly?'HTML prototype':appOnly?'Running app':'Project'}</strong><small>{prototypeOnly?'Imported locally':appOnly?'No source mapping':index?.projectModel.components.length?'Indexed & ready':'Add your content'}</small></div></div>
           <button disabled={captureBusy} onClick={()=>{setSection('Pages');requestAnimationFrame(()=>window.dispatchEvent(new Event('frameui:show-connection')))}} data-complete={!!(runtime?.connectedAt||runtime?.verifiedAt)}><span>{(runtime?.connectedAt||runtime?.verifiedAt)?'✓':'2'}</span><div><strong>Connect app</strong><small>{(runtime?.connectedAt||runtime?.verifiedAt)?'Connected':'Localhost or hosted domain'}</small></div></button>
           <button disabled={captureBusy} onClick={()=>setSection('Pages')} data-complete={document.pages.length>0}><span>{document.pages.length?'✓':'3'}</span><div><strong>Capture pages</strong><small>{document.pages.length?`${document.pages.length} screen${document.pages.length===1?'':'s'} ready`:'Choose your starting screens'}</small></div></button>
           <button disabled={captureBusy} onClick={()=>setNewDesign({})}><span>4</span><div><strong>Design &amp; prototype</strong><small>Flows, AI drafts &amp; approval</small></div></button>
@@ -161,6 +165,7 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
         {error&&<div className="ide-error-toast is-inline" role="alert"><span>{userFacingError(error)}</span><button type="button" aria-label="Dismiss error" onClick={()=>setError('')}>×</button></div>}
       </main>
     </div>
+    {instructionsOpen&&<PrototypeInstructionsModal onClose={()=>setInstructionsOpen(false)}/>}
     {menu && fileActions.length>0 && <ActionMenu actions={fileActions} x={menu.x} y={menu.y} onClose={()=>setMenu(null)}/>}
     {newDesign && <NewDesignModal
       projectId={document.id}

@@ -5,7 +5,7 @@ import type {WebContents} from 'electron'
 import type {VisualDocument} from '../../shared/types/visualDesign'
 import type {StructuredFont} from '../../shared/types/structuredDesign'
 import {getRegisteredProject} from '../../core/workspace/models/recentProjectsStore'
-import {servePrototype,managedPrototypeRoutes} from '../artifacts/prototypeImport'
+import {servePrototype,managedPrototypeRoutes,isImportedPrototype} from '../artifacts/prototypeImport'
 const canonical=(s:string)=>s.replace(/["']/g,'').trim().toLowerCase()
 /** Recover font bytes from a managed HTML artifact for older captures that omitted webfonts.
  * Reads HTML/CSS only; does not execute the prototype or change the active repository.
@@ -13,7 +13,7 @@ const canonical=(s:string)=>s.replace(/["']/g,'').trim().toLowerCase()
 export async function restoreArtifactFonts(document:VisualDocument,contents:WebContents,userData:string,signal:AbortSignal):Promise<VisualDocument>{
  if(!document.projectId||!document.pages.some(p=>p.artifactSource))return document
  const project=getRegisteredProject(userData,document.projectId)
- if(!project?.path.startsWith(path.join(userData,'artifact-projects')+path.sep)||!fs.existsSync(path.join(project.path,'frameui-artifact.json')))return document
+ if(!project||!isImportedPrototype(project.path,userData))return document
  const missing=new Set<string>()
  for(const page of document.pages){
   if(!page.artifactSource)continue

@@ -265,13 +265,14 @@ describe('localized edits retain untouched subtree identity', () => {
 })
 
  describe('native control text editing',()=>{
- test('edits placeholder separately from the default value and preserves source metadata',()=>{
+ test('edits visible default value and preserves placeholder and source metadata',()=>{
  const original=frame([node({id:'input',source:{tag:'input',file:'Login.tsx',control:{type:'email',placeholder:'Email address',value:'saved@example.com'}}})]);
  const edited=updateStructuredNodeText(original,'input','Work email');
- expect(edited.children[0].source.control).toEqual({type:'email',placeholder:'Work email',value:'saved@example.com'});
+ expect(edited.children[0].source.control).toEqual({type:'email',placeholder:'Email address',value:'Work email'});
  expect(edited.children[0].source.file).toBe('Login.tsx');expect(original.children[0].source.control?.placeholder).toBe('Email address');
  expect(updateStructuredNodeText(edited,'input','Work email')).toBe(edited);
  });
+ test('edits placeholder when the captured value is empty',()=>{const original=frame([node({id:'input',source:{tag:'input',control:{type:'text',value:'',placeholder:'Before'}}})]);const edited=updateStructuredNodeText(original,'input','After');expect(edited.children[0].source.control).toMatchObject({value:'',placeholder:'After'});});
  test('edits a captured default value when no placeholder exists; respects locks',()=>{
  const original=frame([node({id:'input',source:{tag:'input',control:{type:'text',value:'Before'}}})]);
  expect(updateStructuredNodeText(original,'input','After').children[0].source.control?.value).toBe('After');

@@ -101,7 +101,7 @@ export function registerExportHandlers(): void {
       progress('Matching design fonts',15)
       const renderedFonts=await renderedExportFonts(event.sender,request.document,fontAbort.signal)
       progress('Preserving text layout',35)
-      const renderedLines=await renderedExportText(event.sender,request.document,fontAbort.signal)
+      const renderedLines=await renderedExportText(event.sender,request.document,fontAbort.signal,(completed,total)=>progress(`Preserving text layout ${completed} of ${total}`,35+10*completed/total))
       progress('Preparing images and effects',45)
       const renderedImages=await renderedExportImages(event.sender,request.document,fontAbort.signal)
       if(canceled)return {ok:false,canceled:true}

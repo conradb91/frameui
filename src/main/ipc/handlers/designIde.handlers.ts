@@ -10,7 +10,7 @@ import {documentRequest} from '../../design/documentStore'
 import { PREPARE_ARTIFACT_CONTENT_SCRIPT } from './capture/contentHeight'
 import { importSignal, importProject, abortable } from '../../artifacts/importJob'
 import { explorePrototype, replayPrototype,inspectScript } from '../../artifacts/explorePrototype'
-import { managedPrototypeRoutes, servePrototype } from '../../artifacts/prototypeImport'
+import {isImportedPrototype, managedPrototypeRoutes, servePrototype } from '../../artifacts/prototypeImport'
 import { runtimeAllowed } from '../../security/runtimePolicy'
 import { enableCaptureMotion } from './cdp/captureMotion'
 import { captureResources, embedIframeFallbacks } from './captureResources'
@@ -464,21 +464,21 @@ async function collectRuntimeRoutes(
  * silently misrender them. Any width outside this feature's three sizes
  * (link-crawling during discovery, legacy/arbitrary add-route captures)
  * falls back to the pre-existing 1000, unaffected by this lookup. */
-const CAPTURE_VIEWPORT_HEIGHTS: Record<number, number> = { 1920: 1080, 1440: 1024, 768: 1024, 390: 844 }
+const CAPTURE_VIEWPORT_HEIGHTS: Record<number, number> = { 1920: 1080, 1440: 1024, 768: 1024, 375: 812, 390: 844, 430: 932 }
 function heightForWidth(width: number): number {
   return CAPTURE_VIEWPORT_HEIGHTS[width] ?? 1000
 }
 async function browser(url: string, width = 1440, height = 1000, signal?: AbortSignal, profile = 'standard',project=getActiveProject()) {
   signal?.throwIfAborted()
   if(!runtimeAllowed(app.getPath('userData'),project?.projectId,url))throw new Error('Connect this app address to its project before capturing.')
-  const artifactRuntime=!!project?.rootPath.includes('/artifact-projects/')
+  const artifactRuntime=!!project&&isImportedPrototype(project.rootPath,app.getPath('userData'))
   const win = new BrowserWindow({
     show: false,
     useContentSize: true,
     width,
     height,
     webPreferences: {
-      partition: artifactRuntime?'frameui-artifact-'+crypto.randomUUID():partition(profile,project?.projectId),
+      partition: artifactRuntime?'frameui-artifact-'+project!.projectId:partition(profile,project?.projectId),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -502,7 +502,12 @@ async function browser(url: string, width = 1440, height = 1000, signal?: AbortS
   })
   // Establish a CDP target before applying the origin guard, which correctly
   // rejects data: navigations once capture security is active.
-  try { await abortable(win.loadURL('data:text/html,<body></body>'),signal) }
+  try {
+    // Keep the project's HTTP asset cache, but reset prototype data before every
+    // branch. Re-downloading fonts for each click used most of discovery's budget.
+    if(artifactRuntime)await abortable(win.webContents.session.clearStorageData({storages:['cookies','filesystem','indexdb','localstorage','websql','serviceworkers','cachestorage']}),signal)
+    await abortable(win.loadURL('data:text/html,<body></body>'),signal)
+  }
   catch (e) { if (!win.isDestroyed()) win.destroy(); throw e }
   signal?.throwIfAborted()
   guardGuest(win, new URL(url).origin)
@@ -558,7 +563,7 @@ async function browser(url: string, width = 1440, height = 1000, signal?: AbortS
       if (!password) return false;
       return Array.from((password.form || document).querySelectorAll('button,input[type="submit"]')).some(el => visible(el) && /^(sign[ -]?in|log[ -]?in)$/i.test((el.textContent || el.value || '').trim()));
     })()`)
-    if (loginForm && !project?.rootPath.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep) && !/\/(?:login|sign-in|signin|auth)(?:\/|$)/i.test(new URL(url).pathname))
+    if (loginForm && !(project&&isImportedPrototype(project.rootPath,app.getPath('userData'))) && !/\/(?:login|sign-in|signin|auth)(?:\/|$)/i.test(new URL(url).pathname))
       throw new Error('Sign in to your application before capturing this page.')
     return win
   } catch (e) {
@@ -698,9 +703,9 @@ export function registerDesignIdeHandlers() {
   // Source routes are already indexed. Approve only the user-selected paths;
   // do not crawl the whole application before a single-page capture.
   ipcMain.handle('design:discoverArtifact', async (event,raw) => {
-    const {id,width,resume}=z.object({id:z.string().uuid(),width:z.number().int().min(240).max(3840).default(1440),resume:z.boolean().optional()}).parse(typeof raw==='string'?{id:raw}:raw),signal=importSignal(event.sender.id,id)
+    const {id,width,resume,mode}=z.object({id:z.string().uuid(),width:z.number().int().min(240).max(3840).default(1440),resume:z.boolean().optional(),mode:z.enum(['simple','detailed']).default('detailed')}).parse(typeof raw==='string'?{id:raw}:raw),signal=importSignal(event.sender.id,id)
     const active=importProject(event.sender.id,id)
-    if(!active.rootPath.startsWith(path.join(app.getPath('userData'),'artifact-projects')+path.sep))throw new Error('Import a local HTML or ZIP prototype first.')
+    if(!isImportedPrototype(active.rootPath,app.getPath('userData')))throw new Error('Import a local HTML or ZIP prototype first.')
     if(capturing)throw new Error('Wait for capture to finish.')
     const controller=new AbortController(),abort=()=>controller.abort(signal.reason)
     signal.addEventListener('abort',abort,{once:true})
@@ -710,12 +715,12 @@ export function registerDesignIdeHandlers() {
       const url=await servePrototype(active.rootPath)
       const checkpointPath=path.join(active.rootPath,'frameui-discovery-checkpoint.json')
       let checkpoint:DiscoveryCheckpoint|undefined
-      if(resume){try{const stored=JSON.parse(await fs.promises.readFile(checkpointPath,'utf8'));if(stored.version===2&&stored.width===width)checkpoint=stored.checkpoint}catch{/* A fresh traversal is safe if the checkpoint is unavailable. */}}
+      if(resume){try{const stored=JSON.parse(await fs.promises.readFile(checkpointPath,'utf8'));if(stored.version===2&&stored.width===width&&(stored.mode??'detailed')===mode)checkpoint=stored.checkpoint}catch{/* A fresh traversal is safe if the checkpoint is unavailable. */}}
       const result=await abortable(explorePrototype(url,await managedPrototypeRoutes(active.rootPath),address=>browser(address,width,heightForWidth(width),controller.signal,'standard',active),controller.signal,progress=>{
         if(!event.sender.isDestroyed())event.sender.send('project:prototypeImportProgress',{...progress,id,stage:'discover'})
-      },{checkpoint,onCheckpoint:async value=>{const temporary=checkpointPath+'.tmp';await fs.promises.writeFile(temporary,JSON.stringify({version:2,width,checkpoint:value}));await fs.promises.rename(temporary,checkpointPath)}}),controller.signal)
+      },{mode,checkpoint,onCheckpoint:async value=>{const temporary=checkpointPath+'.tmp';await fs.promises.writeFile(temporary,JSON.stringify({version:2,width,mode,checkpoint:value}));await fs.promises.rename(temporary,checkpointPath)}}),controller.signal)
       signal.throwIfAborted()
-      await fs.promises.writeFile(path.join(active.rootPath,'frameui-discovery-report.json'),JSON.stringify({createdAt:new Date().toISOString(),scope:'Bounded safe navigation and disclosure exploration',limits:result.coverage.limits,coverage:result.coverage,queryPolicy:'Sorted query parameters distinguish state; ordinary scroll anchors do not.',deduplication:result.deduplication,warnings:result.warnings},null,2))
+      await fs.promises.writeFile(path.join(active.rootPath,'frameui-discovery-report.json'),JSON.stringify({createdAt:new Date().toISOString(),mode,scope:mode==='simple'?'Linked page navigation':'Bounded safe navigation and disclosure exploration',limits:result.coverage.limits,coverage:result.coverage,queryPolicy:'Sorted query parameters distinguish state; ordinary scroll anchors do not.',deduplication:result.deduplication,warnings:result.warnings},null,2))
       if(!result.states.length)throw new Error('The prototype did not render a visible interface. Export standalone HTML with its assets, or connect a running app for source-only projects.')
       const routes=result.states.map(state=>({pattern:state.pattern,url:state.url,name:state.name,sources:['runtime' as const]}))
       approved={token:crypto.randomUUID(),routes,origin:new URL(url).origin,projectId:active.projectId,profile:'standard',artifactSteps:Object.fromEntries(result.states.map(s=>[s.pattern,s.steps]))}

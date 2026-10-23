@@ -269,7 +269,7 @@ function jsonFile(path: string, value: unknown): FrameUiPackageFile {
   return { path, content: JSON.stringify(value, null, 2), encoding: 'utf8' }
 }
 
-export function buildFrameUiPackage(input: BuildFrameUiPackageInput): FrameUiPackageBuild {
+export function buildFrameUiModel(input: BuildFrameUiPackageInput) {
   const active = input.documents.find((document) => document.id === input.activeDocumentId) ?? input.documents[0]
   if (!active) throw new Error('There is no design to export.')
   const documents = input.options.scope === 'all-designs' ? input.documents : [active]
@@ -302,16 +302,22 @@ export function buildFrameUiPackage(input: BuildFrameUiPackageInput): FrameUiPac
   const manifest: FrameUiExportManifest = {
     formatVersion: '1.0.0', frameuiVersion: input.frameuiVersion, frameuiDocumentId: active.id, projectName: active.name, exportedAt, documentName: active.name, documentWidthUnit: 'px', colourSpace: 'sRGB', pageCount: pages.length, artboardCount: pages.length, componentCount: components.length, assetCount: ctx.assets.length, tokenCount: tokens.length, targetApplication: input.target === 'figma' ? 'Figma' : 'Adobe XD', targetVersion: 'current', scope: input.options.scope, warnings: warnings.length,
   }
-  const files: FrameUiPackageFile[] = [
-    jsonFile('manifest.json', manifest),
-    jsonFile('document.json', { version: 1, documentId: active.id, name: active.name, pages }),
-    jsonFile('components.json', { version: 1, components }),
-    jsonFile('tokens.json', { version: 1, tokens }),
-    jsonFile('interactions.json', { version: 1, interactions }),
-    jsonFile('assets.json', { version: 1, assets: ctx.assets }),
-    jsonFile('fonts.json', { version: 1, fonts }),
-    jsonFile('warnings.json', { version: 1, warnings }),
-    ...ctx.assetFiles,
-  ]
-  return { files, manifest, warnings, stats: { designs: documents.length, artboards: pages.length, components: components.length, assets: ctx.assets.length, variables: tokens.length } }
+  return { documentId:active.id,name:active.name,pages,components,tokens,interactions,assets:ctx.assets,fonts,assetFiles:ctx.assetFiles,manifest,warnings,stats:{designs:documents.length,artboards:pages.length,components:components.length,assets:ctx.assets.length,variables:tokens.length} }
+}
+
+/** Text-package consumers serialize here; native exporters use the model directly. */
+export function buildFrameUiPackage(input:BuildFrameUiPackageInput):FrameUiPackageBuild{
+ const model=buildFrameUiModel(input)
+ const files:FrameUiPackageFile[]=[
+  jsonFile('manifest.json',model.manifest),
+  jsonFile('document.json',{version:1,documentId:model.documentId,name:model.name,pages:model.pages}),
+  jsonFile('components.json',{version:1,components:model.components}),
+  jsonFile('tokens.json',{version:1,tokens:model.tokens}),
+  jsonFile('interactions.json',{version:1,interactions:model.interactions}),
+  jsonFile('assets.json',{version:1,assets:model.assets}),
+  jsonFile('fonts.json',{version:1,fonts:model.fonts}),
+  jsonFile('warnings.json',{version:1,warnings:model.warnings}),
+  ...model.assetFiles,
+ ]
+ return {files,manifest:model.manifest,warnings:model.warnings,stats:model.stats}
 }
