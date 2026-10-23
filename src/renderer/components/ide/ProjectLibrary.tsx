@@ -17,13 +17,14 @@ import { detectedAssets } from './pageLibrary'
 import { formatRoute, humanizeName } from './displayFormat'
 import { useStoredValue } from './preferences'
 
-export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen, onCreate, onRender, onImportPrototype, initialSection = 'Designs', onSectionChange, notice }: {
+export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen, onCreate, onRender, onImportPrototype, onImportChromeCapture, initialSection = 'Designs', onSectionChange, notice }: {
   document: VisualDocument; onBack: () => void; onRefresh: () => void; onOpen: (id: string) => void;
   /** Write-back for an on-demand capture session (`CaptureWorkspace`) —
    * same document-replacement contract `DesignIde`'s own `change()` uses. */
   onCapture: (document: VisualDocument) => void
   onCreate: (name: string, asset?: LibraryAsset, fileId?: string, viaCapture?: boolean, autoNamed?: boolean, captureUrl?: string) => void; initialSection?: ProjectSection
   onSectionChange?: (section: ProjectSection) => void; notice?: string
+  onImportChromeCapture: () => void
   onImportPrototype: () => void
   onRender: (route: string) => void
 }) {
@@ -99,6 +100,7 @@ export function ProjectLibrary({ document, onBack, onRefresh, onCapture, onOpen,
       {notice && <span className="ide-status-pill" role="status">{notice}</span>}
       <div className="app-no-drag ide-topbar-actions">
         <button title="Refresh from Code" aria-label="Refresh from Code" disabled={captureBusy} onClick={onRefresh}><RefreshCcw size={15}/></button>
+        <button disabled={captureBusy} onClick={onImportChromeCapture}><FileDown size={15}/> Import Chrome capture</button>
         <button disabled={captureBusy} onClick={()=>setInstructionsOpen(true)}><FileDown size={15}/> Claude instructions</button>
         <ThemeControl/>
       </div>

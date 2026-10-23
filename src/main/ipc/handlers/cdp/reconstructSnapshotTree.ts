@@ -362,6 +362,9 @@ export function reconstructSnapshotTree(
     const tag = tagOf(domIndex)
     if (NON_VISUAL_TAGS.has(tag)) return []
 
+    const attrsAll = allAttributesOf(domIndex)
+    const closedDetails=tag==='details'&&attrsAll.open===undefined
+    const visibleSummary=closedDetails?childrenOf[domIndex].find(child=>nodeTypeArr[child]===1&&tagOf(child)==='summary'):undefined
     const childDescendants: CapturedElement[] = []
     // CDP can list ::after before real children. Replay CSS painting order.
     const orderedChildren = [...childrenOf[domIndex]].sort((a,b) => {
@@ -369,6 +372,9 @@ export function reconstructSnapshotTree(
       return rank(a)-rank(b)
     })
     for (const child of orderedChildren) {
+      // Modern Chrome retains layout boxes inside closed details. They are
+      // not painted; only the first summary and the host's pseudos are visible.
+      if(closedDetails&&child!==visibleSummary&&!pseudoTypeOf.has(child))continue
       if (shadowRootTypeOf.has(child)) {
         for (const shadowChild of childrenOf[child]) childDescendants.push(...convert(shadowChild))
       } else {
@@ -381,7 +387,6 @@ export function reconstructSnapshotTree(
     // captured descendants — they attach to the nearest real ancestor.
     if (layoutIdx === undefined) return childDescendants
 
-    const attrsAll = allAttributesOf(domIndex)
     const styles = stylesAt(layoutIdx)
     const rect = rectAt(layoutIdx)
 

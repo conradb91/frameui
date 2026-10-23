@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "FrameUI Capture \u2014 Local",
+  "version": "0.1.0",
+  "description": "Capture editable pages and recorded flows, then export Adobe XD directly in Chrome. Processing stays on your computer.",
+  "minimum_chrome_version": "125",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4yIJXsTwAP1Vp1Mr2fKSedh3S7kaNIvC9eB+p5I0YDtSQys1Fhhi0A8ampW2W21tW93ODboJDVgQ7pH/4SFVIATh0zsFQfiWLvLnsf/2GmiIGitsQppYarl126HwsiJNogegxpaiZb7cry1T24zneHlj8F+etFFYBM+ta+oIDEtVL6eWJumEZEXASjVGhacOI48hZPrjIrJOuaOCvBXbV1ECxF+GPIJhNSDHLqxumOxpKE96TdKOQeHZqRVymVakCrk/4s5FCv6S86eHWwX9GRLaEUgFMZIraHUC75tZccqVhGSGIEjYFgHSxM7Z7fYzJXWopd6MqWurU6WPvgZzcwIDAQAB",
+  "permissions": [
+    "activeTab",
+    "debugger",
+    "scripting",
+    "storage",
+    "unlimitedStorage",
+    "downloads",
+    "sidePanel",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open FrameUI Capture"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; worker-src 'self'"
+  }
+}

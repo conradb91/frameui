@@ -436,3 +436,13 @@ test('absolute generated circular badges retain their CSS box independently from
  expect(badge.children[0].rect.x).toBe(46.5)
  expect(badge.children[0].rect.y).toBeCloseTo(22.4)
 })
+
+test('closed details omit retained unpainted descendant layout; opening restores it',()=>{
+ const requestedStyles=['display','color'],nodes:NodeSpec[]=[{tag:'HTML',parent:-1},{tag:'BODY',parent:0},{tag:'DETAILS',parent:1},{tag:'SUMMARY',parent:2},{tag:'#text',parent:3,text:'More'},{tag:'P',parent:2},{tag:'#text',parent:5,text:'Hidden details'}]
+ const layout=nodes.map((_,node)=>({node,bounds:[0,node*20,300,20] as [number,number,number,number],styles:{display:'block'},text:nodes[node].text}))
+ const closed=reconstructSnapshotTree(buildSnapshot({nodes,layout,requestedStyles}),requestedStyles,{width:1440,height:900})
+ expect(JSON.stringify(closed)).toContain('More');expect(JSON.stringify(closed)).not.toContain('Hidden details')
+ nodes[2].attributes={open:''}
+ const opened=reconstructSnapshotTree(buildSnapshot({nodes,layout,requestedStyles}),requestedStyles,{width:1440,height:900})
+ expect(JSON.stringify(opened)).toContain('Hidden details')
+})

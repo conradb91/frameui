@@ -1,3 +1,6 @@
+import {chromeCaptureDocument} from '../../../core/prototype/chromeCapture'
+import {packDocument,unpackDocument} from '../../../shared/documentResources'
+import type {VisualDocument} from '../../../shared/types/visualDesign'
 import {PROTOTYPE_INSTRUCTIONS,PROTOTYPE_INSTRUCTIONS_FILENAME} from '../../../shared/prototypeInstructions'
 import {documentRequest} from '../../design/documentStore'
 import { beginImport, importSignal, setImportProject, cancelImport, finishImport, disposeImport } from '../../artifacts/importJob'
@@ -25,6 +28,33 @@ import { broadcast } from '../rendererEvents'
 const { app, ipcMain, dialog, BrowserWindow, shell } = electron
 
 export function registerProjectHandlers(): void {
+  let receivingChromeCapture=false
+  const saveChromeCapture=async(raw:unknown,libraryId?:string)=>{
+    const document=chromeCaptureDocument(raw)
+    if(libraryId){const library=unpackDocument<VisualDocument>(await documentRequest('load',path.join(app.getPath('userData'),'design-files',libraryId+'.json')));if(!library?.projectId||library.libraryId)throw new Error('Open a project before importing a Chrome capture.');document.projectId=library.projectId;document.libraryId=library.id}
+    await documentRequest('save',path.join(app.getPath('userData'),'design-files',document.id+'.json'),document)
+    return packDocument(document)
+  }
+  ipcMain.handle('project:importChromeCapture',async(event,raw)=>{
+    const libraryId=z.string().uuid().parse(raw),owner=BrowserWindow.fromWebContents(event.sender)
+    if(!owner)throw new Error('Open a project in FrameUI first.')
+    const selected=await dialog.showOpenDialog(owner,{title:'Import Chrome capture',properties:['openFile'],filters:[{name:'FrameUI Chrome capture',extensions:['json']}]})
+    if(selected.canceled||!selected.filePaths[0])return null
+    return saveChromeCapture(JSON.parse(await fs.promises.readFile(selected.filePaths[0],'utf8')),libraryId)
+  })
+  ipcMain.handle('project:takeChromeCapture',async()=>{
+    if(receivingChromeCapture)return null
+    receivingChromeCapture=true
+    try{
+      const inbox=path.join(app.getPath('appData'),'FrameUI Chrome Bridge','inbox')
+      const names=await fs.promises.readdir(inbox).catch(()=>[])
+      const name=names.filter(n=>/^[a-f0-9-]{36}\.json$/.test(n)).sort()[0]
+      if(!name)return null
+      const file=path.join(inbox,name)
+      try{const result=await saveChromeCapture(JSON.parse(await fs.promises.readFile(file,'utf8')));await fs.promises.unlink(file);return result}
+      catch(error){await fs.promises.rename(file,file+'.invalid');throw error}
+    }finally{receivingChromeCapture=false}
+  })
   const selectedLocations=new Map<number,{kind:string;path:string;files?:string[]}>()
   const importOwners=new WeakSet<Electron.WebContents>()
   let activationSequence=0

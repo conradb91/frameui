@@ -251,6 +251,8 @@ export interface FrameUiApi {
     getRuntime(): Promise<import('./types/project').RuntimeConnection | null>
     configureRuntime(url: string, source: import('./types/project').RuntimeSource): Promise<import('./types/project').RuntimeConnection>
     verifyRuntime(): Promise<import('./types/project').RuntimeConnection>
+    importChromeCapture(libraryId:string): Promise<import('./types/visualDesign').VisualDocument|null>
+    takeChromeCapture(): Promise<import('./types/visualDesign').VisualDocument|null>
     downloadPrototypeInstructions(): Promise<{ saved: boolean }>
     downloadVerification(): Promise<{ saved: boolean }>
 

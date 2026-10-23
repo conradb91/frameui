@@ -164,6 +164,8 @@ const api: FrameUiApi = {
     getRuntime: () => ipcRenderer.invoke('project:getRuntime'),
     configureRuntime: (url, source) => ipcRenderer.invoke('project:configureRuntime', { url, source }),
     verifyRuntime: () => ipcRenderer.invoke('project:verifyRuntime'),
+    importChromeCapture: id => ipcRenderer.invoke('project:importChromeCapture',id).then(value=>value?unpackDocument(value):null),
+    takeChromeCapture: () => ipcRenderer.invoke('project:takeChromeCapture').then(value=>value?unpackDocument(value):null),
     downloadPrototypeInstructions: () => ipcRenderer.invoke('project:downloadPrototypeInstructions'),
     downloadVerification: () => ipcRenderer.invoke('project:downloadVerification'),
 

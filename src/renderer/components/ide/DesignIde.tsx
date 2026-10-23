@@ -905,6 +905,12 @@ export function DesignIde() {
     docRef.current=next;setDoc(next)
   }
   const projectActivation=useRef<Promise<unknown>>(Promise.resolve())
+  useEffect(()=>{
+    let stopped=false,running=false
+    const receive=async()=>{if(running||stopped)return;running=true;try{const next=await window.frameui.project.takeChromeCapture();if(next&&!stopped){await saveQueue.current;open(next);setImportSummary('Chrome flow received')}}catch(error){if(!stopped)setError(userFacingError(error))}finally{running=false}}
+    const timer=window.setInterval(()=>void receive(),2000);void receive()
+    return()=>{stopped=true;window.clearInterval(timer)}
+  },[])
   function open(next: VisualDocument) {
     next=isolateImportedFlows(next)
     if(next.projectId){
@@ -2667,6 +2673,7 @@ export function DesignIde() {
             void window.frameui.project.listLibrary().then(setProjectLibrary).catch(() => {})
           }}
           onRefresh={() => void connectApp()}
+          onImportChromeCapture={()=>void window.frameui.project.importChromeCapture(doc.id).then(next=>{if(next)open(next)}).catch(e=>setError(userFacingError(e)))}
           onImportPrototype={()=>void (async()=>{const project=(await window.frameui.project.listLibrary()).find(p=>p.id===doc.projectId);if(!project)throw new Error('The project folder is unavailable.');startProject('prototype');setStarterName(project.name);setStarterProject(project)})().catch(e=>setError(userFacingError(e)))}
           onCapture={(next) => change(next, false)}
           onRender={(route) => { void renderSource(route) }}
